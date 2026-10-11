@@ -60,6 +60,14 @@ const cannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new THREE
 cannon.rotation.x=Math.PI/2;cannon.position.set(0,1.2,-2.25);ship.add(cannon);
 for(const x of [-1.6,1.6]){const motor=new THREE.Mesh(new THREE.BoxGeometry(.85,.75,1.25),new THREE.MeshStandardMaterial({color:0x2b4751,metalness:.5}));motor.position.set(x,.55,2.2);ship.add(motor)}
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
+// NPC 01: patrulheiro de teste, geometria temporária até chegada dos sprites.
+const npc=new THREE.Group();scene.add(npc);npc.scale.setScalar(1.9);
+const npcHull=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.8,1.05,28),new THREE.MeshStandardMaterial({color:0xb94348,metalness:.35,roughness:.48}));npcHull.position.y=.25;npc.add(npcHull);
+const npcDeck=new THREE.Mesh(new THREE.CylinderGeometry(1.95,2.15,.45,28),new THREE.MeshStandardMaterial({color:0x465c67,metalness:.3,roughness:.5}));npcDeck.position.y=.92;npc.add(npcDeck);
+const npcCockpit=new THREE.Mesh(new THREE.SphereGeometry(.95,16,10),new THREE.MeshStandardMaterial({color:0x162c3d,metalness:.35,roughness:.3}));npcCockpit.scale.set(1,.5,.85);npcCockpit.position.y=1.45;npc.add(npcCockpit);
+const npcCannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new THREE.MeshStandardMaterial({color:0x293942,metalness:.6,roughness:.35}));npcCannon.rotation.x=Math.PI/2;npcCannon.position.set(0,1.2,-2.25);npc.add(npcCannon);
+const npcData={x:14,z:-75,y:0,heading:0,speed:6,anchorX:14,anchorZ:-75};
+const npcShadow=new THREE.Mesh(new THREE.CircleGeometry(5.1,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.2,depthWrite:false}));npcShadow.rotation.x=-Math.PI/2;scene.add(npcShadow);
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
@@ -135,6 +143,38 @@ ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=headin
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
 shadow.position.set(x,height(x,z,t)+.14,z);
+// Patrulha lenta no oceano, com flutuação compartilhada com as ondas.
+const patrol=t*.17;
+const destX=npcData.anchorX+Math.sin(patrol)*15;
+const destZ=npcData.anchorZ+Math.cos(patrol)*15;
+const desiredYaw=-Math.atan2(destX-npcData.x,-(destZ-npcData.z));
+const deltaYaw=Math.atan2(Math.sin(desiredYaw-npcData.heading),Math.cos(desiredYaw-npcData.heading));
+npcData.heading+=THREE.MathUtils.clamp(deltaYaw,-1.3*dt,1.3*dt);
+npcData.x-=Math.sin(npcData.heading)*npcData.speed*dt;
+npcData.z-=Math.cos(npcData.heading)*npcData.speed*dt;
+// Colisão circular XZ: empurrões sem dano, sem mudar a orientação comandada pelo jogador.
+let dx=x-npcData.x,dz=z-npcData.z,dist=Math.hypot(dx,dz),minDist=10.6;
+if(dist<minDist){
+  if(dist<.001){dx=1;dz=0;dist=1}
+  const overlap=minDist-dist,nx=dx/dist,nz=dz/dist;
+  x+=nx*overlap*.65;z+=nz*overlap*.65;
+  npcData.x-=nx*overlap*.35;npcData.z-=nz*overlap*.35;
+  speed*=.94;
+  ship.position.x=x;ship.position.z=z;
+}
+const ny=height(npcData.x,npcData.z,t);
+npcData.y=THREE.MathUtils.damp(npcData.y,ny,4,dt);
+npc.position.set(npcData.x,npcData.y+1.35,npcData.z);
+npc.rotation.order='YXZ';npc.rotation.y=npcData.heading;
+const nf=new THREE.Vector2(-Math.sin(npcData.heading),-Math.cos(npcData.heading)),ns=new THREE.Vector2(Math.cos(npcData.heading),-Math.sin(npcData.heading));
+const nfront=height(npcData.x+nf.x*1.5,npcData.z+nf.y*1.5,t);
+const nback=height(npcData.x-nf.x*1.5,npcData.z-nf.y*1.5,t);
+const nleft=height(npcData.x-ns.x*1.5,npcData.z-ns.y*1.5,t);
+const nright=height(npcData.x+ns.x*1.5,npcData.z+ns.y*1.5,t);
+npc.rotation.x=THREE.MathUtils.damp(npc.rotation.x,THREE.MathUtils.clamp(Math.atan2(nback-nfront,3),-.24,.24),4,dt);
+npc.rotation.z=THREE.MathUtils.damp(npc.rotation.z,THREE.MathUtils.clamp(Math.atan2(nleft-nright,3),-.23,.23),4,dt);
+npcShadow.position.set(npcData.x,ny+.13,npcData.z);
+
 // A malha acompanha o jogador, mas a fase das ondas usa coordenadas globais estáveis.\nwater.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 // Câmera de ação: afastada, baixa, horizonte aparente e horizonte estável.
 // Inclinação de observação menor do que a do protótipo anterior para evitar vista quase vertical.
