@@ -35,12 +35,12 @@ const waves=[
 ].map(w=>({...w,len:Math.hypot(w.dx,w.dz)}));
 function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y}
 function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
-const uniforms={uTime:{value:0}};
-const water=new THREE.Mesh(new THREE.PlaneGeometry(1500,1500,180,180),new THREE.ShaderMaterial({
+const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)}};
+const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,240,240),new THREE.ShaderMaterial({
 uniforms,side:THREE.DoubleSide,
-vertexShader:`uniform float uTime;varying vec3 vPos;varying float vHeight;
+vertexShader:`uniform float uTime;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
-void main(){vec3 p=position;p.z=sea(vec2(p.x,-p.y));vHeight=p.z;vPos=vec3(p.x,-p.y,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ);vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
 fragmentShader:`varying vec3 vPos;varying float vHeight;
 void main(){float foam=smoothstep(3.2,5.6,vHeight);float ribbons=pow(max(0.,sin(vPos.x*.29+vPos.y*.17+vHeight*1.4)),12.)*.17;
 vec3 deep=vec3(.013,.22,.34),bright=vec3(.03,.54,.66);float m=clamp((vHeight+5.)/10.,0.,1.);vec3 c=mix(deep,bright,m);
@@ -89,7 +89,7 @@ ship.position.set(x,bob+.75,z);ship.rotation.order='YXZ';ship.rotation.y=heading
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
 shadow.position.set(x,height(x,z,t)+.14,z);
-water.position.set(Math.round(x/40)*40,0,Math.round(z/40)*40);
+// A malha acompanha o jogador, mas a fase das ondas usa coordenadas globais estáveis.\nwater.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 // Câmera de ação: afastada, baixa, horizonte aparente e horizonte estável.
 // Inclinação de observação menor do que a do protótipo anterior para evitar vista quase vertical.
 // Não copiar bob/pitch/roll do casco para câmera (previne enjoo visual).
