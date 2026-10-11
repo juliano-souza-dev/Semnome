@@ -2,22 +2,27 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#092b40"><title>Semnome | Protótipo Oceano</title>
+<meta name="theme-color" content="#092b40"><meta name="screen-orientation" content="landscape"><title>Semnome | Protótipo Oceano</title>
 <style>
 *{box-sizing:border-box}body{margin:0;overflow:hidden;background:#092b40;font:14px system-ui;color:white;touch-action:none}
-canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#top{position:absolute;top:16px;left:16px;background:#082536b8;padding:12px 14px;border:1px solid #ffffff20;border-radius:12px;max-width:270px}
-#top strong{display:block;font-size:17px}#top small{display:block;opacity:.8;margin-top:4px}#status{margin-top:8px;color:#b9f8ff}
-#pad{position:absolute;left:25px;bottom:30px;width:132px;height:132px;border:2px solid #ffffff55;border-radius:50%;background:#ffffff12;pointer-events:auto;touch-action:none;display:grid;place-items:center}
+canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#top{position:absolute;top:16px;left:16px;background:#082536b8;padding:12px 14px;border:1px solid #ffffff20;border-radius:12px;max-width:235px}
+#top strong{display:block;font-size:14px}#top small{display:block;opacity:.8;margin-top:4px}#status{margin-top:8px;color:#b9f8ff}
+#pad{position:absolute;left:max(20px,env(safe-area-inset-left));bottom:max(18px,env(safe-area-inset-bottom));width:116px;height:116px;border:2px solid #ffffff55;border-radius:50%;background:#ffffff12;pointer-events:auto;touch-action:none;display:grid;place-items:center}
 #stick{width:55px;height:55px;background:#ffae40;border:3px solid #ffe8b8;border-radius:50%;box-shadow:0 5px 18px #0008;transform:translate(0,0)}
 
-@media(min-width:700px){#pad{opacity:.65}}
+@media(orientation:landscape){#top{top:8px;left:10px;padding:6px 9px;max-width:225px;background:#082536a0}#top small{font-size:10px;margin-top:2px}#top strong{font-size:12px}#status{font-size:11px;margin-top:3px}#pad{opacity:.7}} 
+#orientation{display:none;position:fixed;inset:0;background:#071d2d;z-index:30;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:16px;padding:30px;font-size:19px}
+#orientation svg{width:95px;height:95px;stroke:#ffc16a;fill:none;stroke-width:3}
+#orientation small{font-size:13px;color:#afd7e5;max-width:310px}
+@media(orientation:portrait) and (pointer:coarse){#orientation{display:flex}#ui{visibility:hidden}}
 </style>
 </head>
 <body>
-<div id="loading">Preparando o oceano...</div>
+<div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
 <div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico em 360° (direção e velocidade)<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
 const scene=new THREE.Scene(); scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
