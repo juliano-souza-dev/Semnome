@@ -52,14 +52,14 @@ c=mix(c,vec3(.63,.96,.95),foam*.82+ribbons);gl_FragColor=vec4(c,1.);}`
 }));
 water.rotation.x=-Math.PI/2;scene.add(water);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
-const ship=new THREE.Group();scene.add(ship);
+const ship=new THREE.Group();scene.add(ship);ship.scale.setScalar(2.1);
 const hull=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.8,1.05,28),new THREE.MeshStandardMaterial({color:0xf18b33,metalness:.35,roughness:.45}));hull.position.y=.25;ship.add(hull);
 const deck=new THREE.Mesh(new THREE.CylinderGeometry(1.95,2.15,.45,28),new THREE.MeshStandardMaterial({color:0xf0e6cf,metalness:.15,roughness:.6}));deck.position.y=.92;ship.add(deck);
 const cockpit=new THREE.Mesh(new THREE.SphereGeometry(.95,16,10),new THREE.MeshStandardMaterial({color:0x174357,metalness:.4,roughness:.25}));cockpit.scale.set(1,.5,.85);cockpit.position.y=1.45;ship.add(cockpit);
 const cannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new THREE.MeshStandardMaterial({color:0x364958,metalness:.6,roughness:.35}));
 cannon.rotation.x=Math.PI/2;cannon.position.set(0,1.2,-2.25);ship.add(cannon);
 for(const x of [-1.6,1.6]){const motor=new THREE.Mesh(new THREE.BoxGeometry(.85,.75,1.25),new THREE.MeshStandardMaterial({color:0x2b4751,metalness:.5}));motor.position.set(x,.55,2.2);ship.add(motor)}
-const shadow=new THREE.Mesh(new THREE.CircleGeometry(2.9,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
+const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
@@ -131,7 +131,7 @@ const bow=new THREE.Vector2(-Math.sin(heading),-Math.cos(heading)),side=new THRE
 const front=height(x+bow.x*1.5,z+bow.y*1.5,t),back=height(x-bow.x*1.5,z-bow.y*1.5,t);
 const left=height(x-side.x*1.5,z-side.y*1.5,t),right=height(x+side.x*1.5,z+side.y*1.5,t);
 const y=height(x,z,t);bob=THREE.MathUtils.damp(bob,y,5,dt);
-ship.position.set(x,bob+.75,z);ship.rotation.order='YXZ';ship.rotation.y=heading;
+ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=heading;
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
 shadow.position.set(x,height(x,z,t)+.14,z);
@@ -141,8 +141,8 @@ shadow.position.set(x,height(x,z,t)+.14,z);
 // Não copiar bob/pitch/roll do casco para câmera (previne enjoo visual).
 // Câmera de perseguição baixa: olhar quase horizontal com proa no terço inferior.
 // Distância moderada mantém o jogador legível no celular; ponto focal remoto revela o céu.
-const distance=THREE.MathUtils.lerp(38,46,Math.min(1,speed/24));
-const cameraHeight=THREE.MathUtils.lerp(14,17,Math.min(1,speed/24));
+const distance=THREE.MathUtils.lerp(30,36,Math.min(1,speed/24));
+const cameraHeight=THREE.MathUtils.lerp(13,15,Math.min(1,speed/24));
 orbitCurrent=THREE.MathUtils.damp(orbitCurrent,orbitOffset,9,dt);
 const cameraYaw=heading+orbitCurrent;
 wanted.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
