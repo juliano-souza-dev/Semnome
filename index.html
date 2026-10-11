@@ -19,7 +19,7 @@ canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#top{positio
 <div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico + ACELERAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><button id="throttle" type="button">ACELERAR</button></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
-const scene=new THREE.Scene(); scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0021);
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -69,7 +69,7 @@ function releaseThrottle(){throttleHeld=false;input.go=padPointer!==null&&input.
 button.addEventListener('pointerup',releaseThrottle);button.addEventListener('pointercancel',releaseThrottle);
 const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code)});
 addEventListener('keyup',e=>keys.delete(e.code));
-const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3();
+const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
 const go=input.go||keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
@@ -93,13 +93,18 @@ water.position.set(Math.round(x/40)*40,0,Math.round(z/40)*40);
 // Câmera de ação: afastada, baixa, horizonte aparente e horizonte estável.
 // Inclinação de observação menor do que a do protótipo anterior para evitar vista quase vertical.
 // Não copiar bob/pitch/roll do casco para câmera (previne enjoo visual).
-const distance=THREE.MathUtils.lerp(82,99,Math.min(1,speed/24));
-const cameraHeight=THREE.MathUtils.lerp(27,30,Math.min(1,speed/24));
+// Câmera de perseguição baixa: olhar quase horizontal com proa no terço inferior.
+// Distância moderada mantém o jogador legível no celular; ponto focal remoto revela o céu.
+const distance=THREE.MathUtils.lerp(38,46,Math.min(1,speed/24));
+const cameraHeight=THREE.MathUtils.lerp(14,17,Math.min(1,speed/24));
 wanted.set(x+Math.sin(heading)*distance,cameraHeight,z+Math.cos(heading)*distance);
-camera.position.lerp(wanted,1-Math.exp(-1.65*dt));
-const lookAhead=22;
-follow.set(x-Math.sin(heading)*lookAhead,2.5,z-Math.cos(heading)*lookAhead);
-camTarget.lerp(follow,1-Math.exp(-2.1*dt));camera.lookAt(camTarget);
+const lookAhead=105;
+follow.set(x-Math.sin(heading)*lookAhead,9,z-Math.cos(heading)*lookAhead);
+// A câmera nunca copia os solavancos do barco ou a oscilação das ondas.
+if(!cameraReady){camera.position.copy(wanted);camTarget.copy(follow);cameraReady=true}
+camera.position.lerp(wanted,1-Math.exp(-1.8*dt));
+camTarget.lerp(follow,1-Math.exp(-2.2*dt));
+camera.lookAt(camTarget);
 document.getElementById('status').textContent='Velocidade: '+Math.round(speed)+'  |  Ondas ativas';
 renderer.render(scene,camera)
 }
