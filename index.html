@@ -63,7 +63,7 @@ const shadow=new THREE.Mesh(new THREE.CircleGeometry(2.9,32),new THREE.MeshBasic
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
-let padPointer=null;
+let padPointer=null;let stickReferenceYaw=0;
 function movePad(e){
   const r=pad.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
   const dx=e.clientX-cx,dy=e.clientY-cy,radius=42;
@@ -73,7 +73,7 @@ function movePad(e){
 }
 pad.addEventListener('pointerdown',e=>{
   if(padPointer!==null)return;
-  padPointer=e.pointerId;input.active=true;pad.setPointerCapture(e.pointerId);movePad(e);
+  stickReferenceYaw=heading+orbitCurrent;padPointer=e.pointerId;input.active=true;pad.setPointerCapture(e.pointerId);movePad(e);
 });
 pad.addEventListener('pointermove',e=>{if(e.pointerId===padPointer)movePad(e)});
 function releasePad(e){
@@ -118,7 +118,7 @@ if(speed>.35){
   if(stickAmount>0){
     // Ângulo absoluto desejado no plano: analógico pode apontar para qualquer 360°.
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
-    const desired=-Math.atan2(input.x,-input.y);
+    const desired=stickReferenceYaw-Math.atan2(input.x,-input.y);
     const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
     const maxStep=2.85*Math.min(1,speed/7)*dt;
     heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
