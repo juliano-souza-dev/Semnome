@@ -62,3 +62,10 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - A desaceleração deve ser suave o suficiente para evitar paradas visualmente abruptas, mas sem longa deriva por inércia.
 - O movimento vertical e a inclinação seguem reagindo às ondas; o jogador permanece no controle do rumo.
 - O tempo de frenagem e a resistência da água serão calibrados no protótipo e não estão fixados numericamente.
+
+## Decisão registrada: navegação em 360°, sem marcha à ré
+- Máquinas **não possuem marcha à ré**: não se deslocam para trás por comando de propulsão.
+- Podem **girar livremente em 360°** para escolher qualquer rumo no plano horizontal e então acelerar para a frente na direção da proa.
+- O giro é controlado pelo jogador; as ondas afetam altura, inclinação e velocidade, mas não mudam involuntariamente o rumo.
+- A representação visual da orientação horizontal usa os 16 quadros direcionais (22,5° entre quadros), enquanto o ângulo real da física permanece contínuo.
+- Colisões podem gerar deslocamentos físicos temporários sem constituírem marcha à ré controlada.
