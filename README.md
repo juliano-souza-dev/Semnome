@@ -88,3 +88,11 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - O casco permanece relativamente estável durante manobras; **pitch e roll respondem às ondas**, não à intensidade da curva.
 - Manter curvas ágeis, sem giro quando parado, controle direcional do jogador e influência das ondas na velocidade.
 - A câmera dinâmica pode acompanhar as curvas suavemente, mas não deve simular inclinação do casco causada por forças centrífugas.
+
+## Decisão registrada: perda breve de contato em ondas gigantes
+- Ondas excepcionalmente grandes podem fazer a embarcação **perder contato com a água por um curto instante**, num semi-salto, sem efeito acrobático.
+- Sequência: subida na crista, breve separação da superfície, pequeno deslocamento no ar e retorno com impacto visual.
+- Altura e duração devem permanecer sutis, ajustadas à escala 3D do jogo em protótipo; sem definir agora um número arbitrário de pixels.
+- Durante a separação, reduzir a espuma de contato; ao retornar, gerar respingos e feedback discreto de câmera.
+- Não aplicar rotações extremas ou grandes inclinações que prejudiquem a credibilidade dos sprites 2.5D.
+- Preservar controle direcional do jogador; as ondas não induzem desvio de rumo.
