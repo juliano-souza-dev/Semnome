@@ -37,3 +37,10 @@ Definir o sistema de coordenadas do oceano e das embarcações, incluindo superf
 
 ## Referências de escopo
 O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de **1600 × 1600 px** por embarcação. Tamanho efetivo, consistência dos ângulos e transparência dos arquivos precisam ser validados antes da integração.
+
+## Decisão registrada: colisões físicas entre máquinas
+- Embarcações possuem colisores físicos e não podem atravessar umas às outras.
+- Choques entre máquinas produzem resposta de contato, empurrões e transferência simplificada de impulso, considerando velocidade relativa, massa e ponto de impacto.
+- A resposta da colisão deve coexistir com a navegação sob ondas, sem permitir que as ondas desviem involuntariamente o rumo do jogador. O impacto pode deslocar fisicamente as máquinas; o controle de orientação (yaw) permanece com o jogador.
+- Dano por colisão, limites de impulso, duração do empurrão e interação com estruturas fixas serão definidos posteriormente.
+- Para mobile, priorizar colisores simples e simulação estável, separando lógica física dos sprites 2.5D.
