@@ -82,3 +82,9 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - O giro depende de movimento de avanço: máquinas paradas não giram no próprio eixo.
 - A orientação permanece controlada pelo jogador e a rotação é contínua em 360°, representada visualmente por sprites de 16 direções.
 - Taxa de giro máxima, raio de curva e suavização serão calibrados no protótipo para manter manobras responsivas sem produzir trancos visuais.
+
+## Decisão registrada: estabilidade do casco durante curvas
+- **Opção B aprovada:** curvas fechadas, inclusive em alta velocidade, **não produzem inclinação lateral adicional do casco**.
+- O casco permanece relativamente estável durante manobras; **pitch e roll respondem às ondas**, não à intensidade da curva.
+- Manter curvas ágeis, sem giro quando parado, controle direcional do jogador e influência das ondas na velocidade.
+- A câmera dinâmica pode acompanhar as curvas suavemente, mas não deve simular inclinação do casco causada por forças centrífugas.
