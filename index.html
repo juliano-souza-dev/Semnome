@@ -222,7 +222,7 @@ else if(speed>.35){
   if(stickAmount>0){
     // Ângulo absoluto desejado no plano: analógico pode apontar para qualquer 360°.
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
-    const desired=heading-Math.atan2(input.x,-input.y);
+    const desired=stickReferenceYaw-Math.atan2(input.x,-input.y);
     const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
     const maxStep=4.2*Math.min(1,speed/9)*dt;
     heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
