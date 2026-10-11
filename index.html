@@ -150,21 +150,23 @@ function shoot(){
 }
 function launchShot(){
  lastShotTime=clock.elapsedTime;pendingShot=false;
- // Munição sai do eixo da proa, nunca de uma torre independente.
- const start=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
- const direction=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+ // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
+ const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
+ const destination=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
+ const travel=Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8);
+ const arcHeight=THREE.MathUtils.clamp(origin.distanceTo(destination)*.44,13,38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
  const glow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
  const outerGlow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
  outerGlow.scale.setScalar(1.9);
- mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(start);scene.add(mesh);
- energyFlash(start);
- const trailPoints=Array.from({length:9},()=>start.clone());
+ mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(origin);scene.add(mesh);
+ energyFlash(origin);
+ const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- projectiles.push({mesh,glow,outerGlow,plasma,trail,trailPoints,velocity:direction.multiplyScalar(COMBAT.projectileSpeed),distance:0});
+ projectiles.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0});
 }
 // O disparo usa um ponteiro independente; pode ocorrer enquanto os outros dedos navegam e giram a câmera.
 fireButton.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();e.stopPropagation();shoot()});
@@ -304,25 +306,24 @@ npc.visible=npcData.hp>0;
 npcShadow.visible=npcData.hp>0;
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
-  const p=projectiles[i],previous=p.mesh.position.clone();
-  const step=p.velocity.clone().multiplyScalar(dt);
-  p.mesh.position.add(step);p.distance+=step.length();
+  const p=projectiles[i];
+  p.age+=dt;
+  const u=Math.min(1,p.age/p.travel);
+  // Parábola suave: ponto alto no meio, queda sobre o alvo.
+  p.mesh.position.lerpVectors(p.origin,p.destination,u);
+  p.mesh.position.y+=4*p.arcHeight*u*(1-u);
   p.glow.quaternion.copy(camera.quaternion);p.outerGlow.quaternion.copy(camera.quaternion);
   p.plasma.rotation.set(t*6,t*9,t*5);p.plasma.scale.setScalar(1+.13*Math.sin(t*25));
-  // Preenche o rastro em coordenadas do mundo, sem alocações de geometria a cada quadro.
   p.trailPoints.pop();p.trailPoints.unshift(p.mesh.position.clone());
   const arr=p.trail.geometry.attributes.position.array;
   for(let j=0;j<p.trailPoints.length;j++){
     const v=p.trailPoints[j];arr[j*3]=v.x;arr[j*3+1]=v.y;arr[j*3+2]=v.z;
   }
   p.trail.geometry.attributes.position.needsUpdate=true;
-  const targetPosition=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
-  // Teste de segmento evita atravessar o alvo entre frames rápidos.
-  const segment=p.mesh.position.clone().sub(previous);
-  const projected=THREE.MathUtils.clamp(targetPosition.clone().sub(previous).dot(segment)/Math.max(segment.lengthSq(),.0001),0,1);
-  const hit=npcData.hp>0 && previous.addScaledVector(segment,projected).distanceTo(targetPosition)<6;
-  if(hit){energyFlash(p.mesh.position)}
-  if(hit||p.distance>COMBAT.range*1.6){
+  // A explosão ocorre na chegada; não atravessa o alvo entre frames.
+  if(u>=1){
+    if(npcData.hp>0 && p.mesh.position.distanceTo(new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z))<8)energyFlash(p.mesh.position);
+    else energyFlash(p.mesh.position);
     scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();projectiles.splice(i,1);
   }
 }
