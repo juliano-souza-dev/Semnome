@@ -19,7 +19,7 @@ canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#top{positio
 </head>
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
-<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico em 360° (direção e velocidade)<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div></div>
+<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico move • arraste o mar para girar câmera<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
@@ -85,6 +85,23 @@ pad.addEventListener('pointerup',releasePad);pad.addEventListener('pointercancel
 pad.addEventListener('lostpointercapture',releasePad);
 const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code)});
 addEventListener('keyup',e=>keys.delete(e.code));
+// Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
+let orbitOffset=0,orbitCurrent=0,dragId=null,lastDragX=0;
+renderer.domElement.style.touchAction='none';
+renderer.domElement.addEventListener('pointerdown',e=>{
+ if(dragId!==null || e.pointerType==='mouse'&&e.button!==0)return;
+ dragId=e.pointerId;lastDragX=e.clientX;
+ renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+ if(e.pointerId!==dragId)return;
+ const dx=e.clientX-lastDragX;lastDragX=e.clientX;
+ orbitOffset+=dx*0.0065;
+});
+function stopCameraDrag(e){if(e.pointerId===dragId)dragId=null}
+renderer.domElement.addEventListener('pointerup',stopCameraDrag);
+renderer.domElement.addEventListener('pointercancel',stopCameraDrag);
+renderer.domElement.addEventListener('lostpointercapture',stopCameraDrag);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
@@ -126,9 +143,11 @@ shadow.position.set(x,height(x,z,t)+.14,z);
 // Distância moderada mantém o jogador legível no celular; ponto focal remoto revela o céu.
 const distance=THREE.MathUtils.lerp(38,46,Math.min(1,speed/24));
 const cameraHeight=THREE.MathUtils.lerp(14,17,Math.min(1,speed/24));
-wanted.set(x+Math.sin(heading)*distance,cameraHeight,z+Math.cos(heading)*distance);
+orbitCurrent=THREE.MathUtils.damp(orbitCurrent,orbitOffset,9,dt);
+const cameraYaw=heading+orbitCurrent;
+wanted.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
 const lookAhead=105;
-follow.set(x-Math.sin(heading)*lookAhead,9,z-Math.cos(heading)*lookAhead);
+follow.set(x-Math.sin(cameraYaw)*lookAhead,9,z-Math.cos(cameraYaw)*lookAhead);
 // A câmera nunca copia os solavancos do barco ou a oscilação das ondas.
 if(!cameraReady){camera.position.copy(wanted);camTarget.copy(follow);cameraReady=true}
 camera.position.lerp(wanted,1-Math.exp(-1.8*dt));
