@@ -17,6 +17,17 @@ Jogo de navegação e combate marítimo em mundo 3D, com embarcações apresenta
 - A visualização de cada máquina usa sprites direcionais 2.5D com **16 direções (22,5° por quadro)**; a escolha do quadro leva em consideração o ângulo relativo entre a direção do casco e a câmera.
 - A câmera e os efeitos de combate devem permanecer desacoplados da lógica de movimento e da seleção do sprite.
 
+
+## Decisão registrada: oceano violento com resposta da embarcação às ondas
+- **Requisito inicial:** oceano com ondas fortes e irregulares; a embarcação do jogador deve responder ao movimento da superfície em tempo real.
+- A máquina sobe e desce com a altura das ondas, inclina-se longitudinalmente (pitch) e lateralmente (roll), com amortecimento e inércia perceptíveis.
+- A superfície e o sistema de flutuação devem consultar a **mesma função de ondas**, evitando divergência entre a água visual e a posição do casco.
+- **Proposta técnica inicial, a validar em protótipo:** superfície WebGL com ondas Gerstner combinadas e amostragem de múltiplos pontos do casco para estimar altura e normal/inclinação.
+- Espuma, respingos e esteira devem reagir ao movimento relativo do casco e da água; não substituir o movimento físico.
+- **Restrição 2.5D:** a direção horizontal usa sprites de 16 ângulos, mas grandes rotações em pitch/roll não podem ser representadas corretamente por um único sprite plano. Começar com inclinações visualmente controladas e validar se são necessários quadros adicionais ou uma representação híbrida.
+- **Desempenho:** priorizar mobile-first e simulação aproximada, sem simulação completa de fluidos.
+- **Pendências:** intensidade das ondas, força de flutuação, amortecimento, impacto na direção/velocidade e limites de inclinação em câmera dinâmica.
+
 ## Próxima decisão de arquitetura
 Definir o sistema de coordenadas do oceano e das embarcações, incluindo superfície 3D, posicionamento dos sprites, física de navegação, colisões e organização das camadas de renderização.
 
