@@ -96,3 +96,16 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - Durante a separação, reduzir a espuma de contato; ao retornar, gerar respingos e feedback discreto de câmera.
 - Não aplicar rotações extremas ou grandes inclinações que prejudiquem a credibilidade dos sprites 2.5D.
 - Preservar controle direcional do jogador; as ondas não induzem desvio de rumo.
+
+## Direção artística aprovada: oceano de jogo de ação
+- Visual estilizado de **jogo de ação**, com ondas volumosas e intensas, cores azul-turquesa, cristas claras, espuma marcante e movimento expressivo.
+- Não buscar realismo fotográfico; preservar leitura visual da embarcação e bom desempenho mobile.
+
+## Protótipo inicial (em desenvolvimento)
+- `index.html`: demonstração WebGL com Three.js importado por CDN, oceano procedural com ondas direcionais e embarcação temporária em geometria 3D simples.
+- O oceano e o movimento do casco consultam a mesma função matemática de ondas, com versão equivalente em GLSL e JavaScript.
+- Controles iniciais: teclado (W/↑, A/D ou setas) e analógico/toque no celular.
+- Movimentação em 360°, aceleração rápida, frenagem rápida, curvas durante deslocamento, altura/pitch/roll conforme ondas e ajuste de velocidade pelo gradiente da água.
+- Câmera de perspectiva inclinada a 65° com acompanhamento suavizado e afastamento dependente de velocidade. As porcentagens de suavização e zoom permanecem metas de design para calibração.
+- **Ainda não implementados:** sprite real 2.5D em 16 direções, semi-saltos, colisões entre máquinas, combate, espuma por contato, partículas e testes físicos/visuais em dispositivos reais.
+- Para executar: hospedar como página estática (por exemplo, GitHub Pages), com conexão à internet para carregar Three.js por CDN; pode exigir um servidor HTTP local em vez de abrir o arquivo diretamente.
