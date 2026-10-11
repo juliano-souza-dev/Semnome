@@ -40,7 +40,7 @@ const water=new THREE.Mesh(new THREE.PlaneGeometry(1500,1500,180,180),new THREE.
 uniforms,side:THREE.DoubleSide,
 vertexShader:`uniform float uTime;varying vec3 vPos;varying float vHeight;
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
-void main(){vec3 p=position;p.z=sea(p.xy);vHeight=p.z;vPos=vec3(p.xy,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+void main(){vec3 p=position;p.z=sea(vec2(p.x,-p.y));vHeight=p.z;vPos=vec3(p.x,-p.y,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
 fragmentShader:`varying vec3 vPos;varying float vHeight;
 void main(){float foam=smoothstep(3.2,5.6,vHeight);float ribbons=pow(max(0.,sin(vPos.x*.29+vPos.y*.17+vHeight*1.4)),12.)*.17;
 vec3 deep=vec3(.013,.22,.34),bright=vec3(.03,.54,.66);float m=clamp((vHeight+5.)/10.,0.,1.);vec3 c=mix(deep,bright,m);
