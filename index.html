@@ -32,7 +32,7 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 </head>
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
-<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="ammo" aria-label="Escolher munição" aria-expanded="false">⚡</button><div id="ammoMenu" aria-label="Tipos de munição"></div><div id="aimHint">ARRASTE NO MAR PARA POSICIONAR A ÁREA</div><button id="cancelAim">CANCELAR</button><button id="fire" disabled>DISPARAR</button></div>
+<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="ammo" aria-label="Escolher munição" aria-expanded="false">⚡</button><div id="ammoMenu" aria-label="Tipos de munição"></div><div id="aimHint">SEGURE E ARRASTE PARA MIRAR · SOLTE PARA DISPARAR</div><button id="cancelAim">CANCELAR</button><button id="fire" disabled>DISPARAR</button></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
@@ -171,7 +171,7 @@ function energyFlash(position){
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
 const AREA_RANGE=180,AREA_RADIUS=22;
 const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
-const areaAim={active:false,point:new THREE.Vector3(),valid:false};
+const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null};
 const aimReticle=new THREE.Group();scene.add(aimReticle);aimReticle.visible=false;
 const aimDisc=new THREE.Mesh(new THREE.CircleGeometry(AREA_RADIUS,64),new THREE.MeshBasicMaterial({color:0x9c52e8,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide}));
 aimDisc.rotation.x=-Math.PI/2;aimReticle.add(aimDisc);
@@ -180,7 +180,7 @@ for(const rad of [AREA_RADIUS,AREA_RADIUS*.7]){
  ring.rotation.x=-Math.PI/2;ring.position.y=.08;aimReticle.add(ring);
 }
 const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),seaPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
-function cancelAreaAim(){areaAim.active=false;areaAim.valid=false;aimReticle.visible=false;aimHint.classList.remove('active');cancelAimButton.classList.remove('active');fireButton.textContent='DISPARAR'}
+function cancelAreaAim(){areaAim.active=false;areaAim.valid=false;areaAim.pointerId=null;aimReticle.visible=false;aimHint.classList.remove('active');cancelAimButton.classList.remove('active');fireButton.textContent='DISPARAR'}
 function placeAim(e){
  pointerNdc.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);
  raycaster.setFromCamera(pointerNdc,camera);
@@ -205,24 +205,25 @@ const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.Mes
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
 function shoot(){
  if(clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
- if(selectedAmmo.id==='siege'){
-  if(!areaAim.active){
-   areaAim.active=true;areaAim.valid=false;
-   aimHint.classList.add('active');cancelAimButton.classList.add('active');
-   fireButton.textContent='CONFIRMAR';
-   const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
-   areaAim.point.set(x+forward.x*60,0,z+forward.z*60);
-   areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
-   areaAim.valid=true;aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
-   return;
-  }
-  if(!areaAim.valid)return;
-  launchShot(areaAim.point.clone());
-  cancelAreaAim();
-  return;
- }
+ if(selectedAmmo.id==='siege')return;
  if(!lockedNpc || npcData.hp<=0)return;
  launchShot();
+}
+function startAreaAim(e){
+ if(areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
+ areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
+ aimHint.classList.add('active');cancelAimButton.classList.add('active');
+ const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+ areaAim.point.set(x+forward.x*60,0,z+forward.z*60);
+ areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
+ aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
+ fireButton.setPointerCapture(e.pointerId);
+}
+function finishAreaAim(e,cancel=false){
+ if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
+ const destination=!cancel&&areaAim.valid?areaAim.point.clone():null;
+ cancelAreaAim();
+ if(destination)launchShot(destination);
 }
 function launchShot(manualPoint=null){
  lastShotTime=clock.elapsedTime;
@@ -230,7 +231,7 @@ function launchShot(manualPoint=null){
  const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
  const destination=manualPoint?manualPoint.clone():new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
  const ammo=selectedAmmo;
- const travel=Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:ammo.id==='siege'?1.5:1);
+ const travel=ammo.id==='siege'?4.5:Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
  const arcHeight=ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -269,7 +270,15 @@ function launchShot(manualPoint=null){
  attackCamera.impactAt=0;attackCamera.shake=0;
 }
 // O disparo usa um ponteiro independente; pode ocorrer enquanto os outros dedos navegam e giram a câmera.
-fireButton.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();e.stopPropagation();shoot()});
+fireButton.addEventListener('pointerdown',e=>{
+ if(e.pointerType==='mouse'&&e.button!==0)return;
+ e.preventDefault();e.stopPropagation();
+ if(selectedAmmo.id==='siege')startAreaAim(e);else shoot();
+});
+fireButton.addEventListener('pointermove',e=>{if(areaAim.active&&e.pointerId===areaAim.pointerId){e.preventDefault();placeAim(e)}});
+fireButton.addEventListener('pointerup',e=>{if(e.pointerId===areaAim.pointerId){e.preventDefault();finishAreaAim(e)}});
+fireButton.addEventListener('pointercancel',e=>finishAreaAim(e,true));
+fireButton.addEventListener('lostpointercapture',e=>finishAreaAim(e,true));
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
@@ -403,9 +412,16 @@ for(let i=projectiles.length-1;i>=0;i--){
   // Parábola suave: ponto alto no meio, queda sobre o alvo.
   if(p.age<0)continue;
   if(p.ammo==='siege'){
-   const travelX=Math.min(1,u/.55);p.mesh.position.lerpVectors(p.origin,p.destination,travelX);
-   p.mesh.position.y=p.origin.y+(p.arcHeight-p.origin.y)*Math.min(1,u/.35);
-   if(u>.55){p.mesh.position.x=p.destination.x;p.mesh.position.z=p.destination.z;p.mesh.position.y=THREE.MathUtils.lerp(p.arcHeight,p.destination.y,(u-.55)/.45)}
+   // Subida lenta até o ápice e descida igualmente lenta, sem saltos na transição.
+   const firstHalf=Math.min(1,u*2);
+   const lastHalf=Math.max(0,(u-.5)*2);
+   if(u<=.5){
+     p.mesh.position.lerpVectors(p.origin,p.destination,smoothstep01(firstHalf)*.7);
+     p.mesh.position.y=THREE.MathUtils.lerp(p.origin.y,p.arcHeight,smoothstep01(firstHalf));
+   }else{
+     p.mesh.position.lerpVectors(p.origin,p.destination,.7+.3*smoothstep01(lastHalf));
+     p.mesh.position.y=THREE.MathUtils.lerp(p.arcHeight,p.destination.y,smoothstep01(lastHalf));
+   }
   }else if(p.ammo==='meteor'){
    // Trajetória quase vertical na fase final: aproximação inicial curta e mergulho.
    const move=u<.38?(u/.38)*.72:.72+.28*((u-.38)/.62);
