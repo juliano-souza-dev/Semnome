@@ -109,3 +109,10 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - Câmera de perspectiva inclinada a 65° com acompanhamento suavizado e afastamento dependente de velocidade. As porcentagens de suavização e zoom permanecem metas de design para calibração.
 - **Ainda não implementados:** sprite real 2.5D em 16 direções, semi-saltos, colisões entre máquinas, combate, espuma por contato, partículas e testes físicos/visuais em dispositivos reais.
 - Para executar: hospedar como página estática (por exemplo, GitHub Pages), com conexão à internet para carregar Three.js por CDN; pode exigir um servidor HTTP local em vez de abrir o arquivo diretamente.
+
+## Decisão implementada: analógico único mobile
+- Botão separado de aceleração removido.
+- Analógico mobile tem **360° de orientação absoluta**: a posição do dedo determina a direção pretendida da proa; a distância ao centro determina o comando de velocidade.
+- O casco avança para a frente na direção da proa, **sem marcha à ré** e **sem girar continuamente** quando o dedo fica mantido numa direção.
+- O giro segue o menor caminho angular e requer velocidade de avanço; ao soltar o analógico, há frenagem rápida.
+- Teclado permanece como suporte opcional para testes no navegador.
