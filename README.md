@@ -56,3 +56,9 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - A resposta aos comandos deve ser ágil para combate, mesmo com ondas violentas.
 - As ondas continuam alterando a **velocidade** durante a navegação; o jogador mantém controle total do rumo.
 - Valores numéricos de aceleração, velocidade máxima, frenagem e curva serão calibrados no protótipo, sem assumir números definitivos neste documento.
+
+## Decisão registrada: frenagem
+- **Opção B aprovada:** ao soltar o acelerador, a máquina **desacelera rapidamente**, favorecendo manobras precisas em combate.
+- A desaceleração deve ser suave o suficiente para evitar paradas visualmente abruptas, mas sem longa deriva por inércia.
+- O movimento vertical e a inclinação seguem reagindo às ondas; o jogador permanece no controle do rumo.
+- O tempo de frenagem e a resistência da água serão calibrados no protótipo e não estão fixados numericamente.
