@@ -28,7 +28,9 @@ Jogo de navegação e combate marítimo em mundo 3D, com embarcações apresenta
 - **Desempenho:** priorizar mobile-first e simulação aproximada, sem simulação completa de fluidos.
 - **Decisão confirmada:** as ondas também afetam a **velocidade** da embarcação. Subidas e ondas contrárias aumentam a resistência; descidas e ondas a favor podem acelerar; impactos com ondas grandes podem causar desaceleração repentina.
 - O efeito na velocidade depende da geometria, movimento e direção relativa das ondas; não deve ser uma alteração arbitrária ligada à animação visual.
-- **Pendências:** intensidade das ondas, força de flutuação, amortecimento, influência na direção, limites de inclinação e calibração da resistência/impulso.
+- **Decisão confirmada:** o jogador mantém **controle total da direção**. Ondas não alteram o rumo (yaw) nem aplicam desvio lateral involuntário; direção e orientação horizontal seguem os comandos do jogador.
+- A simulação das ondas pode alterar velocidade, altura, pitch e roll, mas esses efeitos são desacoplados do controle de yaw. Inclinações visuais não devem mudar a orientação de navegação.
+- **Pendências:** intensidade das ondas, força de flutuação, amortecimento, limites de inclinação e calibração da resistência/impulso.
 
 ## Próxima decisão de arquitetura
 Definir o sistema de coordenadas do oceano e das embarcações, incluindo superfície 3D, posicionamento dos sprites, física de navegação, colisões e organização das camadas de renderização.
