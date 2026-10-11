@@ -97,28 +97,22 @@ const fireButton=document.getElementById('fire'),lockLabel=document.getElementBy
 const projectileGeometry=new THREE.SphereGeometry(.9,10,8);
 const projectileMaterial=new THREE.MeshBasicMaterial({color:0xffc164});
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
-// Boca de canhão articulada provisória em 3D. A rotação real é independente do rumo.
-// O atlas 2.5D tem um canhão pintado: será necessário asset separado para coincidência visual perfeita.
-const aimMuzzle=new THREE.Group();scene.add(aimMuzzle);
-const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.45,.58,3.2,14),new THREE.MeshStandardMaterial({color:0x283c4c,metalness:.65,roughness:.34}));
-barrel.rotation.x=-Math.PI/2;barrel.position.z=-1.6;aimMuzzle.add(barrel);
-const tip=new THREE.Mesh(new THREE.TorusGeometry(.47,.13,9,16),new THREE.MeshStandardMaterial({color:0xffa13d,metalness:.55,roughness:.35}));
-tip.position.z=-3.15;aimMuzzle.add(tip);
-let currentAimYaw=0;
+// Canhão fixo ao casco: o disparo faz a embarcação alinhar a proa.
+let pendingShot=false;
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
 function shoot(){
-  if(!lockedNpc || npcData.hp<=0)return;
-  const now=clock.elapsedTime;
-  if(now-lastShotTime<COMBAT.cooldown)return;
-  lastShotTime=now;
-  const start=new THREE.Vector3();
-  aimMuzzle.localToWorld(start.set(0,0,-3.3));
-  const destination=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
-  const direction=destination.sub(start).normalize();
-  const mesh=new THREE.Mesh(projectileGeometry,projectileMaterial);
-  mesh.position.copy(start);scene.add(mesh);
-  projectiles.push({mesh,velocity:direction.multiplyScalar(COMBAT.projectileSpeed),distance:0});
+ if(!lockedNpc || npcData.hp<=0 || pendingShot || clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
+ pendingShot=true;
+}
+function launchShot(){
+ lastShotTime=clock.elapsedTime;pendingShot=false;
+ // Munição sai do eixo da proa, nunca de uma torre independente.
+ const start=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
+ const direction=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+ const mesh=new THREE.Mesh(projectileGeometry,projectileMaterial);
+ mesh.position.copy(start);scene.add(mesh);
+ projectiles.push({mesh,velocity:direction.multiplyScalar(COMBAT.projectileSpeed),distance:0});
 }
 // O disparo usa um ponteiro independente; pode ocorrer enquanto os outros dedos navegam e giram a câmera.
 fireButton.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();e.stopPropagation();shoot()});
@@ -177,7 +171,16 @@ const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
 target=Math.max(0,target-Math.max(0,slope)*24+Math.max(0,-slope)*6);
 speed=THREE.MathUtils.damp(speed,target,go?4.8:7.8,dt);
-if(speed>.35){
+if(pendingShot && npcData.hp>0 && Math.hypot(x-npcData.x,z-npcData.z)<=COMBAT.range){
+ const desired=-Math.atan2(npcData.x-x,-(npcData.z-z));
+ const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
+ const maxStep=3.7*dt;
+ heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
+ if(Math.abs(delta)<.045)launchShot();
+}else if(pendingShot){
+ pendingShot=false;
+}
+else if(speed>.35){
   if(stickAmount>0){
     // Ângulo absoluto desejado no plano: analógico pode apontar para qualquer 360°.
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
@@ -229,15 +232,6 @@ const nright=height(npcData.x+ns.x*1.5,npcData.z+ns.y*1.5,t);
 npc.rotation.x=THREE.MathUtils.damp(npc.rotation.x,THREE.MathUtils.clamp(Math.atan2(nback-nfront,3),-.24,.24),4,dt);
 npc.rotation.z=THREE.MathUtils.damp(npc.rotation.z,THREE.MathUtils.clamp(Math.atan2(nleft-nright,3),-.23,.23),4,dt);
 npcShadow.position.set(npcData.x,ny+.13,npcData.z);
-// Apontamento gradual da boca do canhão em direção ao NPC travado.
-const aimDirection=Math.atan2(-(npcData.x-x),-(npcData.z-z));
-const aiming= npcData.hp>0 && Math.hypot(x-npcData.x,z-npcData.z)<=COMBAT.range;
-const desiredAim=aiming?aimDirection:heading;
-const aimDelta=Math.atan2(Math.sin(desiredAim-currentAimYaw),Math.cos(desiredAim-currentAimYaw));
-currentAimYaw+=THREE.MathUtils.clamp(aimDelta,-4*dt,4*dt);
-aimMuzzle.position.set(x,bob+3.7,z);
-aimMuzzle.rotation.y=currentAimYaw;
-aimMuzzle.visible=playerAtlasReady;
 // Seleção automática por alcance real, sem depender de para onde a câmera olha.
 const npcDistance=Math.hypot(x-npcData.x,z-npcData.z);
 lockedNpc=npcData.hp>0 && npcDistance<=COMBAT.range ? npcData : null;
