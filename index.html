@@ -140,16 +140,16 @@ function energyFlash(position){
  impactEffects.push({flash,ring,sparks,velocities,age:0});
 }
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
-// Canhão fixo ao casco: o disparo faz a embarcação alinhar a proa.
-let pendingShot=false;
+// O casco só gira por navegação ou arrasto; o tiro em arco mira sem girar a nave.
+
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
 function shoot(){
- if(!lockedNpc || npcData.hp<=0 || pendingShot || clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
- pendingShot=true;
+ if(!lockedNpc || npcData.hp<=0 || clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
+ launchShot();
 }
 function launchShot(){
- lastShotTime=clock.elapsedTime;pendingShot=false;
+ lastShotTime=clock.elapsedTime;
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
  const destination=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
@@ -234,16 +234,7 @@ if(dragTurn!==0){
  if(input.active)stickReferenceYaw+=dragTurn;
  dragTurn=0;
 }
-if(pendingShot && npcData.hp>0 && Math.hypot(x-npcData.x,z-npcData.z)<=COMBAT.range){
- const desired=-Math.atan2(npcData.x-x,-(npcData.z-z));
- const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
- const maxStep=3.7*dt;
- heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
- if(Math.abs(delta)<.045)launchShot();
-}else if(pendingShot){
- pendingShot=false;
-}
-else if(speed>.35){
+if(speed>.35){
   if(stickAmount>0){
     // Ângulo absoluto desejado no plano: analógico pode apontar para qualquer 360°.
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
