@@ -23,7 +23,7 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 </head>
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
-<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico para navegar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="fire" disabled>DISPARAR</button></div>
+<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="fire" disabled>DISPARAR</button></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
@@ -196,7 +196,24 @@ const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','A
 addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
 // Teste: câmera fixa atrás da nave; nenhum arrasto altera a orientação.
-let followHeading=0;
+// Arrastar o oceano muda o rumo do casco e da câmera juntos.
+let dragId=null,lastDragX=0,dragTurn=0;
+renderer.domElement.style.touchAction='none';
+renderer.domElement.addEventListener('pointerdown',e=>{
+ if(dragId!==null || (e.pointerType==='mouse'&&e.button!==0))return;
+ e.preventDefault();dragId=e.pointerId;lastDragX=e.clientX;
+ renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+ if(e.pointerId!==dragId)return;
+ e.preventDefault();
+ const dx=e.clientX-lastDragX;lastDragX=e.clientX;
+ dragTurn+=dx*.008;
+});
+function releaseDrag(e){if(e.pointerId===dragId)dragId=null}
+renderer.domElement.addEventListener('pointerup',releaseDrag);
+renderer.domElement.addEventListener('pointercancel',releaseDrag);
+renderer.domElement.addEventListener('lostpointercapture',releaseDrag);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
@@ -209,6 +226,12 @@ const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
 target=go?Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3):0;
 speed=THREE.MathUtils.damp(speed,target,go?2.8:6.5,dt);
+// O arrasto gira a nave, preservando a traseira voltada para a câmera.
+if(dragTurn!==0){
+ heading+=dragTurn;
+ if(input.active)stickReferenceYaw+=dragTurn;
+ dragTurn=0;
+}
 if(pendingShot && npcData.hp>0 && Math.hypot(x-npcData.x,z-npcData.z)<=COMBAT.range){
  const desired=-Math.atan2(npcData.x-x,-(npcData.z-z));
  const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
