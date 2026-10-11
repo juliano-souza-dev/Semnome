@@ -69,3 +69,9 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - O giro é controlado pelo jogador; as ondas afetam altura, inclinação e velocidade, mas não mudam involuntariamente o rumo.
 - A representação visual da orientação horizontal usa os 16 quadros direcionais (22,5° entre quadros), enquanto o ângulo real da física permanece contínuo.
 - Colisões podem gerar deslocamentos físicos temporários sem constituírem marcha à ré controlada.
+
+## Decisão registrada: curva exige deslocamento
+- **Opção B aprovada:** máquinas **não giram sobre o próprio eixo quando estão paradas**.
+- É necessário movimento de avanço para virar; a capacidade de curva aumenta com o deslocamento e desaparece em repouso.
+- O jogador controla o rumo de 360°, porém a orientação muda apenas enquanto existe deslocamento de avanço suficiente.
+- Os parâmetros de raio de curva e resposta em baixa velocidade serão calibrados no protótipo.
