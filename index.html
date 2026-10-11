@@ -289,7 +289,7 @@ const npcDistance=Math.hypot(x-npcData.x,z-npcData.z);
 lockedNpc=npcData.hp>0 && npcDistance<=COMBAT.range ? npcData : null;
 targetRing.visible=!!lockedNpc;
 targetRing.position.set(npcData.x,ny+.18,npcData.z);
-lockLabel.textContent=lockedNpc?'ALVO TRAVADO · Patrulheiro 01 · '+npcData.hp+' HP':'Procurando alvo...';
+lockLabel.textContent=lockedNpc?'ALVO TRAVADO · Patrulheiro 01 · ∞ HP':'Procurando alvo...';
 fireButton.disabled=!lockedNpc;
 npc.visible=npcData.hp>0;
 npcShadow.visible=npcData.hp>0;
@@ -312,7 +312,7 @@ for(let i=projectiles.length-1;i>=0;i--){
   const segment=p.mesh.position.clone().sub(previous);
   const projected=THREE.MathUtils.clamp(targetPosition.clone().sub(previous).dot(segment)/Math.max(segment.lengthSq(),.0001),0,1);
   const hit=npcData.hp>0 && previous.addScaledVector(segment,projected).distanceTo(targetPosition)<6;
-  if(hit){npcData.hp=Math.max(0,npcData.hp-COMBAT.damage);energyFlash(p.mesh.position)}
+  if(hit){energyFlash(p.mesh.position)}
   if(hit||p.distance>COMBAT.range*1.6){
     scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();projectiles.splice(i,1);
   }
