@@ -121,3 +121,8 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - Jogo mobile projetado para **tela horizontal**. A interface e o enquadramento devem priorizar a largura disponível.
 - Em modo retrato em dispositivos touchscreen, exibir aviso para girar o aparelho; oferecer tentativa de tela cheia e bloqueio de orientação quando o navegador permitir. Navegadores que não permitem bloquear orientação exigem rotação manual.
 - HUD compacto e analógico posicionado no canto inferior esquerdo, sem botão de aceleração separado.
+
+## Correção do analógico com câmera orbitável
+- O analógico é interpretado **relativamente à câmera no instante em que o jogador inicia o gesto**, não em eixos globais fixos.
+- O referencial angular é mantido durante o mesmo toque para impedir inversões ou giro contínuo conforme a câmera acompanha a embarcação.
+- Soltar e tocar novamente captura a orientação atual da câmera, preservando controle contextual em 360°.
