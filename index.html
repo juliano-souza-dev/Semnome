@@ -97,6 +97,14 @@ const fireButton=document.getElementById('fire'),lockLabel=document.getElementBy
 const projectileGeometry=new THREE.SphereGeometry(.9,10,8);
 const projectileMaterial=new THREE.MeshBasicMaterial({color:0xffc164});
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
+// Boca de canhão articulada provisória em 3D. A rotação real é independente do rumo.
+// O atlas 2.5D tem um canhão pintado: será necessário asset separado para coincidência visual perfeita.
+const aimMuzzle=new THREE.Group();scene.add(aimMuzzle);
+const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.45,.58,3.2,14),new THREE.MeshStandardMaterial({color:0x283c4c,metalness:.65,roughness:.34}));
+barrel.rotation.x=-Math.PI/2;barrel.position.z=-1.6;aimMuzzle.add(barrel);
+const tip=new THREE.Mesh(new THREE.TorusGeometry(.47,.13,9,16),new THREE.MeshStandardMaterial({color:0xffa13d,metalness:.55,roughness:.35}));
+tip.position.z=-3.15;aimMuzzle.add(tip);
+let currentAimYaw=0;
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
 function shoot(){
@@ -104,7 +112,8 @@ function shoot(){
   const now=clock.elapsedTime;
   if(now-lastShotTime<COMBAT.cooldown)return;
   lastShotTime=now;
-  const start=new THREE.Vector3(x-Math.sin(heading)*5,bob+3,z-Math.cos(heading)*5);
+  const start=new THREE.Vector3();
+  aimMuzzle.localToWorld(start.set(0,0,-3.3));
   const destination=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
   const direction=destination.sub(start).normalize();
   const mesh=new THREE.Mesh(projectileGeometry,projectileMaterial);
@@ -220,6 +229,15 @@ const nright=height(npcData.x+ns.x*1.5,npcData.z+ns.y*1.5,t);
 npc.rotation.x=THREE.MathUtils.damp(npc.rotation.x,THREE.MathUtils.clamp(Math.atan2(nback-nfront,3),-.24,.24),4,dt);
 npc.rotation.z=THREE.MathUtils.damp(npc.rotation.z,THREE.MathUtils.clamp(Math.atan2(nleft-nright,3),-.23,.23),4,dt);
 npcShadow.position.set(npcData.x,ny+.13,npcData.z);
+// Apontamento gradual da boca do canhão em direção ao NPC travado.
+const aimDirection=Math.atan2(-(npcData.x-x),-(npcData.z-z));
+const aiming= npcData.hp>0 && Math.hypot(x-npcData.x,z-npcData.z)<=COMBAT.range;
+const desiredAim=aiming?aimDirection:heading;
+const aimDelta=Math.atan2(Math.sin(desiredAim-currentAimYaw),Math.cos(desiredAim-currentAimYaw));
+currentAimYaw+=THREE.MathUtils.clamp(aimDelta,-4*dt,4*dt);
+aimMuzzle.position.set(x,bob+3.7,z);
+aimMuzzle.rotation.y=currentAimYaw;
+aimMuzzle.visible=playerAtlasReady;
 // Seleção automática por alcance real, sem depender de para onde a câmera olha.
 const npcDistance=Math.hypot(x-npcData.x,z-npcData.z);
 lockedNpc=npcData.hp>0 && npcDistance<=COMBAT.range ? npcData : null;
@@ -248,15 +266,15 @@ water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 // Câmera de perseguição baixa: olhar quase horizontal com proa no terço inferior.
 // Distância moderada mantém o jogador legível no celular; ponto focal remoto revela o céu.
 const distance=THREE.MathUtils.lerp(30,36,Math.min(1,speed/72));
-const cameraHeight=THREE.MathUtils.lerp(13,15,Math.min(1,speed/24));
+const cameraHeight=THREE.MathUtils.lerp(23,26,Math.min(1,speed/72));
 orbitCurrent=THREE.MathUtils.damp(orbitCurrent,orbitOffset,9,dt);
 // A câmera segue o rumo com atraso, não copia a rotação instantânea do casco.
 const headingDelta=Math.atan2(Math.sin(heading-followHeading),Math.cos(heading-followHeading));
 followHeading+=headingDelta*(1-Math.exp(-0.85*dt));
 const cameraYaw=followHeading+orbitCurrent;
 wanted.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
-const lookAhead=105;
-follow.set(x-Math.sin(cameraYaw)*lookAhead,9,z-Math.cos(cameraYaw)*lookAhead);
+const lookAhead=40;
+follow.set(x-Math.sin(cameraYaw)*lookAhead,1.5,z-Math.cos(cameraYaw)*lookAhead);
 // A câmera nunca copia os solavancos do barco ou a oscilação das ondas.
 if(!cameraReady){camera.position.copy(wanted);camTarget.copy(follow);cameraReady=true}
 camera.position.lerp(wanted,1-Math.exp(-1.8*dt));
