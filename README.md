@@ -116,3 +116,8 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - O casco avança para a frente na direção da proa, **sem marcha à ré** e **sem girar continuamente** quando o dedo fica mantido numa direção.
 - O giro segue o menor caminho angular e requer velocidade de avanço; ao soltar o analógico, há frenagem rápida.
 - Teclado permanece como suporte opcional para testes no navegador.
+
+## Orientação do jogo: landscape
+- Jogo mobile projetado para **tela horizontal**. A interface e o enquadramento devem priorizar a largura disponível.
+- Em modo retrato em dispositivos touchscreen, exibir aviso para girar o aparelho; oferecer tentativa de tela cheia e bloqueio de orientação quando o navegador permitir. Navegadores que não permitem bloquear orientação exigem rotação manual.
+- HUD compacto e analógico posicionado no canto inferior esquerdo, sem botão de aceleração separado.
