@@ -162,7 +162,7 @@ cancelAimButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopProp
 renderer.domElement.addEventListener('pointerdown',e=>{if(!areaAim.active)return;e.preventDefault();e.stopImmediatePropagation();placeAim(e)},true);
 renderer.domElement.addEventListener('pointermove',e=>{if(!areaAim.active || e.buttons===0 && e.pointerType==='mouse')return;e.preventDefault();e.stopImmediatePropagation();placeAim(e)},true);
 const areaBursts=[];
-const attackCamera={phase:'idle',shot:null,target:null,impactAt:0,blend:0,shake:0};
+const attackCamera={phase:'idle',shot:null,target:null,launchOrigin:null,launchYaw:0,impactAt:0,blend:0,shake:0};
 const shotView=new THREE.Vector3(),shotLook=new THREE.Vector3(),normalView=new THREE.Vector3(),normalLook=new THREE.Vector3();
 const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
 // O casco só gira por navegação ou arrasto; o tiro em arco mira sem girar a nave.
@@ -233,6 +233,7 @@ function launchShot(manualPoint=null){
  }
  // Cada novo tiro atualiza a cena de ataque sem interromper a navegação.
  attackCamera.phase='flight';attackCamera.shot=shot;attackCamera.target=destination.clone();
+ attackCamera.launchOrigin=origin.clone();attackCamera.launchYaw=heading;
  attackCamera.impactAt=0;attackCamera.shake=0;
 }
 // O disparo usa um ponteiro independente; pode ocorrer enquanto os outros dedos navegam e giram a câmera.
@@ -476,16 +477,17 @@ attackCamera.blend=THREE.MathUtils.damp(attackCamera.blend,desiredBlend,blendRat
 if(attackCamera.phase==='idle' && attackCamera.blend<.005)attackCamera.blend=0;
 wanted.copy(normalView);follow.copy(normalLook);
 if(attackCamera.target && attackCamera.blend>.001){
-  const playerPos=new THREE.Vector3(x,bob+2.5,z);
+  // Travado nas coordenadas do disparo, não na posição/rotação atual da nave.
+  const launchPos=attackCamera.launchOrigin;
   const targetPos=attackCamera.target;
-  const gap=playerPos.distanceTo(targetPos);
-  const midpoint=playerPos.clone().lerp(targetPos,.55);
+  const gap=launchPos.distanceTo(targetPos);
+  const midpoint=launchPos.clone().lerp(targetPos,.55);
   const shot=attackCamera.shot;
   const focus=shot?midpoint.clone().lerp(shot.mesh.position,.24):midpoint;
   // Amplia progressivamente conforme a separação, sem afastar demais.
   const attackDistance=THREE.MathUtils.clamp(gap*.65+20,34,83);
   const attackHeight=THREE.MathUtils.clamp(gap*.26+11,17,39);
-  shotView.set(focus.x+Math.sin(cameraYaw)*attackDistance,focus.y+attackHeight,focus.z+Math.cos(cameraYaw)*attackDistance);
+  shotView.set(focus.x+Math.sin(attackCamera.launchYaw)*attackDistance,focus.y+attackHeight,focus.z+Math.cos(attackCamera.launchYaw)*attackDistance);
   shotLook.copy(focus);
   wanted.lerp(shotView,attackCamera.blend);
   follow.lerp(shotLook,attackCamera.blend);
@@ -498,7 +500,7 @@ if(attackCamera.shake>0){
  camera.position.y+=Math.cos(t*119)*k*.65;
 }
 camTarget.copy(follow);cameraReady=true;camera.lookAt(camTarget);
-if(attackCamera.phase==='idle' && attackCamera.blend===0)attackCamera.target=null;
+if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
 if(playerAtlasReady){
   // A câmera de perseguição está atrás: 180° corresponde à traseira do sprite.
   const visibleAngle=heading-cameraYaw+Math.PI;
