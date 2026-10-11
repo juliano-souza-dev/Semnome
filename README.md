@@ -126,3 +126,12 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - O analógico é interpretado **relativamente à câmera no instante em que o jogador inicia o gesto**, não em eixos globais fixos.
 - O referencial angular é mantido durante o mesmo toque para impedir inversões ou giro contínuo conforme a câmera acompanha a embarcação.
 - Soltar e tocar novamente captura a orientação atual da câmera, preservando controle contextual em 360°.
+
+## Protótipo inicial de combate
+- Aceleração máxima de navegação aumentada de **24 para 72 unidades/s** (3x), com resposta das ondas proporcional.
+- O NPC Patrulheiro 01 é **selecionado automaticamente ao entrar no alcance do canhão**, inicialmente 95 unidades.
+- HUD exibe `ALVO TRAVADO`, a vida do NPC e botão `DISPARAR` no lado direito da tela horizontal.
+- Disparo acontece **somente ao pressionar o botão** (sem tiro automático contínuo).
+- Protótipo usa projétil visual de esfera, velocidade 165 unidades/s, dano 25, intervalo mínimo de 0,65s e NPC com 100 HP; todos são valores de teste.
+- Disparo de teste mira na posição do NPC ao apertar o botão; trajetória não é guiada depois do lançamento. A regra definitiva de orientação do canhão frontal fixo e aquisição de alvos será refinada.
+- O NPC ainda não ataca automaticamente o jogador. Ataque do NPC ao detectar jogador no alcance é o próximo comportamento a desenvolver.
