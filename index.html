@@ -107,7 +107,20 @@ const energyGlowMaterial=new THREE.ShaderMaterial({
  transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide
 });
 const energyGlowGeometry=new THREE.PlaneGeometry(5.6,5.6);
-const energyTrailMaterial=new THREE.LineBasicMaterial({color:0x33cfff,transparent:true,opacity:.67,blending:THREE.AdditiveBlending,depthWrite:false});
+const energyTrailMaterial=new THREE.LineBasicMaterial({color:0x33cfff,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false});
+const plasmaMaterial=new THREE.ShaderMaterial({
+ uniforms:{uTime:{value:0}},
+ vertexShader:`varying vec3 vPos;void main(){vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+ fragmentShader:`uniform float uTime;varying vec3 vPos;
+ void main(){float veins=sin(vPos.x*15.+sin(vPos.y*12.+uTime*17.)*2.)*sin(vPos.z*13.-uTime*22.);
+ float arc=smoothstep(.36,.95,veins);vec3 color=mix(vec3(.02,.33,.95),vec3(.75,1.,1.),arc);
+ gl_FragColor=vec4(color,.52+arc*.36);}`,
+ transparent:true,depthWrite:false,blending:THREE.AdditiveBlending
+});
+const shockwaveGeometry=new THREE.RingGeometry(.65,1.15,32);
+const shockwaveMaterial=new THREE.MeshBasicMaterial({color:0x43e7ff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+const sparkGeometry=new THREE.BufferGeometry();const sparkCount=36;
+sparkGeometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(sparkCount*3),3));
 const impactEffects=[];
 function energyFlash(position){
  const material=energyGlowMaterial.clone();
@@ -115,7 +128,16 @@ function energyFlash(position){
  material.uniforms.uColor={value:new THREE.Color(0x7defff)};
  const flash=new THREE.Mesh(energyGlowGeometry,material);
  flash.position.copy(position);flash.scale.setScalar(2);scene.add(flash);
- impactEffects.push({flash,age:0});
+ const ring=new THREE.Mesh(shockwaveGeometry,shockwaveMaterial.clone());ring.position.copy(position);scene.add(ring);
+ const positions=new Float32Array(sparkCount*3),velocities=[];
+ for(let i=0;i<sparkCount;i++){
+   const angle=Math.random()*Math.PI*2,u=Math.random()*2-1,r=Math.sqrt(1-u*u);
+   velocities.push(new THREE.Vector3(Math.cos(angle)*r,u*.8,Math.sin(angle)*r).multiplyScalar(8+Math.random()*21));
+ }
+ const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+ const sparks=new THREE.Points(geometry,new THREE.PointsMaterial({color:0x9efaff,size:.7,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));
+ sparks.position.copy(position);scene.add(sparks);
+ impactEffects.push({flash,ring,sparks,velocities,age:0});
 }
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
 // Canhão fixo ao casco: o disparo faz a embarcação alinhar a proa.
@@ -133,12 +155,16 @@ function launchShot(){
  const direction=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
+ const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
  const glow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
- mesh.add(core,glow);mesh.position.copy(start);scene.add(mesh);
+ const outerGlow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
+ outerGlow.scale.setScalar(1.9);
+ mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(start);scene.add(mesh);
+ energyFlash(start);
  const trailPoints=Array.from({length:9},()=>start.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- projectiles.push({mesh,glow,trail,trailPoints,velocity:direction.multiplyScalar(COMBAT.projectileSpeed),distance:0});
+ projectiles.push({mesh,glow,outerGlow,plasma,trail,trailPoints,velocity:direction.multiplyScalar(COMBAT.projectileSpeed),distance:0});
 }
 // O disparo usa um ponteiro independente; pode ocorrer enquanto os outros dedos navegam e giram a câmera.
 fireButton.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();e.stopPropagation();shoot()});
@@ -267,12 +293,13 @@ lockLabel.textContent=lockedNpc?'ALVO TRAVADO · Patrulheiro 01 · '+npcData.hp+
 fireButton.disabled=!lockedNpc;
 npc.visible=npcData.hp>0;
 npcShadow.visible=npcData.hp>0;
-energyGlowMaterial.uniforms.uTime.value=t;
+energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
   const p=projectiles[i],previous=p.mesh.position.clone();
   const step=p.velocity.clone().multiplyScalar(dt);
   p.mesh.position.add(step);p.distance+=step.length();
-  p.glow.quaternion.copy(camera.quaternion);
+  p.glow.quaternion.copy(camera.quaternion);p.outerGlow.quaternion.copy(camera.quaternion);
+  p.plasma.rotation.set(t*6,t*9,t*5);p.plasma.scale.setScalar(1+.13*Math.sin(t*25));
   // Preenche o rastro em coordenadas do mundo, sem alocações de geometria a cada quadro.
   p.trailPoints.pop();p.trailPoints.unshift(p.mesh.position.clone());
   const arr=p.trail.geometry.attributes.position.array;
@@ -291,11 +318,14 @@ for(let i=projectiles.length-1;i>=0;i--){
   }
 }
 for(let i=impactEffects.length-1;i>=0;i--){
- const e=impactEffects[i];e.age+=dt;e.flash.quaternion.copy(camera.quaternion);
- e.flash.material.uniforms.uTime.value=t;
- e.flash.material.uniforms.uOpacity.value=Math.max(0,1-e.age/.28);
- e.flash.scale.setScalar(2+e.age*6);
- if(e.age>=.28){scene.remove(e.flash);e.flash.material.dispose();impactEffects.splice(i,1)}
+ const e=impactEffects[i];e.age+=dt;e.flash.quaternion.copy(camera.quaternion);e.ring.quaternion.copy(camera.quaternion);
+ const fade=Math.max(0,1-e.age/.45);
+ e.flash.material.uniforms.uTime.value=t;e.flash.material.uniforms.uOpacity.value=fade;
+ e.flash.scale.setScalar(1.7+e.age*9);e.ring.scale.setScalar(1+e.age*18);e.ring.material.opacity=fade*.85;
+ const pos=e.sparks.geometry.attributes.position;
+ for(let j=0;j<e.velocities.length;j++){const v=e.velocities[j];pos.setXYZ(j,v.x*e.age,v.y*e.age-11*e.age*e.age,v.z*e.age)}
+ pos.needsUpdate=true;e.sparks.material.opacity=fade;
+ if(e.age>=.45){scene.remove(e.flash,e.ring,e.sparks);e.flash.material.dispose();e.ring.material.dispose();e.sparks.material.dispose();e.sparks.geometry.dispose();impactEffects.splice(i,1)}
 }
 
 // A malha acompanha o jogador com fases de onda em coordenadas globais. 
