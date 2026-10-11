@@ -12,6 +12,10 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #fire{position:absolute;right:max(24px,env(safe-area-inset-right));bottom:max(23px,env(safe-area-inset-bottom));width:96px;height:96px;border-radius:50%;border:3px solid #ffd6a0;background:#ef702b;color:#fff;font-weight:900;letter-spacing:.03em;pointer-events:auto;touch-action:none;user-select:none}
 #ammo{position:absolute;right:max(118px,env(safe-area-inset-right) + 106px);bottom:max(34px,env(safe-area-inset-bottom));width:60px;height:60px;border-radius:16px;border:2px solid #76e0ffaa;background:#092c46e8;color:white;font-size:24px;pointer-events:auto;touch-action:none}
 #ammoMenu{display:none;position:absolute;right:16px;bottom:120px;width:min(260px,67vw);padding:9px;border:1px solid #7cdfff88;border-radius:14px;background:#071e31ef;pointer-events:auto;touch-action:none;box-shadow:0 8px 26px #0009}
+#aimHint{display:none;position:absolute;top:54px;left:50%;transform:translateX(-50%);background:#102b43ee;border:1px solid #ecb8ff;padding:9px 12px;border-radius:9px;text-align:center;font-weight:700;font-size:12px;pointer-events:none;white-space:nowrap}
+#aimHint.active{display:block}
+#cancelAim{display:none;position:absolute;right:14px;top:72px;pointer-events:auto;touch-action:none;border:1px solid #fff8;border-radius:10px;background:#522842;color:white;padding:9px}
+#cancelAim.active{display:block}
 #ammoMenu.open{display:grid;gap:7px}#ammoMenu button{padding:11px 10px;background:#173b54;color:white;border:1px solid #5c95ae80;border-radius:9px;text-align:left;font:600 12px system-ui;touch-action:none}
 #ammoMenu button.chosen{border-color:#8ef4ff;background:#1c6376}
 @media(orientation:landscape){#ammo{right:118px;bottom:26px;width:54px;height:54px}#ammoMenu{bottom:98px}}
@@ -28,7 +32,7 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 </head>
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
-<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="ammo" aria-label="Escolher munição" aria-expanded="false">⚡</button><div id="ammoMenu" aria-label="Tipos de munição"></div><button id="fire" disabled>DISPARAR</button></div>
+<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="ammo" aria-label="Escolher munição" aria-expanded="false">⚡</button><div id="ammoMenu" aria-label="Tipos de munição"></div><div id="aimHint">ARRASTE NO MAR PARA POSICIONAR A ÁREA</div><button id="cancelAim">CANCELAR</button><button id="fire" disabled>DISPARAR</button></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
@@ -102,7 +106,8 @@ const fireButton=document.getElementById('fire'),lockLabel=document.getElementBy
 const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
- {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff}
+ {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
+ {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 180 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
 const ammoButton=document.getElementById('ammo'),ammoMenu=document.getElementById('ammoMenu');
@@ -112,7 +117,7 @@ function renderAmmoMenu(){
   const button=document.createElement('button');button.type='button';
   button.className=ammo.id===selectedAmmo.id?'chosen':'';
   button.textContent=ammo.icon+' '+ammo.name+' · '+ammo.description;
-  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;ammoButton.textContent=ammo.icon;ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu()});
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();ammoButton.textContent=ammo.icon;ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu()});
   ammoMenu.append(button);
  }
 }
@@ -164,6 +169,33 @@ function energyFlash(position){
  impactEffects.push({flash,ring,sparks,velocities,age:0});
 }
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
+const AREA_RANGE=180,AREA_RADIUS=22;
+const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
+const areaAim={active:false,point:new THREE.Vector3(),valid:false};
+const aimReticle=new THREE.Group();scene.add(aimReticle);aimReticle.visible=false;
+const aimDisc=new THREE.Mesh(new THREE.CircleGeometry(AREA_RADIUS,64),new THREE.MeshBasicMaterial({color:0x9c52e8,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide}));
+aimDisc.rotation.x=-Math.PI/2;aimReticle.add(aimDisc);
+for(const rad of [AREA_RADIUS,AREA_RADIUS*.7]){
+ const ring=new THREE.Mesh(new THREE.RingGeometry(rad-.3,rad+.3,64),new THREE.MeshBasicMaterial({color:0xeaa6ff,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide}));
+ ring.rotation.x=-Math.PI/2;ring.position.y=.08;aimReticle.add(ring);
+}
+const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),seaPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+function cancelAreaAim(){areaAim.active=false;areaAim.valid=false;aimReticle.visible=false;aimHint.classList.remove('active');cancelAimButton.classList.remove('active');fireButton.textContent='DISPARAR'}
+function placeAim(e){
+ pointerNdc.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);
+ raycaster.setFromCamera(pointerNdc,camera);
+ const p=new THREE.Vector3();
+ if(!raycaster.ray.intersectPlane(seaPlane,p))return;
+ const dx=p.x-x,dz=p.z-z,len=Math.hypot(dx,dz);
+ const d=Math.min(len,AREA_RANGE);
+ if(len>.001){p.x=x+dx/len*d;p.z=z+dz/len*d}
+ p.y=height(p.x,p.z,clock.elapsedTime)+.35;
+ areaAim.point.copy(p);areaAim.valid=true;aimReticle.position.copy(p);aimReticle.visible=true;
+}
+cancelAimButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();cancelAreaAim()});
+renderer.domElement.addEventListener('pointerdown',e=>{if(!areaAim.active)return;e.preventDefault();e.stopImmediatePropagation();placeAim(e)},true);
+renderer.domElement.addEventListener('pointermove',e=>{if(!areaAim.active || e.buttons===0 && e.pointerType==='mouse')return;e.preventDefault();e.stopImmediatePropagation();placeAim(e)},true);
+const areaBursts=[];
 const attackCamera={phase:'idle',shot:null,target:null,impactAt:0,blend:0,shake:0};
 const shotView=new THREE.Vector3(),shotLook=new THREE.Vector3(),normalView=new THREE.Vector3(),normalLook=new THREE.Vector3();
 const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
@@ -172,17 +204,34 @@ const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
 function shoot(){
- if(!lockedNpc || npcData.hp<=0 || clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
+ if(clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
+ if(selectedAmmo.id==='siege'){
+  if(!areaAim.active){
+   areaAim.active=true;areaAim.valid=false;
+   aimHint.classList.add('active');cancelAimButton.classList.add('active');
+   fireButton.textContent='CONFIRMAR';
+   const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+   areaAim.point.set(x+forward.x*60,0,z+forward.z*60);
+   areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
+   areaAim.valid=true;aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
+   return;
+  }
+  if(!areaAim.valid)return;
+  launchShot(areaAim.point.clone());
+  cancelAreaAim();
+  return;
+ }
+ if(!lockedNpc || npcData.hp<=0)return;
  launchShot();
 }
-function launchShot(){
+function launchShot(manualPoint=null){
  lastShotTime=clock.elapsedTime;
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
- const destination=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
+ const destination=manualPoint?manualPoint.clone():new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
  const ammo=selectedAmmo;
- const travel=Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
- const arcHeight=THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
+ const travel=Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:ammo.id==='siege'?1.5:1);
+ const arcHeight=ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
@@ -196,6 +245,7 @@ function launchShot(){
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
  const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id};
  if(ammo.id==='meteor'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);plasma.material=plasmaMaterial.clone();}
+ if(ammo.id==='siege'){core.material=energyCoreMaterial.clone();core.material.color.setHex(0xeebaff);mesh.scale.setScalar(1.65);}
  if(ammo.id==='scatter'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
  
  projectiles.push(shot);
@@ -342,7 +392,7 @@ lockedNpc=npcData.hp>0 && npcDistance<=COMBAT.range ? npcData : null;
 targetRing.visible=!!lockedNpc;
 targetRing.position.set(npcData.x,ny+.18,npcData.z);
 lockLabel.textContent=lockedNpc?'ALVO TRAVADO · Patrulheiro 01 · ∞ HP':'Procurando alvo...';
-fireButton.disabled=!lockedNpc;
+fireButton.disabled=selectedAmmo.id==='siege'?false:!lockedNpc;
 npc.visible=npcData.hp>0;
 npcShadow.visible=npcData.hp>0;
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
@@ -352,7 +402,11 @@ for(let i=projectiles.length-1;i>=0;i--){
   const u=Math.min(1,p.age/p.travel);
   // Parábola suave: ponto alto no meio, queda sobre o alvo.
   if(p.age<0)continue;
-  if(p.ammo==='meteor'){
+  if(p.ammo==='siege'){
+   const travelX=Math.min(1,u/.55);p.mesh.position.lerpVectors(p.origin,p.destination,travelX);
+   p.mesh.position.y=p.origin.y+(p.arcHeight-p.origin.y)*Math.min(1,u/.35);
+   if(u>.55){p.mesh.position.x=p.destination.x;p.mesh.position.z=p.destination.z;p.mesh.position.y=THREE.MathUtils.lerp(p.arcHeight,p.destination.y,(u-.55)/.45)}
+  }else if(p.ammo==='meteor'){
    // Trajetória quase vertical na fase final: aproximação inicial curta e mergulho.
    const move=u<.38?(u/.38)*.72:.72+.28*((u-.38)/.62);
    p.mesh.position.lerpVectors(p.origin,p.destination,move);
@@ -372,6 +426,16 @@ for(let i=projectiles.length-1;i>=0;i--){
   // A explosão ocorre na chegada; não atravessa o alvo entre frames.
   if(u>=1){
     energyFlash(p.mesh.position);
+    if(p.ammo==='siege'){
+      const bloom=energyGlowMaterial.clone();bloom.uniforms.uTime={value:t};bloom.uniforms.uOpacity={value:1};
+      bloom.uniforms.uColor={value:new THREE.Color(0xc778ff)};
+      const burst=new THREE.Mesh(energyGlowGeometry,bloom);burst.position.copy(p.mesh.position);burst.scale.setScalar(5);scene.add(burst);
+      const ring=new THREE.Mesh(new THREE.RingGeometry(AREA_RADIUS*.8,AREA_RADIUS,72),new THREE.MeshBasicMaterial({color:0xee99ff,transparent:true,opacity:.85,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
+      ring.rotation.x=-Math.PI/2;ring.position.copy(p.mesh.position);ring.position.y+=.4;scene.add(ring);
+      areaBursts.push({burst,ring,age:0});
+      // Dano em área configurado para NPCs futuros; Patrulheiro 01 segue imortal durante testes.
+      if(Math.hypot(npcData.x-p.destination.x,npcData.z-p.destination.z)<=AREA_RADIUS){energyFlash(new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z))}
+    }
     if(attackCamera.shot===p){
       attackCamera.phase='impact';attackCamera.impactAt=t;
       attackCamera.shot=null;attackCamera.shake=.42;
@@ -381,6 +445,15 @@ for(let i=projectiles.length-1;i>=0;i--){
     projectiles.splice(i,1);
   }
 }
+for(let i=areaBursts.length-1;i>=0;i--){
+ const e=areaBursts[i];e.age+=dt;
+ const fade=Math.max(0,1-e.age/.72);
+ e.burst.quaternion.copy(camera.quaternion);e.burst.material.uniforms.uTime.value=t;
+ e.burst.material.uniforms.uOpacity.value=fade;
+ e.burst.scale.setScalar(5+e.age*15);e.ring.scale.setScalar(.5+e.age*1.15);e.ring.material.opacity=fade*.85;
+ if(e.age>=.72){scene.remove(e.burst,e.ring);e.burst.material.dispose();e.ring.material.dispose();areaBursts.splice(i,1)}
+}
+if(areaAim.active&&areaAim.valid){areaAim.point.y=height(areaAim.point.x,areaAim.point.z,t)+.35;aimReticle.position.copy(areaAim.point);aimReticle.rotation.y+=dt*.35}
 for(let i=impactEffects.length-1;i>=0;i--){
  const e=impactEffects[i];e.age+=dt;e.flash.quaternion.copy(camera.quaternion);e.ring.quaternion.copy(camera.quaternion);
  const fade=Math.max(0,1-e.age/.45);
