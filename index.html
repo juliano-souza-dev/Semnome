@@ -175,7 +175,8 @@ npc.rotation.x=THREE.MathUtils.damp(npc.rotation.x,THREE.MathUtils.clamp(Math.at
 npc.rotation.z=THREE.MathUtils.damp(npc.rotation.z,THREE.MathUtils.clamp(Math.atan2(nleft-nright,3),-.23,.23),4,dt);
 npcShadow.position.set(npcData.x,ny+.13,npcData.z);
 
-// A malha acompanha o jogador, mas a fase das ondas usa coordenadas globais estáveis.\nwater.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
+// A malha acompanha o jogador com fases de onda em coordenadas globais. 
+water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 // Câmera de ação: afastada, baixa, horizonte aparente e horizonte estável.
 // Inclinação de observação menor do que a do protótipo anterior para evitar vista quase vertical.
 // Não copiar bob/pitch/roll do casco para câmera (previne enjoo visual).
