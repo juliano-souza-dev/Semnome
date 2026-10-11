@@ -26,7 +26,9 @@ Jogo de navegação e combate marítimo em mundo 3D, com embarcações apresenta
 - Espuma, respingos e esteira devem reagir ao movimento relativo do casco e da água; não substituir o movimento físico.
 - **Restrição 2.5D:** a direção horizontal usa sprites de 16 ângulos, mas grandes rotações em pitch/roll não podem ser representadas corretamente por um único sprite plano. Começar com inclinações visualmente controladas e validar se são necessários quadros adicionais ou uma representação híbrida.
 - **Desempenho:** priorizar mobile-first e simulação aproximada, sem simulação completa de fluidos.
-- **Pendências:** intensidade das ondas, força de flutuação, amortecimento, impacto na direção/velocidade e limites de inclinação em câmera dinâmica.
+- **Decisão confirmada:** as ondas também afetam a **velocidade** da embarcação. Subidas e ondas contrárias aumentam a resistência; descidas e ondas a favor podem acelerar; impactos com ondas grandes podem causar desaceleração repentina.
+- O efeito na velocidade depende da geometria, movimento e direção relativa das ondas; não deve ser uma alteração arbitrária ligada à animação visual.
+- **Pendências:** intensidade das ondas, força de flutuação, amortecimento, influência na direção, limites de inclinação e calibração da resistência/impulso.
 
 ## Próxima decisão de arquitetura
 Definir o sistema de coordenadas do oceano e das embarcações, incluindo superfície 3D, posicionamento dos sprites, física de navegação, colisões e organização das camadas de renderização.
