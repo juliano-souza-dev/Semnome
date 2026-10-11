@@ -50,3 +50,9 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - A força do empurrão poderá variar com massa, velocidade relativa e ponto de contato, respeitando uma simulação estável em dispositivos móveis.
 - A reação física de impacto não deve alterar diretamente o comando direcional do jogador; após o empurrão, ele continua controlando o rumo.
 - Essa regra diz respeito ao contato entre embarcações; dano por armas e outras fontes será definido em separado.
+
+## Decisão registrada: propulsão e aceleração
+- **Opção B aprovada:** aceleração rápida e responsiva. A máquina alcança velocidades altas em pouco tempo, sem longa fase de aceleração.
+- A resposta aos comandos deve ser ágil para combate, mesmo com ondas violentas.
+- As ondas continuam alterando a **velocidade** durante a navegação; o jogador mantém controle total do rumo.
+- Valores numéricos de aceleração, velocidade máxima, frenagem e curva serão calibrados no protótipo, sem assumir números definitivos neste documento.
