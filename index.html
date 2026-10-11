@@ -112,7 +112,7 @@ pad.addEventListener('lostpointercapture',releasePad);
 const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code)});
 addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
-let orbitOffset=0,orbitCurrent=0,dragId=null,lastDragX=0;
+let orbitOffset=0,orbitCurrent=0,dragId=null,lastDragX=0,followHeading=0;
 renderer.domElement.style.touchAction='none';
 renderer.domElement.addEventListener('pointerdown',e=>{
  if(dragId!==null || e.pointerType==='mouse'&&e.button!==0)return;
@@ -203,7 +203,10 @@ water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 const distance=THREE.MathUtils.lerp(30,36,Math.min(1,speed/24));
 const cameraHeight=THREE.MathUtils.lerp(13,15,Math.min(1,speed/24));
 orbitCurrent=THREE.MathUtils.damp(orbitCurrent,orbitOffset,9,dt);
-const cameraYaw=heading+orbitCurrent;
+// A câmera segue o rumo com atraso, não copia a rotação instantânea do casco.
+const headingDelta=Math.atan2(Math.sin(heading-followHeading),Math.cos(heading-followHeading));
+followHeading+=headingDelta*(1-Math.exp(-0.85*dt));
+const cameraYaw=followHeading+orbitCurrent;
 wanted.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
 const lookAhead=105;
 follow.set(x-Math.sin(cameraYaw)*lookAhead,9,z-Math.cos(cameraYaw)*lookAhead);
