@@ -75,3 +75,10 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - É necessário movimento de avanço para virar; a capacidade de curva aumenta com o deslocamento e desaparece em repouso.
 - O jogador controla o rumo de 360°, porém a orientação muda apenas enquanto existe deslocamento de avanço suficiente.
 - Os parâmetros de raio de curva e resposta em baixa velocidade serão calibrados no protótipo.
+
+## Decisão registrada: curvas fechadas em alta velocidade
+- **Opção A aprovada:** máquinas conseguem realizar **curvas fechadas mesmo em alta velocidade**, priorizando combate arcade ágil.
+- Não é necessário reduzir velocidade para executar uma curva fechada; ajustar a velocidade por efeito das ondas continua válido.
+- O giro depende de movimento de avanço: máquinas paradas não giram no próprio eixo.
+- A orientação permanece controlada pelo jogador e a rotação é contínua em 360°, representada visualmente por sprites de 16 direções.
+- Taxa de giro máxima, raio de curva e suavização serão calibrados no protótipo para manter manobras responsivas sem produzir trancos visuais.
