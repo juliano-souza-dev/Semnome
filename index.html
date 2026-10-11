@@ -69,6 +69,9 @@ const npcCannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new TH
 const npcData={x:14,z:-75,y:0,heading:0,speed:6,anchorX:14,anchorZ:-75};
 const npcShadow=new THREE.Mesh(new THREE.CircleGeometry(5.1,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.2,depthWrite:false}));npcShadow.rotation.x=-Math.PI/2;scene.add(npcShadow);
 // Sprite real do jogador: atlas 4x4 de 16 direções. Geometria fica apenas como fallback.
+// Ordem da grade 4x4: 16 quadros de 22,5 graus; linha 0 é a frente.
+const FRAME_MAP=Array.from({length:16},(_,i)=>({c:i%4,r:Math.floor(i/4)}));
+const TAU=Math.PI*2,FRAME_STEP=TAU/16;
 const PLAYER_ATLAS='./assets/ships/player/file_00000000bf14820e99bcf96b5bc8af0b.png';
 const playerSpriteMaterial=new THREE.MeshBasicMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide});
 const playerSprite=new THREE.Mesh(new THREE.PlaneGeometry(13.8,13.8),playerSpriteMaterial);
@@ -210,12 +213,12 @@ camera.position.lerp(wanted,1-Math.exp(-1.8*dt));
 camTarget.lerp(follow,1-Math.exp(-2.2*dt));
 camera.lookAt(camTarget);
 if(playerAtlasReady){
-  // Cada quadro cobre 22,5°; a escolha respeita a câmera orbitável.
-  const relativeAngle=Math.atan2(Math.sin(heading-cameraYaw),Math.cos(heading-cameraYaw));
-  const frame=((Math.round(relativeAngle/(Math.PI*2)*16)%16)+16)%16;
-  const column=frame%4,row=Math.floor(frame/4);
-  playerSpriteMaterial.map.offset.set(column*.25,(3-row)*.25);
-  playerSpriteMaterial.map.needsUpdate=true;
+  // A câmera de perseguição está atrás: 180° corresponde à traseira do sprite.
+  const visibleAngle=heading-cameraYaw+Math.PI;
+  const normalized=((visibleAngle%TAU)+TAU)%TAU;
+  const frameIndex=Math.round(normalized/FRAME_STEP)%16;
+  const {c:column,r:row}=FRAME_MAP[frameIndex];
+  playerSpriteMaterial.map.offset.set(column*.25,1-(row+1)*.25);
   playerSprite.position.set(x,bob+4.3,z);
   playerSprite.quaternion.copy(camera.quaternion);
 }
