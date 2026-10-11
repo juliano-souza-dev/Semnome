@@ -9,6 +9,10 @@ canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#top{positio
 #top strong{display:block;font-size:14px}#top small{display:block;opacity:.8;margin-top:4px}#status{margin-top:8px;color:#b9f8ff}
 #pad{position:absolute;left:max(20px,env(safe-area-inset-left));bottom:max(18px,env(safe-area-inset-bottom));width:116px;height:116px;border:2px solid #ffffff55;border-radius:50%;background:#ffffff12;pointer-events:auto;touch-action:none;display:grid;place-items:center}
 #stick{width:55px;height:55px;background:#ffae40;border:3px solid #ffe8b8;border-radius:50%;box-shadow:0 5px 18px #0008;transform:translate(0,0)}
+#fire{position:absolute;right:max(24px,env(safe-area-inset-right));bottom:max(23px,env(safe-area-inset-bottom));width:96px;height:96px;border-radius:50%;border:3px solid #ffd6a0;background:#ef702b;color:#fff;font-weight:900;letter-spacing:.03em;pointer-events:auto;touch-action:none;user-select:none}
+#fire:disabled{opacity:.42;filter:grayscale(.5)}#fire:active:not(:disabled){transform:scale(.96)}
+#lock{position:absolute;top:14px;right:22px;border:1px solid #ffce7b66;background:#092334b9;color:#ffd69b;padding:7px 11px;border-radius:8px;font-weight:700;font-size:12px}
+@media(orientation:landscape){#fire{width:82px;height:82px;right:24px;bottom:16px}#lock{top:10px;right:12px}}
 
 @media(orientation:landscape){#top{top:8px;left:10px;padding:6px 9px;max-width:225px;background:#082536a0}#top small{font-size:10px;margin-top:2px}#top strong{font-size:12px}#status{font-size:11px;margin-top:3px}#pad{opacity:.7}} 
 #orientation{display:none;position:fixed;inset:0;background:#071d2d;z-index:30;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:16px;padding:30px;font-size:19px}
@@ -19,7 +23,7 @@ canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#top{positio
 </head>
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
-<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico move • arraste o mar para girar câmera<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div></div>
+<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste a câmera • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="fire" disabled>DISPARAR</button></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
@@ -86,6 +90,28 @@ new THREE.TextureLoader().load(PLAYER_ATLAS,texture=>{
   playerAtlasReady=true;
   ship.visible=false;playerSprite.visible=true;
 },undefined,error=>console.warn('Falha no sprite; usando modelo provisório.',error));
+// Protótipo de combate: configurações isoladas para calibração.
+const COMBAT={range:95,projectileSpeed:165,damage:25,cooldown:.65,npcMaxHp:100};
+npcData.hp=COMBAT.npcMaxHp;
+const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
+const projectileGeometry=new THREE.SphereGeometry(.9,10,8);
+const projectileMaterial=new THREE.MeshBasicMaterial({color:0xffc164});
+const projectiles=[];let lockedNpc=null,lastShotTime=-100;
+const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
+targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
+function shoot(){
+  if(!lockedNpc || npcData.hp<=0)return;
+  const now=clock.elapsedTime;
+  if(now-lastShotTime<COMBAT.cooldown)return;
+  lastShotTime=now;
+  const start=new THREE.Vector3(x-Math.sin(heading)*5,bob+3,z-Math.cos(heading)*5);
+  const destination=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
+  const direction=destination.sub(start).normalize();
+  const mesh=new THREE.Mesh(projectileGeometry,projectileMaterial);
+  mesh.position.copy(start);scene.add(mesh);
+  projectiles.push({mesh,velocity:direction.multiplyScalar(COMBAT.projectileSpeed),distance:0});
+}
+fireButton.addEventListener('pointerdown',e=>{e.stopPropagation();shoot()});
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
@@ -135,10 +161,10 @@ const keyboardGo=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
 const stickAmount=input.active&&input.magnitude>.13?(input.magnitude-.13)/.87:0;
 const go=keyboardGo||stickAmount>0;
 const turn=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
-let target=24*(keyboardGo?1:stickAmount); // joystick: distância define aceleração
+let target=72*(keyboardGo?1:stickAmount); // joystick: distância define aceleração
 const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
-target=Math.max(0,target-Math.max(0,slope)*8+Math.max(0,-slope)*2);
+target=Math.max(0,target-Math.max(0,slope)*24+Math.max(0,-slope)*6);
 speed=THREE.MathUtils.damp(speed,target,go?4.8:7.8,dt);
 if(speed>.35){
   if(stickAmount>0){
@@ -192,6 +218,25 @@ const nright=height(npcData.x+ns.x*1.5,npcData.z+ns.y*1.5,t);
 npc.rotation.x=THREE.MathUtils.damp(npc.rotation.x,THREE.MathUtils.clamp(Math.atan2(nback-nfront,3),-.24,.24),4,dt);
 npc.rotation.z=THREE.MathUtils.damp(npc.rotation.z,THREE.MathUtils.clamp(Math.atan2(nleft-nright,3),-.23,.23),4,dt);
 npcShadow.position.set(npcData.x,ny+.13,npcData.z);
+// Seleção automática por alcance real, sem depender de para onde a câmera olha.
+const npcDistance=Math.hypot(x-npcData.x,z-npcData.z);
+lockedNpc=npcData.hp>0 && npcDistance<=COMBAT.range ? npcData : null;
+targetRing.visible=!!lockedNpc;
+targetRing.position.set(npcData.x,ny+.18,npcData.z);
+lockLabel.textContent=lockedNpc?'ALVO TRAVADO · Patrulheiro 01 · '+npcData.hp+' HP':'Procurando alvo...';
+fireButton.disabled=!lockedNpc;
+npc.visible=npcData.hp>0;
+npcShadow.visible=npcData.hp>0;
+for(let i=projectiles.length-1;i>=0;i--){
+  const p=projectiles[i];
+  const step=p.velocity.clone().multiplyScalar(dt);
+  p.mesh.position.add(step);p.distance+=step.length();
+  const hit=npcData.hp>0 && p.mesh.position.distanceTo(new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z))<6;
+  if(hit){npcData.hp=Math.max(0,npcData.hp-COMBAT.damage)}
+  if(hit||p.distance>COMBAT.range*1.6){
+    scene.remove(p.mesh);projectiles.splice(i,1);
+  }
+}
 
 // A malha acompanha o jogador com fases de onda em coordenadas globais. 
 water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
@@ -200,7 +245,7 @@ water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 // Não copiar bob/pitch/roll do casco para câmera (previne enjoo visual).
 // Câmera de perseguição baixa: olhar quase horizontal com proa no terço inferior.
 // Distância moderada mantém o jogador legível no celular; ponto focal remoto revela o céu.
-const distance=THREE.MathUtils.lerp(30,36,Math.min(1,speed/24));
+const distance=THREE.MathUtils.lerp(30,36,Math.min(1,speed/72));
 const cameraHeight=THREE.MathUtils.lerp(13,15,Math.min(1,speed/24));
 orbitCurrent=THREE.MathUtils.damp(orbitCurrent,orbitOffset,9,dt);
 // A câmera segue o rumo com atraso, não copia a rotação instantânea do casco.
