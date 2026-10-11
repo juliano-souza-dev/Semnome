@@ -10,6 +10,11 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #pad{position:absolute;left:max(20px,env(safe-area-inset-left));bottom:max(18px,env(safe-area-inset-bottom));width:116px;height:116px;border:2px solid #ffffff55;border-radius:50%;background:#ffffff12;pointer-events:auto;touch-action:none;display:grid;place-items:center}
 #stick{width:55px;height:55px;background:#ffae40;border:3px solid #ffe8b8;border-radius:50%;box-shadow:0 5px 18px #0008;transform:translate(0,0);pointer-events:none}
 #fire{position:absolute;right:max(24px,env(safe-area-inset-right));bottom:max(23px,env(safe-area-inset-bottom));width:96px;height:96px;border-radius:50%;border:3px solid #ffd6a0;background:#ef702b;color:#fff;font-weight:900;letter-spacing:.03em;pointer-events:auto;touch-action:none;user-select:none}
+#ammo{position:absolute;right:max(118px,env(safe-area-inset-right) + 106px);bottom:max(34px,env(safe-area-inset-bottom));width:60px;height:60px;border-radius:16px;border:2px solid #76e0ffaa;background:#092c46e8;color:white;font-size:24px;pointer-events:auto;touch-action:none}
+#ammoMenu{display:none;position:absolute;right:16px;bottom:120px;width:min(260px,67vw);padding:9px;border:1px solid #7cdfff88;border-radius:14px;background:#071e31ef;pointer-events:auto;touch-action:none;box-shadow:0 8px 26px #0009}
+#ammoMenu.open{display:grid;gap:7px}#ammoMenu button{padding:11px 10px;background:#173b54;color:white;border:1px solid #5c95ae80;border-radius:9px;text-align:left;font:600 12px system-ui;touch-action:none}
+#ammoMenu button.chosen{border-color:#8ef4ff;background:#1c6376}
+@media(orientation:landscape){#ammo{right:118px;bottom:26px;width:54px;height:54px}#ammoMenu{bottom:98px}}
 #fire:disabled{opacity:.42;filter:grayscale(.5)}#fire:active:not(:disabled){transform:scale(.96)}
 #top,#lock{pointer-events:none}#lock{position:absolute;top:14px;right:22px;border:1px solid #ffce7b66;background:#092334b9;color:#ffd69b;padding:7px 11px;border-radius:8px;font-weight:700;font-size:12px}
 @media(orientation:landscape){#fire{width:82px;height:82px;right:24px;bottom:16px}#lock{top:10px;right:12px}}
@@ -23,7 +28,7 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 </head>
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
-<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="fire" disabled>DISPARAR</button></div>
+<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="ammo" aria-label="Escolher munição" aria-expanded="false">⚡</button><div id="ammoMenu" aria-label="Tipos de munição"></div><button id="fire" disabled>DISPARAR</button></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
@@ -94,6 +99,25 @@ new THREE.TextureLoader().load(PLAYER_ATLAS,texture=>{
 const COMBAT={range:95,projectileSpeed:165,damage:25,cooldown:.65,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
+const AMMO_TYPES=[
+ {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
+ {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
+ {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff}
+];
+let selectedAmmo=AMMO_TYPES[0];
+const ammoButton=document.getElementById('ammo'),ammoMenu=document.getElementById('ammoMenu');
+function renderAmmoMenu(){
+ ammoMenu.replaceChildren();
+ for(const ammo of AMMO_TYPES){
+  const button=document.createElement('button');button.type='button';
+  button.className=ammo.id===selectedAmmo.id?'chosen':'';
+  button.textContent=ammo.icon+' '+ammo.name+' · '+ammo.description;
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;ammoButton.textContent=ammo.icon;ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu()});
+  ammoMenu.append(button);
+ }
+}
+ammoButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();const isOpen=ammoMenu.classList.toggle('open');ammoButton.setAttribute('aria-expanded',String(isOpen));if(isOpen)renderAmmoMenu()});
+renderAmmoMenu();
 // Projétil de energia WebGL: núcleo emissivo ciano, halo aditivo e rastro azul.
 const energyCoreGeometry=new THREE.SphereGeometry(.8,16,12);
 const energyCoreMaterial=new THREE.MeshBasicMaterial({color:0x9efcff,toneMapped:false});
@@ -156,8 +180,9 @@ function launchShot(){
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
  const destination=new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
- const travel=Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8);
- const arcHeight=THREE.MathUtils.clamp(origin.distanceTo(destination)*.44,13,38);
+ const ammo=selectedAmmo;
+ const travel=Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
+ const arcHeight=THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
@@ -169,8 +194,26 @@ function launchShot(){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id};
+ if(ammo.id==='meteor'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);plasma.material=plasmaMaterial.clone();}
+ if(ammo.id==='scatter'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
+ 
  projectiles.push(shot);
+ if(ammo.id==='scatter'){
+  // Impactos secundários independentes, descendentes, em posições próximas ao alvo.
+  for(let i=0;i<2;i++){
+   const offset=(i===0?-1:1)*5;
+   const goal=destination.clone().add(new THREE.Vector3(offset,0,i===0?4:-4));
+   const start=origin.clone().add(new THREE.Vector3(offset*.25,0,0));
+   const small=new THREE.Group();
+   small.add(new THREE.Mesh(energyCoreGeometry,new THREE.MeshBasicMaterial({color:0xcba1ff})));
+   const halo=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);small.add(halo);
+   small.position.copy(start);scene.add(small);
+   const points=Array.from({length:12},()=>start.clone()),geom=new THREE.BufferGeometry().setFromPoints(points);
+   const trail2=new THREE.Line(geom,energyTrailMaterial);scene.add(trail2);
+   projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(1.18+i*.17),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true});
+  }
+ }
  // Cada novo tiro atualiza a cena de ataque sem interromper a navegação.
  attackCamera.phase='flight';attackCamera.shot=shot;attackCamera.target=destination.clone();
  attackCamera.impactAt=0;attackCamera.shake=0;
@@ -308,10 +351,18 @@ for(let i=projectiles.length-1;i>=0;i--){
   p.age+=dt;
   const u=Math.min(1,p.age/p.travel);
   // Parábola suave: ponto alto no meio, queda sobre o alvo.
-  p.mesh.position.lerpVectors(p.origin,p.destination,u);
-  p.mesh.position.y+=4*p.arcHeight*u*(1-u);
+  if(p.age<0)continue;
+  if(p.ammo==='meteor'){
+   // Trajetória quase vertical na fase final: aproximação inicial curta e mergulho.
+   const move=u<.38?(u/.38)*.72:.72+.28*((u-.38)/.62);
+   p.mesh.position.lerpVectors(p.origin,p.destination,move);
+   p.mesh.position.y+=p.arcHeight*Math.sin(Math.PI*Math.pow(u,.63));
+  }else{
+   p.mesh.position.lerpVectors(p.origin,p.destination,u);
+   p.mesh.position.y+=4*p.arcHeight*u*(1-u);
+  }
   p.glow.quaternion.copy(camera.quaternion);p.outerGlow.quaternion.copy(camera.quaternion);
-  p.plasma.rotation.set(t*6,t*9,t*5);p.plasma.scale.setScalar(1+.13*Math.sin(t*25));
+  if(p.plasma){p.plasma.rotation.set(t*6,t*9,t*5);p.plasma.scale.setScalar(1+.13*Math.sin(t*25));}
   p.trailPoints.pop();p.trailPoints.unshift(p.mesh.position.clone());
   const arr=p.trail.geometry.attributes.position.array;
   for(let j=0;j<p.trailPoints.length;j++){
@@ -325,7 +376,9 @@ for(let i=projectiles.length-1;i>=0;i--){
       attackCamera.phase='impact';attackCamera.impactAt=t;
       attackCamera.shot=null;attackCamera.shake=.42;
     }
-    scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();projectiles.splice(i,1);
+    scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();
+    for(const part of p.mesh.children){if(part.material!==energyCoreMaterial && part.material!==energyGlowMaterial && part.material!==plasmaMaterial)part.material.dispose()}
+    projectiles.splice(i,1);
   }
 }
 for(let i=impactEffects.length-1;i>=0;i--){
