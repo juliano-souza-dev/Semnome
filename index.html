@@ -346,15 +346,16 @@ water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 // Distância moderada mantém o jogador legível no celular; ponto focal remoto revela o céu.
 // Semi top-down: inclinação ~55° abaixo do horizonte, enquadramento centrado.
 // Enquadramento compacto: nave ocupa cerca de 30% da altura da tela.
+// Câmera de ação baixa: preserva o horizonte sem diminuir muito a nave.
 const distance=THREE.MathUtils.lerp(24,27,Math.min(1,speed/72));
-const cameraHeight=THREE.MathUtils.lerp(27,30,Math.min(1,speed/72));
+const cameraHeight=THREE.MathUtils.lerp(12,14,Math.min(1,speed/72));
 // Trava rígida: a câmera permanece atrás do casco em todo quadro,
 // inclusive quando a nave gira automaticamente para apontar o canhão.
 const cameraYaw=heading;
 wanted.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
 // O ponto focal acompanha o casco: impede que a nave saia da tela nas curvas.
 // Olhar um pouco à frente mantém a nave no centro inferior, com espaço para o combate.
-const forwardLook=6;
+const forwardLook=42;
 follow.set(x-Math.sin(cameraYaw)*forwardLook,bob+2.6,z-Math.cos(cameraYaw)*forwardLook);
 // A câmera nunca copia os solavancos do barco ou a oscilação das ondas.
 // Sem interpolação horizontal: qualquer atraso faria a câmera mostrar a lateral.
