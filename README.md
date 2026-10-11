@@ -44,3 +44,9 @@ O GDD inicial propõe sprites de **400 × 400 px**, em uma grade **4 × 4** de *
 - A resposta da colisão deve coexistir com a navegação sob ondas, sem permitir que as ondas desviem involuntariamente o rumo do jogador. O impacto pode deslocar fisicamente as máquinas; o controle de orientação (yaw) permanece com o jogador.
 - Dano por colisão, limites de impulso, duração do empurrão e interação com estruturas fixas serão definidos posteriormente.
 - Para mobile, priorizar colisores simples e simulação estável, separando lógica física dos sprites 2.5D.
+
+## Decisão registrada: colisões sem dano
+- Colisões físicas entre embarcações causam **somente empurrões e deslocamentos**, **sem perda de vida ou dano ao casco**.
+- A força do empurrão poderá variar com massa, velocidade relativa e ponto de contato, respeitando uma simulação estável em dispositivos móveis.
+- A reação física de impacto não deve alterar diretamente o comando direcional do jogador; após o empurrão, ele continua controlando o rumo.
+- Essa regra diz respeito ao contato entre embarcações; dano por armas e outras fontes será definido em separado.
