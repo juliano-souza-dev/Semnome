@@ -140,6 +140,9 @@ function energyFlash(position){
  impactEffects.push({flash,ring,sparks,velocities,age:0});
 }
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
+const attackCamera={phase:'idle',shot:null,target:null,impactAt:0,blend:0,shake:0};
+const shotView=new THREE.Vector3(),shotLook=new THREE.Vector3(),normalView=new THREE.Vector3(),normalLook=new THREE.Vector3();
+const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
 // O casco só gira por navegação ou arrasto; o tiro em arco mira sem girar a nave.
 
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
@@ -166,7 +169,11 @@ function launchShot(){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- projectiles.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0});
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0};
+ projectiles.push(shot);
+ // Cada novo tiro atualiza a cena de ataque sem interromper a navegação.
+ attackCamera.phase='flight';attackCamera.shot=shot;attackCamera.target=destination.clone();
+ attackCamera.impactAt=0;attackCamera.shake=0;
 }
 // O disparo usa um ponteiro independente; pode ocorrer enquanto os outros dedos navegam e giram a câmera.
 fireButton.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();e.stopPropagation();shoot()});
@@ -313,8 +320,11 @@ for(let i=projectiles.length-1;i>=0;i--){
   p.trail.geometry.attributes.position.needsUpdate=true;
   // A explosão ocorre na chegada; não atravessa o alvo entre frames.
   if(u>=1){
-    if(npcData.hp>0 && p.mesh.position.distanceTo(new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z))<8)energyFlash(p.mesh.position);
-    else energyFlash(p.mesh.position);
+    energyFlash(p.mesh.position);
+    if(attackCamera.shot===p){
+      attackCamera.phase='impact';attackCamera.impactAt=t;
+      attackCamera.shot=null;attackCamera.shake=.42;
+    }
     scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();projectiles.splice(i,1);
   }
 }
@@ -339,22 +349,47 @@ water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
 // Semi top-down: inclinação ~55° abaixo do horizonte, enquadramento centrado.
 // Enquadramento compacto: nave ocupa cerca de 30% da altura da tela.
 // Câmera de ação baixa: preserva o horizonte sem diminuir muito a nave.
+// Câmera normal: traseira fixa, horizonte visível e arrasto preservado.
 const distance=THREE.MathUtils.lerp(24,27,Math.min(1,speed/72));
 const cameraHeight=THREE.MathUtils.lerp(12,14,Math.min(1,speed/72));
-// Trava rígida: a câmera permanece atrás do casco em todo quadro,
-// inclusive quando a nave gira automaticamente para apontar o canhão.
 const cameraYaw=heading;
-wanted.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
-// O ponto focal acompanha o casco: impede que a nave saia da tela nas curvas.
-// Olhar um pouco à frente mantém a nave no centro inferior, com espaço para o combate.
-const forwardLook=42;
-follow.set(x-Math.sin(cameraYaw)*forwardLook,bob+2.6,z-Math.cos(cameraYaw)*forwardLook);
-// A câmera nunca copia os solavancos do barco ou a oscilação das ondas.
-// Sem interpolação horizontal: qualquer atraso faria a câmera mostrar a lateral.
+normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
+normalLook.set(x-Math.sin(cameraYaw)*42,bob+2.6,z-Math.cos(cameraYaw)*42);
+// Modo ataque: distancia-se o suficiente para mostrar embarcação, alvo e arco 3D.
+let desiredBlend=0;
+if(attackCamera.phase==='flight' && attackCamera.shot)desiredBlend=1;
+else if(attackCamera.phase==='impact'){
+  desiredBlend=t-attackCamera.impactAt<.26?1:0;
+  if(t-attackCamera.impactAt>.85)attackCamera.phase='idle';
+}
+const blendRate=desiredBlend>attackCamera.blend?5.5:3.8;
+attackCamera.blend=THREE.MathUtils.damp(attackCamera.blend,desiredBlend,blendRate,dt);
+if(attackCamera.phase==='idle' && attackCamera.blend<.005)attackCamera.blend=0;
+wanted.copy(normalView);follow.copy(normalLook);
+if(attackCamera.target && attackCamera.blend>.001){
+  const playerPos=new THREE.Vector3(x,bob+2.5,z);
+  const targetPos=attackCamera.target;
+  const gap=playerPos.distanceTo(targetPos);
+  const midpoint=playerPos.clone().lerp(targetPos,.55);
+  const shot=attackCamera.shot;
+  const focus=shot?midpoint.clone().lerp(shot.mesh.position,.24):midpoint;
+  // Amplia progressivamente conforme a separação, sem afastar demais.
+  const attackDistance=THREE.MathUtils.clamp(gap*.65+20,34,83);
+  const attackHeight=THREE.MathUtils.clamp(gap*.26+11,17,39);
+  shotView.set(focus.x+Math.sin(cameraYaw)*attackDistance,focus.y+attackHeight,focus.z+Math.cos(cameraYaw)*attackDistance);
+  shotLook.copy(focus);
+  wanted.lerp(shotView,attackCamera.blend);
+  follow.lerp(shotLook,attackCamera.blend);
+}
+attackCamera.shake=Math.max(0,attackCamera.shake-dt*2.3);
 camera.position.copy(wanted);
-camTarget.copy(follow);
-cameraReady=true;
-camera.lookAt(camTarget);
+if(attackCamera.shake>0){
+ const k=attackCamera.shake*attackCamera.blend;
+ camera.position.x+=Math.sin(t*87)*k;
+ camera.position.y+=Math.cos(t*119)*k*.65;
+}
+camTarget.copy(follow);cameraReady=true;camera.lookAt(camTarget);
+if(attackCamera.phase==='idle' && attackCamera.blend===0)attackCamera.target=null;
 if(playerAtlasReady){
   // A câmera de perseguição está atrás: 180° corresponde à traseira do sprite.
   const visibleAngle=heading-cameraYaw+Math.PI;
