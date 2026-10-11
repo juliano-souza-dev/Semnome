@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#092b40"><title>Semnome | Protótipo Oceano</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#092b40;font:14px system-ui;color:white;touch-action:none}
+canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#top{position:absolute;top:16px;left:16px;background:#082536b8;padding:12px 14px;border:1px solid #ffffff20;border-radius:12px;max-width:270px}
+#top strong{display:block;font-size:17px}#top small{display:block;opacity:.8;margin-top:4px}#status{margin-top:8px;color:#b9f8ff}
+#pad{position:absolute;left:25px;bottom:30px;width:132px;height:132px;border:2px solid #ffffff55;border-radius:50%;background:#ffffff12;pointer-events:auto;touch-action:none;display:grid;place-items:center}
+#stick{width:55px;height:55px;background:#ffae40;border:3px solid #ffe8b8;border-radius:50%;box-shadow:0 5px 18px #0008;transform:translate(0,0)}
+#throttle{position:absolute;right:22px;bottom:40px;width:95px;height:95px;border-radius:50%;border:3px solid #fff7;background:#ec883b;pointer-events:auto;touch-action:none;color:#092533;font-weight:900;user-select:none}
+#throttle:active{background:#ffd17a}#loading{position:fixed;inset:0;display:grid;place-items:center;background:#092b40;z-index:10}
+@media(min-width:700px){#pad,#throttle{opacity:.55}}
+</style>
+</head>
+<body>
+<div id="loading">Preparando o oceano...</div>
+<div id="ui"><div id="top"><strong>SEMNOME · PROTÓTIPO 01</strong><small>Oceano de ação 3D • máquina provisória</small><div id="status">Velocidade: 0</div><small>Mobile: analógico + ACELERAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><button id="throttle" type="button">ACELERAR</button></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0021);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xd9faff,0x0e607b,2.2));
+const sun=new THREE.DirectionalLight(0xfff1cf,2.5);sun.position.set(-50,100,40);scene.add(sun);
+// Mesmo campo de ondas no shader e no CPU: soma de ondas direcionais.
+const waves=[
+{dx:1,dz:.25,a:2.8,k:.055,s:1.1},
+{dx:-.3,dz:1,a:1.7,k:.092,s:1.6},
+{dx:.75,dz:-.65,a:1.15,k:.17,s:2.0},
+{dx:-.65,dz:-.75,a:.65,k:.29,s:2.8}
+].map(w=>({...w,len:Math.hypot(w.dx,w.dz)}));
+function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y}
+function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
+const uniforms={uTime:{value:0}};
+const water=new THREE.Mesh(new THREE.PlaneGeometry(1500,1500,180,180),new THREE.ShaderMaterial({
+uniforms,side:THREE.DoubleSide,
+vertexShader:`uniform float uTime;varying vec3 vPos;varying float vHeight;
+float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
+void main(){vec3 p=position;p.z=sea(p.xy);vHeight=p.z;vPos=vec3(p.xy,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+fragmentShader:`varying vec3 vPos;varying float vHeight;
+void main(){float foam=smoothstep(3.2,5.6,vHeight);float ribbons=pow(max(0.,sin(vPos.x*.29+vPos.y*.17+vHeight*1.4)),12.)*.17;
+vec3 deep=vec3(.013,.22,.34),bright=vec3(.03,.54,.66);float m=clamp((vHeight+5.)/10.,0.,1.);vec3 c=mix(deep,bright,m);
+c=mix(c,vec3(.63,.96,.95),foam*.82+ribbons);gl_FragColor=vec4(c,1.);}`
+}));
+water.rotation.x=-Math.PI/2;scene.add(water);
+// Máquina provisória em geometria simples; sprites 16 direções entram após validação.
+const ship=new THREE.Group();scene.add(ship);
+const hull=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.8,1.05,28),new THREE.MeshStandardMaterial({color:0xf18b33,metalness:.35,roughness:.45}));hull.position.y=.25;ship.add(hull);
+const deck=new THREE.Mesh(new THREE.CylinderGeometry(1.95,2.15,.45,28),new THREE.MeshStandardMaterial({color:0xf0e6cf,metalness:.15,roughness:.6}));deck.position.y=.92;ship.add(deck);
+const cockpit=new THREE.Mesh(new THREE.SphereGeometry(.95,16,10),new THREE.MeshStandardMaterial({color:0x174357,metalness:.4,roughness:.25}));cockpit.scale.set(1,.5,.85);cockpit.position.y=1.45;ship.add(cockpit);
+const cannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new THREE.MeshStandardMaterial({color:0x364958,metalness:.6,roughness:.35}));
+cannon.rotation.x=Math.PI/2;cannon.position.set(0,1.2,-2.25);ship.add(cannon);
+for(const x of [-1.6,1.6]){const motor=new THREE.Mesh(new THREE.BoxGeometry(.85,.75,1.25),new THREE.MeshStandardMaterial({color:0x2b4751,metalness:.5}));motor.position.set(x,.55,2.2);ship.add(motor)}
+const shadow=new THREE.Mesh(new THREE.CircleGeometry(2.9,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
+const input={turn:0,go:false};let speed=0,heading=0,x=0,z=0,bob=0;
+const pad=document.getElementById('pad'),stick=document.getElementById('stick'),button=document.getElementById('throttle');
+let padPointer=null;function movePad(e){const r=pad.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;const dx=e.clientX-cx,dy=e.clientY-cy;const radius=42;const d=Math.max(1,Math.hypot(dx,dy)),v=Math.min(1,d/radius);stick.style.transform=`translate(${dx/d*v*radius}px,${dy/d*v*radius}px)`;input.turn=Math.max(-1,Math.min(1,dx/radius));input.go=dy < -14 || button.hasPointerCapture?.(e.pointerId) || throttleHeld}
+let throttleHeld=false;
+pad.addEventListener('pointerdown',e=>{padPointer=e.pointerId;pad.setPointerCapture(e.pointerId);movePad(e)});
+pad.addEventListener('pointermove',e=>{if(e.pointerId===padPointer)movePad(e)});
+function releasePad(e){if(e.pointerId!==padPointer)return;padPointer=null;stick.style.transform='translate(0,0)';input.turn=0;input.go=throttleHeld}
+pad.addEventListener('pointerup',releasePad);pad.addEventListener('pointercancel',releasePad);
+button.addEventListener('pointerdown',e=>{button.setPointerCapture(e.pointerId);throttleHeld=true;input.go=true});
+function releaseThrottle(){throttleHeld=false;input.go=padPointer!==null&&input.go}
+button.addEventListener('pointerup',releaseThrottle);button.addEventListener('pointercancel',releaseThrottle);
+const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code)});
+addEventListener('keyup',e=>keys.delete(e.code));
+const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3();
+function tick(){
+requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
+const go=input.go||keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
+const turn=Math.max(-1,Math.min(1,input.turn+(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0)));
+let target=go?24:0; // influência do gradiente no sentido de avanço
+const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
+const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
+target=Math.max(0,target-Math.max(0,slope)*8+Math.max(0,-slope)*2);
+speed=THREE.MathUtils.damp(speed,target,go?4.8:7.8,dt);
+if(speed>.35)heading+=turn*2.35*Math.min(1,speed/7)*dt;
+x-=Math.sin(heading)*speed*dt;z-=Math.cos(heading)*speed*dt;
+const bow=new THREE.Vector2(-Math.sin(heading),-Math.cos(heading)),side=new THREE.Vector2(Math.cos(heading),-Math.sin(heading));
+const front=height(x+bow.x*1.5,z+bow.y*1.5,t),back=height(x-bow.x*1.5,z-bow.y*1.5,t);
+const left=height(x-side.x*1.5,z-side.y*1.5,t),right=height(x+side.x*1.5,z+side.y*1.5,t);
+const y=height(x,z,t);bob=THREE.MathUtils.damp(bob,y,5,dt);
+ship.position.set(x,bob+.75,z);ship.rotation.order='YXZ';ship.rotation.y=heading;
+ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
+ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
+shadow.position.set(x,height(x,z,t)+.14,z);
+water.position.set(Math.round(x/40)*40,0,Math.round(z/40)*40);
+const distance=THREE.MathUtils.lerp(31,43,Math.min(1,speed/24)*.5);
+wanted.set(x+Math.sin(heading)*distance*.72,bob+distance*Math.sin(65*Math.PI/180),z+Math.cos(heading)*distance*.72);
+camera.position.lerp(wanted,1-Math.exp(-3*dt));follow.set(x,bob,z);camTarget.lerp(follow,1-Math.exp(-4*dt));camera.lookAt(camTarget);
+document.getElementById('status').textContent='Velocidade: '+Math.round(speed)+'  |  Ondas ativas';
+renderer.render(scene,camera)
+}
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+document.getElementById('loading').remove();tick();
+</script></body></html>
