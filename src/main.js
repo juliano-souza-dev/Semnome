@@ -471,16 +471,17 @@ fireButton.addEventListener('lostpointercapture',e=>finishAreaAim(e,true));
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
 const hullPhysics={x:0,z:0,vx:0,vz:0};
-// Propulsor: força velocidade máxima por exatamente 2 segundos de simulação.
+// Propulsor de evasão: arrancada curta, totalmente dirigível, com recarga própria.
 const boostButton=document.getElementById('boost');
-let boostUntil=0,boostHeading=0;
-const BOOST_DASH_SPEED=78; // Impulso tático: 2x a nova velocidade de cruzeiro.
+let boostUntil=0,boostReadyAt=0;
+const BOOST_DASH_SPEED=105;
+const BOOST_DASH_DURATION=.85,BOOST_COOLDOWN=4;
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
- if(playerCombat.hp<=0)return;
- boostUntil=clock.elapsedTime+1.7;
- boostHeading=heading; // Impulso na direção da proa, mesmo com analógico neutro.
- speed=BOOST_DASH_SPEED;
+ if(playerCombat.hp<=0||clock.elapsedTime<boostReadyAt)return;
+ boostUntil=clock.elapsedTime+BOOST_DASH_DURATION;
+ boostReadyAt=clock.elapsedTime+BOOST_COOLDOWN;
+ // A direção não é travada: analógico e teclado permanecem ativos.
  boostButton.classList.add('active');
 });
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
@@ -543,20 +544,19 @@ const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.
 target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
 // Velocidade agora é resolvida após o giro pela integração física do casco.
 const boostRemaining=Math.max(0,boostUntil-t);
-if(boostRemaining>0){
- speed=BOOST_DASH_SPEED;
- heading=boostHeading;
-}
+// Durante o impulso, o jogador continua podendo virar e desviar.
 boostButton.classList.toggle('active',boostRemaining>0);
-boostButton.textContent=boostRemaining>0?'🚀 '+boostRemaining.toFixed(1)+'s':'🚀 PROPULSOR';
+const boostCooldown=Math.max(0,boostReadyAt-t);
+boostButton.textContent=boostRemaining>0?'🚀 ESQUIVA':boostCooldown>0?'🚀 '+boostCooldown.toFixed(1)+'s':'🚀 PROPULSOR';
+boostButton.disabled=boostCooldown>0||playerCombat.hp<=0;
 // O arrasto gira a nave, preservando a traseira voltada para a câmera.
 if(dragTurn!==0){
  heading+=dragTurn;
  if(input.active)stickReferenceYaw+=dragTurn;
  dragTurn=0;
 }
-if(boostRemaining<=0&&Math.abs(speed)>.35){
-  if(reversing){
+if(Math.abs(speed)>.35||boostRemaining>0){
+  if(reversing&&boostRemaining<=0){
     // Pequenas correções laterais durante a ré, mantendo a orientação.
     heading+=(-input.x*1.65+turn*1.2)*dt;
   }else if(stickAmount>0){
@@ -564,10 +564,10 @@ if(boostRemaining<=0&&Math.abs(speed)>.35){
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
     const desired=stickReferenceYaw-Math.atan2(input.x,-input.y);
     const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
-    const maxStep=3.6*Math.min(1,Math.abs(speed)/9)*dt;
+    const maxStep=(boostRemaining>0?6.2:3.6)*Math.min(1,Math.abs(speed)/9)*dt;
     heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
   }else{
-    heading+=turn*2.15*Math.min(1,Math.abs(speed)/7)*dt;
+    heading+=turn*(boostRemaining>0?5.4:2.15)*Math.min(1,Math.abs(speed)/7)*dt;
   }
 }
 hullPhysics.x=x;hullPhysics.z=z;
@@ -754,7 +754,7 @@ if(playerCombat.hp<=0){
   notifyCombat('NAVE REPARADA · RETORNO AO COMBATE',1.8);
   // Renascimento local: não teletransportar o jogador para a origem do mapa.
   // Preserva a posição e o HP de todos os NPCs, evitando o salto de câmera/frota.
-  speed=0;boostUntil=0;
+  speed=0;boostUntil=0;boostReadyAt=0;
   hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
   cancelAreaAim();
   for(const shot of enemyShots){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();}
