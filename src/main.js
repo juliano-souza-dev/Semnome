@@ -574,8 +574,7 @@ for(let i=projectiles.length-1;i>=0;i--){
    p.mesh.position.lerpVectors(p.origin,p.destination,move);
    p.mesh.position.y+=p.arcHeight*Math.sin(Math.PI*Math.pow(u,.63));
   }else{
-   p.mesh.position.lerpVectors(p.origin,p.destination,u);
-   p.mesh.position.y+=4*p.arcHeight*u*(1-u);
+   ballisticPoint(p.origin,p.destination,p.travel,p.age,p.arcHeight,p.mesh.position);
   }
   p.glow.quaternion.copy(camera.quaternion);p.outerGlow.quaternion.copy(camera.quaternion);
   if(p.plasma){p.plasma.rotation.set(t*6,t*9,t*5);p.plasma.scale.setScalar(1+.13*Math.sin(t*25));}
