@@ -9,7 +9,20 @@ export function createGameAudio(){
   torpedo:'https://opengameart.org/sites/default/files/cannon_fire_1.ogg',
   impact:'https://opengameart.org/sites/default/files/cannon_hit_1.ogg'
  };
- const realBuffers=new Map(),realLoading=new Set();
+ const realBuffers=new Map(),realLoading=new Set(),htmlSources=new Map();
+ for(const [kind,url] of Object.entries(realSounds)){
+  const audioEl=new Audio();audioEl.preload='auto';audioEl.src=url;
+  htmlSources.set(kind,audioEl);
+ }
+ function playHtml(kind,distance=0){
+  const template=htmlSources.get(kind);
+  if(!template||template.error)return false;
+  const el=template.cloneNode();
+  el.volume=Math.min(1,settings.effects*(kind==='impact'?.28:.38)/(1+distance/140));
+  const promise=el.play();
+  if(promise&&typeof promise.catch==='function')promise.catch(()=>{});
+  return true;
+ }
  function loadReal(kind){
   if(!context||!realSounds[kind]||realBuffers.has(kind)||realLoading.has(kind))return;
   realLoading.add(kind);
@@ -53,6 +66,7 @@ export function createGameAudio(){
  function play(kind,pan=0,distance=0){
   if(!unlocked||!settings.enabled||!context)return;
   if(playReal(kind,pan,distance))return;
+  if(realSounds[kind]&&playHtml(kind,distance))return;
   const now=context.currentTime;
   const tone=context.createOscillator(),gain=context.createGain();
   const panner=context.createStereoPanner?context.createStereoPanner():null;
