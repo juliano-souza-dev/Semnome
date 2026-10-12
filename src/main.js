@@ -120,10 +120,10 @@ const enemies=[npcData];
 npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';npcData.hostile=true;
 for(let i=1;i<9;i++){
  const angle=i*Math.PI*2/8;
- const radius=215+(i%4)*95;
+ const radius=260+(i%4)*135;
  enemies.push({id:i+1,name:'Patrulheiro '+String(i+1).padStart(2,'0'),
-  x:Math.sin(angle)*radius,z:-110+Math.cos(angle)*radius,y:0,
-  anchorX:Math.sin(angle)*radius,anchorZ:-110+Math.cos(angle)*radius,
+  x:Math.sin(angle)*radius,z:-150+Math.cos(angle)*radius,y:0,
+  anchorX:Math.sin(angle)*radius,anchorZ:-150+Math.cos(angle)*radius,
   heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null,nextShot:2+i*.45,state:'patrol',hostile:true});
 }
 
@@ -148,7 +148,7 @@ const AMMO_TYPES=[
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
  {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
  {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
- {id:'torpedo',name:'Torpedo',icon:'🐟',description:'Rente à água · dano 55 · alcance 240',color:0x62f2ec},
+ {id:'torpedo',name:'Torpedo',icon:'🐟',description:'Explosão raio 55 · veloz · dano 55',color:0x62f2ec},
  {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
@@ -364,7 +364,7 @@ function launchShot(manualPoint=null){
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='torpedo'?Math.max(.45,origin.distanceTo(destination)/110):ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
+ const travel=ammo.id==='torpedo'?Math.max(.19,origin.distanceTo(destination)/260):ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -789,8 +789,8 @@ for(let i=projectiles.length-1;i>=0;i--){
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
       const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
-      const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?10:8;
-      if(enemy.hp>0&&(torpedoImpact?enemy===torpedoImpact:distance<=radius)){
+      const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?55:8;
+      if(enemy.hp>0&&distance<=radius){
         const damage=Math.min(enemy.hp,p.damage||COMBAT.damage);
         enemy.hp=Math.max(0,enemy.hp-damage);
         showDamage(enemy,damage);
