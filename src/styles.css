@@ -66,3 +66,10 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #boost{font-variant-numeric:tabular-nums}
 #fire{font-variant-numeric:tabular-nums}
 @media(max-width:700px){#combatCompass{width:min(280px,52vw)}}
+
+/* Etapa 1/4: dois analógicos de verdade, pointerIds independentes. */
+#aimPad{position:absolute;right:max(126px,env(safe-area-inset-right) + 118px);bottom:max(123px,env(safe-area-inset-bottom) + 108px);width:106px;height:106px;border:2px solid #7eeaff99;border-radius:50%;background:#063a52bb;box-shadow:inset 0 0 20px #2ad5fc24;pointer-events:auto;touch-action:none;display:grid;place-items:center;z-index:12}
+#aimStick{width:46px;height:46px;background:#5acaffd8;border:3px solid #dcffff;border-radius:50%;box-shadow:0 0 15px #48dbffa6;pointer-events:none;transform:translate(0,0)}
+.aimPadLabel{position:absolute;bottom:-18px;color:#ccfaff;font:800 10px system-ui;letter-spacing:1px;pointer-events:none;text-shadow:0 2px 5px #002}
+@media(max-height:500px){#aimPad{right:max(123px,env(safe-area-inset-right) + 111px);bottom:118px;width:78px;height:78px}#aimStick{width:34px;height:34px}.aimPadLabel{bottom:-15px;font-size:9px}}
+@media(max-width:650px){#aimPad{right:max(107px,env(safe-area-inset-right) + 98px);bottom:110px;width:78px;height:78px}#aimStick{width:34px;height:34px}}
