@@ -89,7 +89,7 @@ for(let i=1;i<9;i++){
 }
 
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
-const ENEMY_AI={detect:TACTICS.detect,fireRange:184,retreatRange:36,shotSpeed:165,shotDamage:7,shotCooldown:2.35,maxHp:100};
+const ENEMY_AI={detect:TACTICS.detect,fireRange:215,retreatRange:31,shotSpeed:205,shotDamage:7,shotCooldown:1.65,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
 const enemyShots=[];
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
@@ -442,16 +442,16 @@ for(const enemy of enemies){
  enemy.state=tactic.state;
  const desiredYaw=-Math.atan2(tactic.goalX-enemy.x,-(tactic.goalZ-enemy.z));
  const yawDelta=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
- enemy.heading+=THREE.MathUtils.clamp(yawDelta,-(tactic.active?1.95:1.1)*dt,(tactic.active?1.95:1.1)*dt);
+ enemy.heading+=THREE.MathUtils.clamp(yawDelta,-(tactic.active?3.1:1.1)*dt,(tactic.active?3.1:1.1)*dt);
  enemy.x-=Math.sin(enemy.heading)*tactic.speed*dt;
  enemy.z-=Math.cos(enemy.heading)*tactic.speed*dt;
  if(tactic.active&&distanceToPlayer<=ENEMY_AI.fireRange&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
   // Mira calculada no lançamento e não vinculada à câmera nem ao movimento posterior.
   const origin=new THREE.Vector3(enemy.x,enemy.y+3.5,enemy.z);
-  const flight=Math.max(.55,distanceToPlayer/ENEMY_AI.shotSpeed*1.8);
+  const flight=Math.max(.48,distanceToPlayer/ENEMY_AI.shotSpeed*1.5);
   // Antecipação moderada e dispersão por papel: pode errar navios em movimento.
-  const accuracy=tactic.role===2?.58:tactic.role===1?.47:.38;
-  const spread=Math.sin(t*2.7+enemy.id*3.1)*12;
+  const accuracy=tactic.role===2?.79:tactic.role===1?.67:.6;
+  const spread=Math.sin(t*2.7+enemy.id*3.1)*7;
   const predicted=new THREE.Vector3(x-Math.sin(heading)*speed*flight*accuracy+Math.cos(heading)*spread,bob+2.3,z-Math.cos(heading)*speed*flight*accuracy-Math.sin(heading)*spread);
   const mesh=new THREE.Group();
   const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -464,7 +464,7 @@ for(const enemy of enemies){
   const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),energyTrailMaterial);scene.add(trail);
   const arcHeight=THREE.MathUtils.clamp(origin.distanceTo(predicted)*.44,13,38);
   enemyShots.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination:predicted,arcHeight,age:0,duration:flight,source:enemy.id});
-  enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%3)*.22+(enemy.hp<35?.7:0);
+  enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%3)*.16+(enemy.hp<22?.5:0);
  }
  // Colisão jogador × inimigo; nenhum dano durante esta fase de testes.
  let dx=x-enemy.x,dz=z-enemy.z,dist=Math.hypot(dx,dz);
