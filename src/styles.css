@@ -25,3 +25,9 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 /* Propulsor: separado do joystick e dos comandos de combate. */
 #boost{position:absolute;left:max(148px,calc(env(safe-area-inset-left) + 128px));bottom:max(42px,env(safe-area-inset-bottom));height:54px;min-width:106px;padding:0 10px;border-radius:14px;border:2px solid #b8fbff;background:#10566ded;color:#fff;font:800 12px system-ui;box-shadow:0 0 15px #19bcff55;pointer-events:auto;touch-action:manipulation;user-select:none}
 #boost.active{background:#eb8625;border-color:#fff3a6;box-shadow:0 0 23px #ffc84ba8}
+
+/* Combate arcade: seleção rápida vertical à direita, sem cobrir o disparo. */
+#weaponDock{position:absolute;right:max(12px,env(safe-area-inset-right));top:72px;display:flex;flex-direction:column;gap:7px;pointer-events:auto}
+.weaponSlot{width:48px;height:48px;border:3px solid #e3d6af;border-radius:10px;background:linear-gradient(145deg,#395a71,#101d30);color:white;font:700 25px system-ui;box-shadow:0 3px 0 #07121d,0 4px 12px #0015;touch-action:manipulation;cursor:pointer}
+.weaponSlot.selected{border-color:#ffbe52;background:linear-gradient(145deg,#775434,#203a51);box-shadow:0 0 14px #ffd36a99,0 3px 0 #0b1d2c;transform:scale(1.04)}
+@media(max-height:440px){#weaponDock{top:55px;gap:4px}.weaponSlot{width:40px;height:40px;font-size:21px}}
