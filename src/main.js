@@ -45,6 +45,8 @@ const npcCannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new TH
 const npcData={x:14,z:-75,y:0,heading:0,speed:6,anchorX:14,anchorZ:-75};
 const npcShadow=new THREE.Mesh(new THREE.CircleGeometry(5.1,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.2,depthWrite:false}));npcShadow.rotation.x=-Math.PI/2;scene.add(npcShadow);
 // O player agora é um modelo Three.js real, independente de atlas 2D.
+const FRAME_MAP=Array.from({length:16},(_,i)=>({c:i%4,r:Math.floor(i/4)}));
+const FRAME_STEP=Math.PI/8;
 const playerAtlasReady=false;
 const playerSprite={visible:false};
 // Protótipo de combate: configurações isoladas para calibração.
@@ -491,8 +493,9 @@ targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
 lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP':'Procurando alvo...';
 fireButton.disabled=false;
-npc.visible=!playerAtlasReady&&npcData.hp>0;
-npcShadow.visible=!playerAtlasReady&&npcData.hp>0;
+// Antigo protótipo oculto: somente a máquina 3D deve aparecer.
+npc.visible=false;
+npcShadow.visible=false;
 ship.position.x=x;ship.position.z=z;
 // Projéteis inimigos independentes da câmera. Só há dano se acertarem a nave.
 for(let i=enemyShots.length-1;i>=0;i--){
