@@ -110,6 +110,16 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  const turretPieces=root.children.slice(turretStart);
  for(const part of turretPieces){part.position.sub(turretPivot.position);turretPivot.add(part);}
  root.add(turretPivot);
+ // Clarão de boca reutilizado: nenhuma geometria nova por disparo.
+ const muzzleFlash=new THREE.Mesh(
+  new THREE.SphereGeometry(.68,10,8),
+  new THREE.MeshBasicMaterial({color:enemy?0xff6950:0x9ef5ff,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending})
+ );
+ muzzleFlash.name='ClarãoDoCanhão';muzzleFlash.position.copy(firePoint.position);
+ muzzleFlash.visible=false;turretPivot.add(muzzleFlash);
+ // Recuo da torre com retorno amortecido, calculado no loop principal.
+ root.userData.recoil=0;root.userData.flashTime=0;
+ root.userData.muzzleFlash=muzzleFlash;
  // Dois motores externos + anéis luminosos que podem ser animados.
  const thrusters=[];
  for(const side of [-1,1]){
