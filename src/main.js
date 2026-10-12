@@ -672,7 +672,8 @@ const distance=THREE.MathUtils.lerp(24,27,Math.min(1,speed/72));
 const cameraHeight=THREE.MathUtils.lerp(12,14,Math.min(1,speed/72));
 const cameraYaw=heading;
 normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
-normalLook.set(x-Math.sin(cameraYaw)*42,bob+2.6,z-Math.cos(cameraYaw)*42);
+// Mantém o modelo 3D no enquadramento, inclusive os detalhes do canhão e das turbinas.
+normalLook.set(x-Math.sin(cameraYaw)*11,bob+2.4,z-Math.cos(cameraYaw)*11);
 // Modo ataque: distancia-se o suficiente para mostrar embarcação, alvo e arco 3D.
 let desiredBlend=0;
 if(attackCamera.phase==='flight' && attackCamera.shot)desiredBlend=1;
