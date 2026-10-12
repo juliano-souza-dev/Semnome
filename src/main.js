@@ -614,7 +614,7 @@ if(tower){
   if(Math.hypot(dx,dz)>2)desired=Math.atan2(-dx,-dz)-heading;
  }
  const diff=Math.atan2(Math.sin(desired-tower.rotation.y),Math.cos(desired-tower.rotation.y));
- tower.rotation.y+=THREE.MathUtils.clamp(diff,-1.15*dt,1.15*dt);
+ tower.rotation.y+=THREE.MathUtils.clamp(diff,-(areaAim.active?2.6:1.7)*dt,(areaAim.active?2.6:1.7)*dt);
 }
 shadow.position.set(x,height(x,z,t)+.14,z);
 // Jatos de motor simulados por GPU, sincronizados com a propulsão.
