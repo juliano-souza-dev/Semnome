@@ -1,9 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 import {createWastelandHorizon} from './environment.js';
-import {createSkyPanorama} from './sky.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
-const scene=new THREE.Scene();scene.background=new THREE.Color('#344b62');scene.fog=new THREE.FogExp2('#627b88',.00055);
-const sky=createSkyPanorama(THREE,scene);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -452,7 +450,7 @@ for(let i=impactEffects.length-1;i>=0;i--){
 
 // A malha acompanha o jogador com fases de onda em coordenadas globais. 
 water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
-horizon.update(x,z,t);sky.update(x,z);
+horizon.update(x,z,t);
 // Câmera de ação: afastada, baixa, horizonte aparente e horizonte estável.
 // Inclinação de observação menor do que a do protótipo anterior para evitar vista quase vertical.
 // Não copiar bob/pitch/roll do casco para câmera (previne enjoo visual).
