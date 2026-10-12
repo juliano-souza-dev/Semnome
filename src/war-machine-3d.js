@@ -140,25 +140,29 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
   if(!root.userData.rotors)root.userData.rotors=[];
   root.userData.rotors.push(rotor);
   // Jato de plasma animado na GPU, saindo do bocal em direção à popa (+Z).
+  // Propulsão arcade curta: cone luminoso difuso e halo perto da água.
   const flameMaterial=new THREE.ShaderMaterial({
-   uniforms:{uTime:{value:0},uPower:{value:.22},uColor:{value:new THREE.Color(enemy?0xff5639:0x29caff)}},
+   uniforms:{uTime:{value:0},uPower:{value:.22},uColor:{value:new THREE.Color(enemy?0xff684c:0x42dfff)}},
    transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,
    vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
    fragmentShader:`uniform float uTime;uniform float uPower;uniform vec3 uColor;varying vec2 vUv;
     void main(){
-     vec2 p=vUv*2.-1.;float along=vUv.y;
-     float ripple=sin(along*19.-uTime*21.+p.x*6.)*.12+sin(along*37.+uTime*14.)*.06;
-     float width=mix(.68,.02,along)*(1.+ripple);
-     float core=1.-smoothstep(0.,width,abs(p.x));
-     float tip=smoothstep(1.,.76,along);
-     float alpha=core*tip*(.3+.7*uPower);
-     vec3 col=mix(uColor,vec3(1.,.94,.63),core*core*(1.-along));
-     gl_FragColor=vec4(col,alpha);
+     vec2 p=vUv*2.-1.;
+     float along=vUv.y;
+     float width=mix(.84,.36,along);
+     float pulse=1.+.065*sin(uTime*12.+along*9.);
+     float radial=exp(-pow(abs(p.x)/(width*pulse),2.)*2.6);
+     float fade=smoothstep(0.,.2,along)*(1.-smoothstep(.7,1.,along));
+     float alpha=radial*fade*(.24+.44*uPower);
+     vec3 color=mix(uColor,vec3(.92,1.,1.),radial*.42);
+     gl_FragColor=vec4(color,alpha);
     }`
   });
-  const flame=new THREE.Mesh(new THREE.PlaneGeometry(1.4,3.4),flameMaterial);
-  flame.position.set(side*2.5,.58,4.75);flame.rotation.x=Math.PI/2;flame.renderOrder=8;root.add(flame);
-  const flameCross=flame.clone();flameCross.material=flameMaterial;flameCross.rotation.set(0,0,0);flameCross.position.copy(flame.position);root.add(flameCross);
+  // Dois planos cruzados curtos, juntos ao bocal: nada de feixe longo.
+  const flame=new THREE.Mesh(new THREE.PlaneGeometry(2.1,1.45),flameMaterial);
+  flame.position.set(side*2.5,.58,3.83);flame.rotation.x=Math.PI/2;flame.renderOrder=8;root.add(flame);
+  const flameCross=flame.clone();flameCross.material=flameMaterial;
+  flameCross.rotation.set(0,0,0);flameCross.position.copy(flame.position);root.add(flameCross);
   if(!root.userData.engineFlames)root.userData.engineFlames=[];
   root.userData.engineFlames.push({material:flameMaterial,flame,flameCross});
 
