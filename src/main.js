@@ -7,7 +7,7 @@ document.getElementById('landscapeFullscreen').addEventListener('click',async()=
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xd9faff,0x0e607b,2.2));
 const sun=new THREE.DirectionalLight(0xfff1cf,2.5);sun.position.set(-50,100,40);scene.add(sun);
@@ -63,7 +63,7 @@ const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasic
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
 const wakeMaterial=new THREE.MeshBasicMaterial({color:0xe5ffff,transparent:true,opacity:.52,depthWrite:false,side:THREE.DoubleSide});
 const wakeGeometry=new THREE.RingGeometry(.52,1.03,18);
-const wakePool=Array.from({length:26},()=>{
+const wakePool=Array.from({length:22},()=>{
  const mesh=new THREE.Mesh(wakeGeometry,wakeMaterial.clone());
  mesh.rotation.x=-Math.PI/2;mesh.visible=false;mesh.renderOrder=2;scene.add(mesh);
  return {mesh,life:0,duration:1.5};
@@ -78,14 +78,14 @@ function emitWake(px,pz,t,boost){
  item.mesh.visible=true;
 }
 function animateWake(dt,t,px,pz,yaw,velocity,boost){
- const rate=boost?.045:.085;
+ const rate=boost?.065:.11;
  wakeTimer+=dt;
  if(Math.abs(velocity)>9){
   let count=0;
   while(wakeTimer>=rate&&count++<3){
    wakeTimer-=rate;
-   const behind=5.4+Math.random()*1.4;
-   const offset=(Math.random()-.5)*4.5;
+   const behind=5.6+Math.random()*1.1;
+   const offset=(Math.random()-.5)*5.2;
    emitWake(px+Math.sin(yaw)*behind+Math.cos(yaw)*offset,pz+Math.cos(yaw)*behind-Math.sin(yaw)*offset,t,boost);
   }
  }else wakeTimer=0;
@@ -100,7 +100,7 @@ function animateWake(dt,t,px,pz,yaw,velocity,boost){
  }
 }
 // Reflexos de sustentação sob os dois propulsores, leves e reutilizados.
-const hoverHaloGeometry=new THREE.CircleGeometry(1.35,24);
+const hoverHaloGeometry=new THREE.CircleGeometry(1.35,20);
 const hoverHaloMaterial=new THREE.MeshBasicMaterial({color:0x59e7ff,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
 const hoverHalos=[-1,1].map(()=>{
  const halo=new THREE.Mesh(hoverHaloGeometry,hoverHaloMaterial.clone());
@@ -156,7 +156,7 @@ document.body.appendChild(hpHud);
  const compassTrack=compass.querySelector('.compassTrack');
  const compassReadout=compass.querySelector('.compassReadout');
  const compassPings=enemies.map(enemy=>{
-  const marker=document.createElement('span');marker.className='compassPing';
+  const marker=document.createElement('span');marker.className='compassPing';marker.setAttribute('aria-hidden','true');
   marker.textContent='◆';marker.title=enemy.name;
   compassTrack.appendChild(marker);return marker;
  });
@@ -175,9 +175,10 @@ document.body.appendChild(hpHud);
    marker.style.display='block';marker.style.left=position+'%';
    marker.classList.toggle('closest',enemy===nearestEnemy);
    marker.classList.toggle('behind',Math.abs(delta)>Math.PI*.75);
+   marker.textContent=Math.abs(delta)>Math.PI*.75?'◀':'◆';
   }
   for(let i=0;i<enemies.length;i++)compassPings[i].classList.toggle('closest',enemies[i]===nearestEnemy);
-  compassReadout.textContent=nearestEnemy?'MAIS PRÓXIMO · '+nearestEnemy.name+' · '+Math.round(nearestRange)+' m':'ÁREA SEGURA · SEM HOSTIS';
+  compassReadout.textContent=nearestEnemy?'HOSTIS '+enemies.filter(e=>e.hp>0).length+' · '+nearestEnemy.name+' · '+Math.round(nearestRange)+' m':'ÁREA SEGURA · SEM HOSTIS';
  }
 
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
@@ -186,7 +187,7 @@ const AMMO_TYPES=[
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
  {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
  {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
- {id:'torpedo',name:'Torpedo',icon:'🐟',description:'Explosão raio 55 · veloz · dano 55',color:0x62f2ec},
+ {id:'torpedo',name:'Torpedo',icon:'🚀',description:'Explosão raio 55 · veloz · dano 55',color:0x62f2ec},
  {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
@@ -198,12 +199,12 @@ const weaponDock=document.createElement('div');weaponDock.id='weaponDock';
 document.getElementById('ui').appendChild(weaponDock);
 function renderWeaponDock(){
  weaponDock.replaceChildren();
- for(const id of ['plasma','iron','torpedo']){
+ for(const id of ['plasma','iron','torpedo','meteor','scatter','siege']){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
-  button.textContent=ammo.icon;button.title=ammo.name;
-  button.setAttribute('aria-label','Selecionar '+ammo.name);
+  button.textContent=ammo.icon;button.title=ammo.name;button.dataset.weapon=id;
+  button.setAttribute('aria-label','Selecionar '+ammo.name);button.setAttribute('aria-pressed',String(selectedAmmo.id===id));
   button.addEventListener('pointerdown',e=>{
    e.preventDefault();e.stopPropagation();
    selectedAmmo=ammo;cancelAreaAim();ammoButton.textContent=ammo.icon;
@@ -320,9 +321,10 @@ let noticeUntil=0,noticeText='',hitFeedback=0,wonBattle=false;
 function notifyCombat(message,duration=2){noticeText=message;noticeUntil=clock.elapsedTime+duration;combatNotice.textContent=message;combatNotice.style.opacity='1'}
 const damageLabels=[];
 function showDamage(enemy,amount){
+ if(damageLabels.length>=16){const old=damageLabels.shift();old.label.remove();}
  const label=document.createElement('div');
  label.textContent='-'+amount;
- label.style.cssText='position:fixed;z-index:48;color:#ff4545;font:900 25px system-ui;text-shadow:0 2px 2px #300,0 0 8px #ff0000;pointer-events:none;transform:translate(-50%,-50%)';
+ label.style.cssText='position:fixed;z-index:48;color:#ff4545;font:900 23px system-ui;text-shadow:0 2px 2px #300,0 0 8px #ff0000;pointer-events:none;transform:translate(-50%,-50%)';
  document.body.appendChild(label);
  damageLabels.push({label,enemy,age:0});
  if(enemy.sprite){
@@ -350,7 +352,7 @@ function moveButtonAim(e){
  for(const mark of aimReticle.children){if(mark.material?.color&&mark!==aimDisc)mark.material.color.setHex(hovering?0xff3131:mark.type==='Line'?0xffff00:0x00ffff)}
 }
 function startAreaAim(e){
- if(areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
+ if(playerCombat.hp<=0||areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
  areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
  areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
  // Especial: visão aérea desde o primeiro toque, sem temporizador.
@@ -358,7 +360,7 @@ function startAreaAim(e){
  aimHint.classList.add('active');cancelAimButton.classList.add('active');
  const f=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
  areaAim.forward.copy(f);areaAim.right.set(-f.z,0,f.x);
- const distance=selectedAmmo.id==='siege'?90:Math.min(60,COMBAT.range*.65);
+ const distance=selectedAmmo.id==='siege'?90:selectedAmmo.id==='torpedo'?95:Math.min(60,COMBAT.range*.65);
  // Mira aparece imediatamente em frente à nave; o arrasto controla o ponto de impacto.
  areaAim.origin.set(x+f.x*distance,0,z+f.z*distance);
  if(lockedNpc&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
@@ -746,6 +748,7 @@ if(playerCombat.hp<=0){
  if(t>=playerCombat.respawnAt){
   playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
   playerCombat.invulnerableUntil=t+3;
+  notifyCombat('NAVE REPARADA · RETORNO AO COMBATE',1.8);
   // Renascimento local: não teletransportar o jogador para a origem do mapa.
   // Preserva a posição e o HP de todos os NPCs, evitando o salto de câmera/frota.
   speed=0;boostUntil=0;
@@ -769,8 +772,8 @@ hitFeedback=Math.max(0,hitFeedback-dt*1.9);
 hitOverlay.style.opacity=String(hitFeedback*.85);
 if(noticeUntil>0&&t>=noticeUntil){noticeUntil=0;combatNotice.style.opacity='0';}
 const remaining=Math.max(0,COMBAT.cooldown-(t-lastShotTime));
-if(!areaAim.active)fireButton.textContent=remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
-fireButton.disabled=remaining>0;
+if(!areaAim.active)fireButton.textContent=playerCombat.hp<=0?'REPARANDO':remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
+fireButton.disabled=remaining>0||playerCombat.hp<=0;
 hpHud.textContent=wonBattle?'🏆 VITÓRIA · Frota inimiga eliminada':playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.hp>0).length+'/'+enemies.length:'💥 NAVE DESTRUÍDA · Reiniciando...';
 hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
@@ -835,10 +838,17 @@ for(let i=projectiles.length-1;i>=0;i--){
   if(u>=1||torpedoImpact){
     if(torpedoImpact)p.destination.copy(p.mesh.position);
     energyFlash(p.mesh.position);
+    if(p.ammo==='torpedo'){
+     // Anel de choque mostra o alcance real do torpedo no plano do oceano.
+     const ring=new THREE.Mesh(new THREE.RingGeometry(52,55,48),new THREE.MeshBasicMaterial({color:0x91eeff,transparent:true,opacity:.56,side:THREE.DoubleSide,depthWrite:false}));
+     ring.rotation.x=-Math.PI/2;ring.position.copy(p.mesh.position);ring.position.y+=.15;scene.add(ring);
+     areaBursts.push({ring,burst:null,age:0});
+    }
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
       const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
       const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?55:8;
+      // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius){
         const damage=Math.min(enemy.hp,p.damage||COMBAT.damage);
         enemy.hp=Math.max(0,enemy.hp-damage);
