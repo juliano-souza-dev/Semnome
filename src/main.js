@@ -266,6 +266,8 @@ const sparkGeometry=new THREE.BufferGeometry();const sparkCount=36;
 sparkGeometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(sparkCount*3),3));
 const impactEffects=[];
 function energyFlash(position){
+ // Orçamento de efeitos: preservar FPS durante vários acertos simultâneos.
+ if(impactEffects.length>=16)return;
  const material=energyGlowMaterial.clone();
  material.uniforms.uTime={value:0};material.uniforms.uOpacity={value:1};
  material.uniforms.uColor={value:new THREE.Color(0x7defff)};
@@ -935,7 +937,7 @@ for(let i=impactEffects.length-1;i>=0;i--){
  const pos=e.sparks.geometry.attributes.position;
  for(let j=0;j<e.velocities.length;j++){const v=e.velocities[j];pos.setXYZ(j,v.x*e.age,v.y*e.age-11*e.age*e.age,v.z*e.age)}
  pos.needsUpdate=true;e.sparks.material.opacity=fade;
- if(e.age>=.45){scene.remove(e.flash,e.ring,e.sparks);e.flash.material.dispose();e.ring.material.dispose();e.sparks.material.dispose();e.sparks.geometry.dispose();impactEffects.splice(i,1)}
+ if(e.age>=.40){scene.remove(e.flash,e.ring,e.sparks);e.flash.material.dispose();e.ring.material.dispose();e.sparks.material.dispose();e.sparks.geometry.dispose();impactEffects.splice(i,1)}
 }
 
 // A malha acompanha o jogador com fases de onda em coordenadas globais. 
