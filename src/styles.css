@@ -59,3 +59,10 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #aimHint{max-width:72vw;white-space:normal;line-height:1.2}
 @media(max-height:440px){#aimHint{top:26px;padding:5px 9px;font-size:10px}#cancelAim{top:45px;padding:6px}}
 @media(prefers-reduced-motion:reduce){.weaponSlot,.compassPing,#fire{transition:none!important}#combatCompass .compassCenter{animation:none!important}}
+
+/* Referência de combate: controles legíveis e distinção entre armas. */
+.weaponSlot:focus-visible,#boost:focus-visible,#fire:focus-visible{outline:3px solid #a9f5ff;outline-offset:2px}
+#combatCompass .compassReadout{font-variant-numeric:tabular-nums}
+#boost{font-variant-numeric:tabular-nums}
+#fire{font-variant-numeric:tabular-nums}
+@media(max-width:700px){#combatCompass{width:min(280px,52vw)}}
