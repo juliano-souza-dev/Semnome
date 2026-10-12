@@ -338,7 +338,7 @@ function showDamage(enemy,amount){
   enemy.hitUntil=clock.elapsedTime+.35;
  }
 }
-const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
+const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,32),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
 function weaponRange(){return currentWeapon().range;}
 function moveButtonAim(e){
@@ -355,6 +355,7 @@ function moveButtonAim(e){
  // Feedback da mira: vermelho quando o ponto cobre um inimigo.
  const hovering=enemies.some(enemy=>enemy.hp>0&&Math.hypot(enemy.x-areaAim.point.x,enemy.z-areaAim.point.z)<Math.max(10,currentWeapon().impact*.24));
  aimDisc.material.color.setHex(hovering?0xff3636:0x00f0ff);
+ aimDisc.material.opacity=hovering?.34:.20;
  for(const mark of aimReticle.children){if(mark.material?.color&&mark!==aimDisc)mark.material.color.setHex(hovering?0xff3131:mark.type==='Line'?0xffff00:0x00ffff)}
 }
 function startAreaAim(e){
@@ -370,7 +371,7 @@ function startAreaAim(e){
  const distance=selectedAmmo.id==='siege'?105:selectedAmmo.id==='torpedo'?100:Math.min(80,weaponRange()*.40);
  // Mira aparece imediatamente em frente à nave; o arrasto controla o ponto de impacto.
  areaAim.origin.set(x+f.x*distance,0,z+f.z*distance);
- if(lockedNpc&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
+ if(lockedNpc&&lockedNpc.hp>0&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
   areaAim.origin.set(lockedNpc.x,0,lockedNpc.z);
  }
  areaAim.point.copy(areaAim.origin);areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
@@ -384,7 +385,7 @@ function finishAreaAim(e,cancel=false){
  // Assistência leve: aproxima o impacto do casco se a mira já estiver perto.
  // Fora dessa tolerância, respeita exatamente a escolha manual.
  if(destination){
-  let best=null,bestDist=selectedAmmo.id==='torpedo'?15:11;
+  let best=null,bestDist=selectedAmmo.id==='torpedo'?15:selectedAmmo.id==='siege'?10:11;
   for(const enemy of enemies){
    const dist=Math.hypot(enemy.x-destination.x,enemy.z-destination.z);
    if(enemy.hp>0&&dist<bestDist){best=enemy;bestDist=dist}
@@ -458,7 +459,7 @@ function launchShot(manualPoint=null){
    small.position.copy(start);scene.add(small);
    const points=Array.from({length:12},()=>start.clone()),geom=new THREE.BufferGeometry().setFromPoints(points);
    const trail2=new THREE.Line(geom,energyTrailMaterial);scene.add(trail2);
-   projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(1.18+i*.17),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true,damage:Math.round(COMBAT.damage*.6)});
+   projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(1.18+i*.17),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true,damage:Math.round(WEAPON_STATS.scatter.damage*.65)});
   }
  }
  // Cada novo tiro atualiza a cena de ataque sem interromper a navegação.
@@ -726,7 +727,7 @@ refreshCompass(t);
 targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
 lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP':'Procurando alvo...';
-fireButton.disabled=false;
+// Estado de recarga do botão é atualizado no fechamento do frame.
 // Antigo protótipo oculto: somente a máquina 3D deve aparecer.
 npc.visible=false;
 npcShadow.visible=false;
@@ -786,6 +787,7 @@ const remaining=weaponRemaining();
 if(!areaAim.active)fireButton.textContent=playerCombat.hp<=0?'REPARANDO':remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
 fireButton.setAttribute('aria-label',selectedAmmo.name+' · '+(remaining>0?'recarga '+remaining.toFixed(1)+' segundos':'segure para mirar e solte para disparar'));
 fireButton.style.setProperty('--ready',String(1-remaining/currentWeapon().cooldown));
+fireButton.dataset.ready=remaining<=0?'true':'false';
 fireButton.disabled=remaining>0||playerCombat.hp<=0;
 hpHud.textContent=wonBattle?'🏆 VITÓRIA · Frota inimiga eliminada':playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.hp>0).length+'/'+enemies.length:'💥 NAVE DESTRUÍDA · Reiniciando...';
 hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
