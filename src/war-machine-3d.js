@@ -91,6 +91,7 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  const hood=add(new THREE.BoxGeometry(2.65,.22,.67),armorLip,0,1.65,-2.25);
  hood.rotation.x=.15;
  // Canhão apontado para -Z, alinhado ao eixo de tiro do jogo.
+ const turretStart=root.children.length;
  const turret=add(new THREE.CylinderGeometry(.93,1.2,.7,18),dark,0,1.93,-1.35);
  add(new THREE.TorusGeometry(1.01,.13,8,24),trim,0,2.31,-1.35).rotation.x=Math.PI/2;
  const barrel=add(new THREE.CylinderGeometry(.34,.52,3.75,16),dark,0,1.95,-3.42);
@@ -104,6 +105,11 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  const muzzle=add(new THREE.TorusGeometry(.4,.12,10,20),cream,0,1.95,-5.32);
  const aperture=add(new THREE.CircleGeometry(.29,20),rim,0,1.95,-5.34);aperture.rotation.y=Math.PI;
  const firePoint=new THREE.Object3D();firePoint.name='cannonMuzzle';firePoint.position.set(0,1.95,-5.42);root.add(firePoint);
+ // Torre independente: pivô central, todas as peças do canhão e boca de disparo juntas.
+ const turretPivot=new THREE.Group();turretPivot.name='TorreGiratoria';turretPivot.position.set(0,1.93,-1.35);
+ const turretPieces=root.children.slice(turretStart);
+ for(const part of turretPieces){part.position.sub(turretPivot.position);turretPivot.add(part);}
+ root.add(turretPivot);
  // Dois motores externos + anéis luminosos que podem ser animados.
  const thrusters=[];
  for(const side of [-1,1]){
@@ -151,6 +157,6 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  // Luzes direcionais de navegação.
  add(new THREE.SphereGeometry(.19,10,8),mat(0xff3c39,.1,.2,{emissive:0xff2222,emissiveIntensity:1.2}),-2.95,1.18,0);
  add(new THREE.SphereGeometry(.19,10,8),mat(0x48ff9d,.1,.2,{emissive:0x10bb55,emissiveIntensity:1.2}),2.95,1.18,0);
- root.userData={...root.userData,firePoint,thrusters,kind:'war-machine-3d'};
+ root.userData={...root.userData,firePoint,turretPivot,thrusters,kind:'war-machine-3d'};
  return root;
 }
