@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.m
 import {createWastelandHorizon} from './environment.js';
 import {planEnemy,canEnemyFire,TACTICS} from './enemy-ai.js';
 import {integrateHull,ballisticPoint} from './naval-physics.js';
+import {createWarMachine3D} from './war-machine-3d.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
@@ -33,13 +34,7 @@ c=mix(c,vec3(.63,.96,.95),foam*.82+ribbons);gl_FragColor=vec4(c,1.);}`
 water.rotation.x=-Math.PI/2;scene.add(water);
 const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
-const ship=new THREE.Group();scene.add(ship);ship.scale.setScalar(2.1);
-const hull=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.8,1.05,28),new THREE.MeshStandardMaterial({color:0xf18b33,metalness:.35,roughness:.45}));hull.position.y=.25;ship.add(hull);
-const deck=new THREE.Mesh(new THREE.CylinderGeometry(1.95,2.15,.45,28),new THREE.MeshStandardMaterial({color:0xf0e6cf,metalness:.15,roughness:.6}));deck.position.y=.92;ship.add(deck);
-const cockpit=new THREE.Mesh(new THREE.SphereGeometry(.95,16,10),new THREE.MeshStandardMaterial({color:0x174357,metalness:.4,roughness:.25}));cockpit.scale.set(1,.5,.85);cockpit.position.y=1.45;ship.add(cockpit);
-const cannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new THREE.MeshStandardMaterial({color:0x364958,metalness:.6,roughness:.35}));
-cannon.rotation.x=Math.PI/2;cannon.position.set(0,1.2,-2.25);ship.add(cannon);
-for(const x of [-1.6,1.6]){const motor=new THREE.Mesh(new THREE.BoxGeometry(.85,.75,1.25),new THREE.MeshStandardMaterial({color:0x2b4751,metalness:.5}));motor.position.set(x,.55,2.2);ship.add(motor)}
+const ship=createWarMachine3D(THREE);scene.add(ship);
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // NPC 01: patrulheiro de teste, geometria temporária até chegada dos sprites.
 const npc=new THREE.Group();scene.add(npc);npc.scale.setScalar(1.9);
@@ -49,31 +44,9 @@ const npcCockpit=new THREE.Mesh(new THREE.SphereGeometry(.95,16,10),new THREE.Me
 const npcCannon=new THREE.Mesh(new THREE.CylinderGeometry(.43,.58,3.7,14),new THREE.MeshStandardMaterial({color:0x293942,metalness:.6,roughness:.35}));npcCannon.rotation.x=Math.PI/2;npcCannon.position.set(0,1.2,-2.25);npc.add(npcCannon);
 const npcData={x:14,z:-75,y:0,heading:0,speed:6,anchorX:14,anchorZ:-75};
 const npcShadow=new THREE.Mesh(new THREE.CircleGeometry(5.1,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.2,depthWrite:false}));npcShadow.rotation.x=-Math.PI/2;scene.add(npcShadow);
-// Sprite real do jogador: atlas 4x4 de 16 direções. Geometria fica apenas como fallback.
-// Ordem da grade 4x4: 16 quadros de 22,5 graus; linha 0 é a frente.
-const FRAME_MAP=Array.from({length:16},(_,i)=>({c:i%4,r:Math.floor(i/4)}));
-const TAU=Math.PI*2,FRAME_STEP=TAU/16;
-const PLAYER_ATLAS='./assets/ships/player/file_00000000bf14820e99bcf96b5bc8af0b.png';
-const playerSpriteMaterial=new THREE.MeshBasicMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide});
-const playerSprite=new THREE.Mesh(new THREE.PlaneGeometry(13.8,13.8),playerSpriteMaterial);
-playerSprite.visible=false;playerSprite.renderOrder=4;scene.add(playerSprite);
-let playerAtlasReady=false;
-new THREE.TextureLoader().load(PLAYER_ATLAS,texture=>{
-  texture.colorSpace=THREE.SRGBColorSpace;
-  texture.magFilter=THREE.LinearFilter;texture.minFilter=THREE.LinearFilter;
-  texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;
-  texture.repeat.set(.25,.25);
-  playerSpriteMaterial.map=texture;playerSpriteMaterial.needsUpdate=true;
-  playerAtlasReady=true;
-  ship.visible=false;playerSprite.visible=true;
-  for(const enemy of enemies){
-    const mat=playerSpriteMaterial.clone();mat.map=texture.clone();mat.map.needsUpdate=true;
-    mat.map.repeat.set(.25,.25);mat.color.setHex(enemy.id%3===0?0xffa1a1:enemy.id%3===1?0xb1dfff:0xd5b6ff);
-    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(13.2,13.2),mat);
-    mesh.renderOrder=4;scene.add(mesh);enemy.sprite=mesh;
-  }
-  npc.visible=false;
-},undefined,error=>console.warn('Falha no sprite; usando modelo provisório.',error));
+// O player agora é um modelo Three.js real, independente de atlas 2D.
+const playerAtlasReady=false;
+const playerSprite={visible:false};
 // Protótipo de combate: configurações isoladas para calibração.
 const COMBAT={range:190,projectileSpeed:165,damage:25,cooldown:3,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
@@ -90,6 +63,13 @@ for(let i=1;i<9;i++){
 }
 
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
+// Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
+for(const enemy of enemies){
+ enemy.model=createWarMachine3D(THREE,{enemy:true});
+ scene.add(enemy.model);
+}
+npc.visible=false;
+npcShadow.visible=false;
 const ENEMY_AI={detect:TACTICS.detect,fireRange:215,retreatRange:31,shotSpeed:205,shotDamage:7,shotCooldown:1.65,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
 const enemyShots=[];
@@ -442,7 +422,7 @@ shadow.position.set(x,height(x,z,t)+.14,z);
 let nearest=null,nearestDistance=COMBAT.range;
 for(const enemy of enemies){
  const distanceToPlayer=Math.hypot(x-enemy.x,z-enemy.z);
- if(enemy.hp<=0){enemy.state='destroyed';if(enemy.sprite)enemy.sprite.visible=false;continue;}
+ if(enemy.hp<=0){enemy.state='destroyed';if(enemy.sprite)enemy.sprite.visible=false;if(enemy.model)enemy.model.visible=false;continue;}
  const tactic=planEnemy(enemy,{x,z,heading,speed,alive:playerCombat.hp>0},enemies,t);
  enemy.state=tactic.state;
  const desiredYaw=-Math.atan2(tactic.goalX-enemy.x,-(tactic.goalZ-enemy.z));
@@ -479,8 +459,17 @@ for(const enemy of enemies){
   enemy.x-=dx/length*overlap*.35;enemy.z-=dz/length*overlap*.35;
   speed*=.94;
  }
+ if(enemy.model){
+  enemy.model.visible=enemy.hp>0;
+  enemy.model.position.set(enemy.x,enemy.y,enemy.z);
+  enemy.model.rotation.order='YXZ';
+  enemy.model.rotation.y=enemy.heading;
+  enemy.model.rotation.x=THREE.MathUtils.damp(enemy.model.rotation.x,0,4,dt);
+  enemy.model.rotation.z=THREE.MathUtils.damp(enemy.model.rotation.z,0,4,dt);
+ }
  const waveY=height(enemy.x,enemy.z,t);
  enemy.y=THREE.MathUtils.damp(enemy.y,waveY,4,dt);
+ if(enemy.model)enemy.model.position.y=enemy.y;
  if(enemy.sprite){
   enemy.sprite.position.set(enemy.x,enemy.y+4.3,enemy.z);
   enemy.sprite.quaternion.copy(camera.quaternion);
@@ -717,16 +706,6 @@ if(attackCamera.shake>0){
 }
 camTarget.copy(follow);cameraReady=true;camera.lookAt(camTarget);
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
-if(playerAtlasReady){
-  // A câmera de perseguição está atrás: 180° corresponde à traseira do sprite.
-  const visibleAngle=heading-cameraYaw+Math.PI;
-  const normalized=((visibleAngle%TAU)+TAU)%TAU;
-  const frameIndex=Math.round(normalized/FRAME_STEP)%16;
-  const {c:column,r:row}=FRAME_MAP[frameIndex];
-  playerSpriteMaterial.map.offset.set(column*.25,1-(row+1)*.25);
-  playerSprite.position.set(x,bob+4.3,z);
-  playerSprite.quaternion.copy(camera.quaternion);
-}
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Ondas ativas';
 renderer.render(scene,camera)
 }
