@@ -64,10 +64,29 @@ new THREE.TextureLoader().load(PLAYER_ATLAS,texture=>{
   playerSpriteMaterial.map=texture;playerSpriteMaterial.needsUpdate=true;
   playerAtlasReady=true;
   ship.visible=false;playerSprite.visible=true;
+  for(const enemy of enemies){
+    const mat=playerSpriteMaterial.clone();mat.map=texture.clone();mat.map.needsUpdate=true;
+    mat.map.repeat.set(.25,.25);mat.color.setHex(enemy.id%3===0?0xffa1a1:enemy.id%3===1?0xb1dfff:0xd5b6ff);
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(13.2,13.2),mat);
+    mesh.renderOrder=4;scene.add(mesh);enemy.sprite=mesh;
+  }
+  npc.visible=false;
 },undefined,error=>console.warn('Falha no sprite; usando modelo provisório.',error));
 // Protótipo de combate: configurações isoladas para calibração.
 const COMBAT={range:95,projectileSpeed:165,damage:25,cooldown:.65,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
+// Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
+const enemies=[npcData];
+npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;
+for(let i=1;i<9;i++){
+ const angle=i*Math.PI*2/8;
+ const radius=105+(i%3)*36;
+ enemies.push({id:i+1,name:'Patrulheiro '+String(i+1).padStart(2,'0'),
+  x:Math.sin(angle)*radius,z:-85+Math.cos(angle)*radius,y:0,
+  anchorX:Math.sin(angle)*radius,anchorZ:-85+Math.cos(angle)*radius,
+  heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null});
+}
+
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
 const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
@@ -195,7 +214,7 @@ function launchShot(manualPoint=null){
  lastShotTime=clock.elapsedTime;
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
- const destination=manualPoint?manualPoint.clone():new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z);
+ const destination=manualPoint?manualPoint.clone():new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z);
  const ammo=selectedAmmo;
  const travel=ammo.id==='siege'?4.5:Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
  const arcHeight=ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
@@ -331,46 +350,50 @@ ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=headin
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
 shadow.position.set(x,height(x,z,t)+.14,z);
-// Patrulha lenta no oceano, com flutuação compartilhada com as ondas.
-const patrol=t*.17;
-const destX=npcData.anchorX+Math.sin(patrol)*15;
-const destZ=npcData.anchorZ+Math.cos(patrol)*15;
-const desiredYaw=-Math.atan2(destX-npcData.x,-(destZ-npcData.z));
-const deltaYaw=Math.atan2(Math.sin(desiredYaw-npcData.heading),Math.cos(desiredYaw-npcData.heading));
-npcData.heading+=THREE.MathUtils.clamp(deltaYaw,-1.3*dt,1.3*dt);
-npcData.x-=Math.sin(npcData.heading)*npcData.speed*dt;
-npcData.z-=Math.cos(npcData.heading)*npcData.speed*dt;
-// Colisão circular XZ: empurrões sem dano, sem mudar a orientação comandada pelo jogador.
-let dx=x-npcData.x,dz=z-npcData.z,dist=Math.hypot(dx,dz),minDist=10.6;
-if(dist<minDist){
-  if(dist<.001){dx=1;dz=0;dist=1}
-  const overlap=minDist-dist,nx=dx/dist,nz=dz/dist;
-  x+=nx*overlap*.65;z+=nz*overlap*.65;
-  npcData.x-=nx*overlap*.35;npcData.z-=nz*overlap*.35;
+// Frota de NPCs: patrulha independente, bob nas ondas e separação física.
+let nearest=null,nearestDistance=COMBAT.range;
+for(const enemy of enemies){
+ const patrol=t*.19+enemy.phase;
+ const goalX=enemy.anchorX+Math.sin(patrol)*enemy.radius;
+ const goalZ=enemy.anchorZ+Math.cos(patrol)*enemy.radius;
+ const desiredYaw=-Math.atan2(goalX-enemy.x,-(goalZ-enemy.z));
+ const yawDelta=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
+ enemy.heading+=THREE.MathUtils.clamp(yawDelta,-1.25*dt,1.25*dt);
+ enemy.x-=Math.sin(enemy.heading)*enemy.speed*dt;
+ enemy.z-=Math.cos(enemy.heading)*enemy.speed*dt;
+ // Colisão jogador × inimigo; nenhum dano durante esta fase de testes.
+ let dx=x-enemy.x,dz=z-enemy.z,dist=Math.hypot(dx,dz);
+ if(dist<10.6){
+  const length=Math.max(dist,.001),overlap=10.6-dist;
+  x+=dx/length*overlap*.65;z+=dz/length*overlap*.65;
+  enemy.x-=dx/length*overlap*.35;enemy.z-=dz/length*overlap*.35;
   speed*=.94;
-  ship.position.x=x;ship.position.z=z;
+ }
+ const waveY=height(enemy.x,enemy.z,t);
+ enemy.y=THREE.MathUtils.damp(enemy.y,waveY,4,dt);
+ if(enemy.sprite){
+  enemy.sprite.position.set(enemy.x,enemy.y+4.3,enemy.z);
+  enemy.sprite.quaternion.copy(camera.quaternion);
+  const viewAngle=Math.atan2(camera.position.x-enemy.x,camera.position.z-enemy.z);
+  const visibleAngle=enemy.heading-viewAngle+Math.PI;
+  const frame=Math.round((((visibleAngle%(Math.PI*2))+(Math.PI*2))%(Math.PI*2))/FRAME_STEP)%16;
+  const {c:column,r:row}=FRAME_MAP[frame];
+  enemy.sprite.material.map.offset.set(column*.25,1-(row+1)*.25);
+ }else if(enemy===npcData){
+  npc.position.set(enemy.x,enemy.y+1.35,enemy.z);npc.rotation.y=enemy.heading;
+  npcShadow.position.set(enemy.x,waveY+.13,enemy.z);
+ }
+ const range=Math.hypot(x-enemy.x,z-enemy.z);
+ if(enemy.hp>0&&range<nearestDistance){nearest=enemy;nearestDistance=range}
 }
-const ny=height(npcData.x,npcData.z,t);
-npcData.y=THREE.MathUtils.damp(npcData.y,ny,4,dt);
-npc.position.set(npcData.x,npcData.y+1.35,npcData.z);
-npc.rotation.order='YXZ';npc.rotation.y=npcData.heading;
-const nf=new THREE.Vector2(-Math.sin(npcData.heading),-Math.cos(npcData.heading)),ns=new THREE.Vector2(Math.cos(npcData.heading),-Math.sin(npcData.heading));
-const nfront=height(npcData.x+nf.x*1.5,npcData.z+nf.y*1.5,t);
-const nback=height(npcData.x-nf.x*1.5,npcData.z-nf.y*1.5,t);
-const nleft=height(npcData.x-ns.x*1.5,npcData.z-ns.y*1.5,t);
-const nright=height(npcData.x+ns.x*1.5,npcData.z+ns.y*1.5,t);
-npc.rotation.x=THREE.MathUtils.damp(npc.rotation.x,THREE.MathUtils.clamp(Math.atan2(nback-nfront,3),-.24,.24),4,dt);
-npc.rotation.z=THREE.MathUtils.damp(npc.rotation.z,THREE.MathUtils.clamp(Math.atan2(nleft-nright,3),-.23,.23),4,dt);
-npcShadow.position.set(npcData.x,ny+.13,npcData.z);
-// Seleção automática por alcance real, sem depender de para onde a câmera olha.
-const npcDistance=Math.hypot(x-npcData.x,z-npcData.z);
-lockedNpc=npcData.hp>0 && npcDistance<=COMBAT.range ? npcData : null;
+lockedNpc=nearest;
 targetRing.visible=!!lockedNpc;
-targetRing.position.set(npcData.x,ny+.18,npcData.z);
-lockLabel.textContent=lockedNpc?'ALVO TRAVADO · Patrulheiro 01 · ∞ HP':'Procurando alvo...';
+if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
+lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · ∞ HP':'Procurando alvo...';
 fireButton.disabled=selectedAmmo.id==='siege'?false:!lockedNpc;
-npc.visible=npcData.hp>0;
-npcShadow.visible=npcData.hp>0;
+npc.visible=!playerAtlasReady;
+npcShadow.visible=!playerAtlasReady;
+ship.position.x=x;ship.position.z=z;
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
   const p=projectiles[i];
@@ -417,7 +440,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       ring.rotation.x=-Math.PI/2;ring.position.copy(p.mesh.position);ring.position.y+=.4;scene.add(ring);
       areaBursts.push({burst,ring,age:0});
       // Dano em área configurado para NPCs futuros; Patrulheiro 01 segue imortal durante testes.
-      if(Math.hypot(npcData.x-p.destination.x,npcData.z-p.destination.z)<=AREA_RADIUS){energyFlash(new THREE.Vector3(npcData.x,npcData.y+2.5,npcData.z))}
+      for(const enemy of enemies){if(Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z)<=AREA_RADIUS)energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z))}
     }
     if(attackCamera.shot===p){
       attackCamera.phase='impact';attackCamera.impactAt=t;
