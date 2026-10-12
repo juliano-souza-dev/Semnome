@@ -1,6 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 import {createWastelandHorizon} from './environment.js';
 import {planEnemy,canEnemyFire,TACTICS} from './enemy-ai.js';
+import {integrateHull,ballisticPoint} from './naval-physics.js';
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
@@ -326,6 +327,7 @@ fireButton.addEventListener('pointercancel',e=>finishAreaAim(e,true));
 fireButton.addEventListener('lostpointercapture',e=>finishAreaAim(e,true));
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
+const hullPhysics={x:0,z:0,vx:0,vz:0};
 // Propulsor: força velocidade máxima por exatamente 2 segundos de simulação.
 const boostButton=document.getElementById('boost');
 let boostUntil=0,boostHeading=0;
@@ -396,7 +398,7 @@ let target=reversing?-24*(keyboardReverse?1:stickAmount):72*(keyboardGo?1:stickA
 const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
 target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
-speed=THREE.MathUtils.damp(speed,target,go?2.8:6.5,dt);
+// Velocidade agora é resolvida após o giro pela integração física do casco.
 const boostRemaining=Math.max(0,boostUntil-t);
 if(boostRemaining>0){
  speed=BOOST_DASH_SPEED;
@@ -425,7 +427,9 @@ if(boostRemaining<=0&&Math.abs(speed)>.35){
     heading+=turn*2.35*Math.min(1,Math.abs(speed)/7)*dt;
   }
 }
-x-=Math.sin(heading)*speed*dt;z-=Math.cos(heading)*speed*dt;
+hullPhysics.x=x;hullPhysics.z=z;
+const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED:0,dt});
+x=movement.x;z=movement.z;speed=movement.speed;
 const bow=new THREE.Vector2(-Math.sin(heading),-Math.cos(heading)),side=new THREE.Vector2(Math.cos(heading),-Math.sin(heading));
 const front=height(x+bow.x*1.5,z+bow.y*1.5,t),back=height(x-bow.x*1.5,z-bow.y*1.5,t);
 const left=height(x-side.x*1.5,z-side.y*1.5,t),right=height(x+side.x*1.5,z+side.y*1.5,t);
@@ -505,8 +509,7 @@ ship.position.x=x;ship.position.z=z;
 for(let i=enemyShots.length-1;i>=0;i--){
  const shot=enemyShots[i];shot.age+=dt;
  const progress=Math.min(1,shot.age/shot.duration);
- shot.mesh.position.lerpVectors(shot.origin,shot.destination,progress);
- shot.mesh.position.y+=4*shot.arcHeight*progress*(1-progress);
+ ballisticPoint(shot.origin,shot.destination,shot.duration,shot.age,shot.arcHeight,shot.mesh.position);
  shot.glow.quaternion.copy(camera.quaternion);shot.outerGlow.quaternion.copy(camera.quaternion);
  shot.plasma.rotation.set(t*6,t*9,t*5);
  shot.trailPoints.pop();shot.trailPoints.unshift(shot.mesh.position.clone());
@@ -528,7 +531,7 @@ if(playerCombat.hp<=0){
  if(t>=playerCombat.respawnAt){
   playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
   playerCombat.invulnerableUntil=t+3;
-  x=0;z=0;speed=0;boostUntil=0;
+  x=0;z=0;speed=0;boostUntil=0;hullPhysics.x=0;hullPhysics.z=0;hullPhysics.vx=0;hullPhysics.vz=0;
   for(const shot of enemyShots){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();}
   enemyShots.length=0;
  }
