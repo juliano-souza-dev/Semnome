@@ -160,18 +160,38 @@ let selectedAmmo=AMMO_TYPES[0];
 // Apenas armas de efeito especial usam a câmera tática superior.
 const TACTICAL_AMMO=new Set(['meteor','scatter','siege']);
 const ammoButton=document.getElementById('ammo'),ammoMenu=document.getElementById('ammoMenu');
+ // Barra lateral de armamentos visíveis, inspirada nos botões da referência.
+const weaponDock=document.createElement('div');weaponDock.id='weaponDock';
+document.getElementById('ui').appendChild(weaponDock);
+function renderWeaponDock(){
+ weaponDock.replaceChildren();
+ for(const id of ['plasma','iron','torpedo']){
+  const ammo=AMMO_TYPES.find(a=>a.id===id);
+  const button=document.createElement('button');
+  button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
+  button.textContent=ammo.icon;button.title=ammo.name;
+  button.setAttribute('aria-label','Selecionar '+ammo.name);
+  button.addEventListener('pointerdown',e=>{
+   e.preventDefault();e.stopPropagation();
+   selectedAmmo=ammo;cancelAreaAim();ammoButton.textContent=ammo.icon;
+   ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');
+   renderAmmoMenu();renderWeaponDock();
+  });
+  weaponDock.appendChild(button);
+ }
+}
 function renderAmmoMenu(){
  ammoMenu.replaceChildren();
  for(const ammo of AMMO_TYPES){
   const button=document.createElement('button');button.type='button';
   button.className=ammo.id===selectedAmmo.id?'chosen':'';
   button.textContent=ammo.icon+' '+ammo.name+' · '+ammo.description;
-  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();ammoButton.textContent=ammo.icon;ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu()});
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();ammoButton.textContent=ammo.icon;ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu();renderWeaponDock()});
   ammoMenu.append(button);
  }
 }
 ammoButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();const isOpen=ammoMenu.classList.toggle('open');ammoButton.setAttribute('aria-expanded',String(isOpen));if(isOpen)renderAmmoMenu()});
-renderAmmoMenu();
+renderAmmoMenu();renderWeaponDock();
 // Projétil de energia WebGL: núcleo emissivo ciano, halo aditivo e rastro azul.
 const energyCoreGeometry=new THREE.SphereGeometry(.8,16,12);
 const energyCoreMaterial=new THREE.MeshBasicMaterial({color:0x9efcff,toneMapped:false});
