@@ -73,7 +73,7 @@ new THREE.TextureLoader().load(PLAYER_ATLAS,texture=>{
   npc.visible=false;
 },undefined,error=>console.warn('Falha no sprite; usando modelo provisório.',error));
 // Protótipo de combate: configurações isoladas para calibração.
-const COMBAT={range:190,projectileSpeed:165,damage:25,cooldown:.65,npcMaxHp:100};
+const COMBAT={range:190,projectileSpeed:165,damage:25,cooldown:3,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
@@ -194,6 +194,18 @@ const shotView=new THREE.Vector3(),shotLook=new THREE.Vector3(),normalView=new T
 const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
 // O casco só gira por navegação ou arrasto; o tiro em arco mira sem girar a nave.
 
+const damageLabels=[];
+function showDamage(enemy,amount){
+ const label=document.createElement('div');
+ label.textContent='-'+amount;
+ label.style.cssText='position:fixed;z-index:48;color:#ff4545;font:900 25px system-ui;text-shadow:0 2px 2px #300,0 0 8px #ff0000;pointer-events:none;transform:translate(-50%,-50%)';
+ document.body.appendChild(label);
+ damageLabels.push({label,enemy,age:0});
+ if(enemy.sprite){
+  enemy.sprite.material.color.setHex(0xff3939);
+  enemy.hitUntil=clock.elapsedTime+.35;
+ }
+}
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
 function weaponRange(){return selectedAmmo.id==='siege'?AREA_RANGE:COMBAT.range;}
@@ -201,7 +213,7 @@ function moveButtonAim(e){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  // Deslocamento relativo ao botão: o dedo nunca precisa sair para tocar o mar.
  const dx=e.clientX-areaAim.startX,dy=e.clientY-areaAim.startY;
- const sensitivity=.46;
+ const sensitivity=.85; // Ajuste fino mais responsivo, sem perder o alvo inicial
  const px=areaAim.origin.x+areaAim.right.x*dx*sensitivity-areaAim.forward.x*dy*sensitivity;
  const pz=areaAim.origin.z+areaAim.right.z*dx*sensitivity-areaAim.forward.z*dy*sensitivity;
  const ox=px-x,oz=pz-z,dist=Math.hypot(ox,oz),max=weaponRange();
@@ -252,7 +264,7 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:COMBAT.damage};
  if(ammo.id==='meteor'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);plasma.material=plasmaMaterial.clone();}
  if(ammo.id==='siege'){core.material=energyCoreMaterial.clone();core.material.color.setHex(0xeebaff);mesh.scale.setScalar(1.65);}
  if(ammo.id==='scatter'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
@@ -270,7 +282,7 @@ function launchShot(manualPoint=null){
    small.position.copy(start);scene.add(small);
    const points=Array.from({length:12},()=>start.clone()),geom=new THREE.BufferGeometry().setFromPoints(points);
    const trail2=new THREE.Line(geom,energyTrailMaterial);scene.add(trail2);
-   projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(1.18+i*.17),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true});
+   projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(1.18+i*.17),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true,damage:Math.round(COMBAT.damage*.6)});
   }
  }
  // Cada novo tiro atualiza a cena de ataque sem interromper a navegação.
@@ -427,6 +439,7 @@ for(const enemy of enemies){
   const frame=Math.round((((visibleAngle%(Math.PI*2))+(Math.PI*2))%(Math.PI*2))/FRAME_STEP)%16;
   const {c:column,r:row}=FRAME_MAP[frame];
   enemy.sprite.material.map.offset.set(column*.25,1-(row+1)*.25);
+  if(enemy.hitUntil&&t>=enemy.hitUntil){enemy.sprite.material.color.setHex(enemy.id%3===0?0xffa1a1:enemy.id%3===1?0xb1dfff:0xd5b6ff);enemy.hitUntil=0;}
  }else if(enemy===npcData){
   npc.position.set(enemy.x,enemy.y+1.35,enemy.z);npc.rotation.y=enemy.heading;
   npcShadow.position.set(enemy.x,waveY+.13,enemy.z);
@@ -474,6 +487,18 @@ if(playerCombat.hp<=0){
   enemyShots.length=0;
  }
 }
+// Indicadores de dano seguem o inimigo na tela e desaparecem suavemente.
+for(let i=damageLabels.length-1;i>=0;i--){
+ const d=damageLabels[i];d.age+=dt;
+ const pos=new THREE.Vector3(d.enemy.x,d.enemy.y+8+d.age*3,d.enemy.z).project(camera);
+ d.label.style.left=(pos.x*.5+.5)*innerWidth+'px';
+ d.label.style.top=(-pos.y*.5+.5)*innerHeight+'px';
+ d.label.style.opacity=String(Math.max(0,1-d.age/.95));
+ if(d.age>=.95){d.label.remove();damageLabels.splice(i,1)}
+}
+const remaining=Math.max(0,COMBAT.cooldown-(t-lastShotTime));
+if(!areaAim.active)fireButton.textContent=remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
+fireButton.disabled=remaining>0;
 hpHud.textContent=playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.state==='engaged').length:'💥 NAVE DESTRUÍDA · Reiniciando...';
 hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
@@ -514,6 +539,15 @@ for(let i=projectiles.length-1;i>=0;i--){
   // A explosão ocorre na chegada; não atravessa o alvo entre frames.
   if(u>=1){
     energyFlash(p.mesh.position);
+    // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
+    for(const enemy of enemies){
+      const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
+      const radius=p.ammo==='siege'?AREA_RADIUS:8;
+      if(enemy.hp>0&&distance<=radius){
+        showDamage(enemy,p.damage||COMBAT.damage);
+        energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
+      }
+    }
     if(p.ammo==='siege'){
       const bloom=energyGlowMaterial.clone();bloom.uniforms.uTime={value:t};bloom.uniforms.uOpacity={value:1};
       bloom.uniforms.uColor={value:new THREE.Color(0xc778ff)};
@@ -522,7 +556,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       ring.rotation.x=-Math.PI/2;ring.position.copy(p.mesh.position);ring.position.y+=.4;scene.add(ring);
       areaBursts.push({burst,ring,age:0});
       // Dano em área configurado para NPCs futuros; Patrulheiro 01 segue imortal durante testes.
-      for(const enemy of enemies){if(Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z)<=AREA_RADIUS)energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z))}
+      // Confirmações de acerto são processadas em um único ponto acima.
     }
     if(attackCamera.shot===p){
       attackCamera.phase='impact';attackCamera.impactAt=t;
