@@ -727,6 +727,7 @@ hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
   const p=projectiles[i];
+  const previousPosition=p.mesh.position.clone();
   p.age+=dt;
   const u=Math.min(1,p.age/p.travel);
   // Parábola suave: ponto alto no meio, queda sobre o alvo.
@@ -755,6 +756,24 @@ for(let i=projectiles.length-1;i>=0;i--){
   }else{
    ballisticPoint(p.origin,p.destination,p.travel,p.age,p.arcHeight,p.mesh.position);
   }
+  // Colisão varrida: verifica todo o deslocamento entre frames, não só o destino.
+  // Assim o torpedo não atravessa NPCs quando o FPS cai ou o inimigo se move.
+  let torpedoImpact=null;
+  if(p.ammo==='torpedo'){
+   const ax=previousPosition.x,az=previousPosition.z;
+   const bx=p.mesh.position.x,bz=p.mesh.position.z;
+   const vx=bx-ax,vz=bz-az,lengthSq=vx*vx+vz*vz;
+   let nearestFraction=Infinity;
+   for(const enemy of enemies){
+    if(enemy.hp<=0)continue;
+    const fraction=lengthSq>1e-6?THREE.MathUtils.clamp(((enemy.x-ax)*vx+(enemy.z-az)*vz)/lengthSq,0,1):0;
+    const cx=ax+vx*fraction,cz=az+vz*fraction;
+    if(Math.hypot(enemy.x-cx,enemy.z-cz)<=6.8 && fraction<nearestFraction){
+     nearestFraction=fraction;torpedoImpact=enemy;
+     p.mesh.position.set(cx,height(cx,cz,t)+.65,cz);
+    }
+   }
+  }
   p.glow.quaternion.copy(camera.quaternion);p.outerGlow.quaternion.copy(camera.quaternion);
   if(p.plasma){p.plasma.rotation.set(t*6,t*9,t*5);p.plasma.scale.setScalar(1+.13*Math.sin(t*25));}
   p.trailPoints.pop();p.trailPoints.unshift(p.mesh.position.clone());
@@ -764,13 +783,14 @@ for(let i=projectiles.length-1;i>=0;i--){
   }
   p.trail.geometry.attributes.position.needsUpdate=true;
   // A explosão ocorre na chegada; não atravessa o alvo entre frames.
-  if(u>=1){
+  if(u>=1||torpedoImpact){
+    if(torpedoImpact)p.destination.copy(p.mesh.position);
     energyFlash(p.mesh.position);
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
       const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
       const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?10:8;
-      if(enemy.hp>0&&distance<=radius){
+      if(enemy.hp>0&&(torpedoImpact?enemy===torpedoImpact:distance<=radius)){
         const damage=Math.min(enemy.hp,p.damage||COMBAT.damage);
         enemy.hp=Math.max(0,enemy.hp-damage);
         showDamage(enemy,damage);
