@@ -794,7 +794,7 @@ if(noticeUntil>0&&t>=noticeUntil){noticeUntil=0;combatNotice.style.opacity='0';}
 const remaining=weaponRemaining();
 threatShotCount=enemyShots.filter(shot=>shot.age<shot.duration).length;
 threatStatus.classList.toggle('incoming',threatShotCount>0);
-if(threatShotCount>0)threatStatus.textContent='⚠ '+threatShotCount+' DISPARO'+(threatShotCount>1?'S':'')+' HOSTIL'+(threatShotCount>1?'IS':'')+' NO AR';
+if(threatShotCount>0)threatStatus.textContent='⚠ '+threatShotCount+' DISPARO'+(threatShotCount>1?'S':'')+' HOSTIL'+(threatShotCount>1?'S':'')+' NO AR';
 if(!areaAim.active)fireButton.textContent=playerCombat.hp<=0?'REPARANDO':remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
 fireButton.setAttribute('aria-label',selectedAmmo.name+' · '+(remaining>0?'recarga '+remaining.toFixed(1)+' segundos':'segure para mirar e solte para disparar'));
 fireButton.style.setProperty('--ready',String(1-remaining/currentWeapon().cooldown));
