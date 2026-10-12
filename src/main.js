@@ -220,6 +220,9 @@ function moveButtonAim(e){
  const ratio=dist>max?max/dist:1;
  areaAim.point.set(x+ox*ratio,height(x+ox*ratio,z+oz*ratio,clock.elapsedTime)+.35,z+oz*ratio);
  areaAim.valid=true;aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
+ // Feedback da mira: vermelho quando o ponto cobre um inimigo.
+ const hovering=enemies.some(enemy=>Math.hypot(enemy.x-areaAim.point.x,enemy.z-areaAim.point.z)<12);
+ for(const ring of aimReticle.children){if(ring.material&&ring.material.color)ring.material.color.setHex(hovering?0xff4747:0xeaa6ff)}
 }
 function startAreaAim(e){
  if(areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
@@ -241,7 +244,17 @@ function startAreaAim(e){
 }
 function finishAreaAim(e,cancel=false){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
- const destination=!cancel&&areaAim.valid?areaAim.point.clone():null;
+ let destination=!cancel&&areaAim.valid?areaAim.point.clone():null;
+ // Assistência leve: aproxima o impacto do casco se a mira já estiver perto.
+ // Fora dessa tolerância, respeita exatamente a escolha manual.
+ if(destination){
+  let best=null,bestDist=12;
+  for(const enemy of enemies){
+   const dist=Math.hypot(enemy.x-destination.x,enemy.z-destination.z);
+   if(enemy.hp>0&&dist<bestDist){best=enemy;bestDist=dist}
+  }
+  if(best)destination.set(best.x,best.y+.3,best.z);
+ }
  cancelAreaAim();
  if(destination)launchShot(destination);
 }
