@@ -896,7 +896,7 @@ for(let i=areaBursts.length-1;i>=0;i--){
   e.burst.quaternion.copy(camera.quaternion);e.burst.material.uniforms.uTime.value=t;
   e.burst.material.uniforms.uOpacity.value=fade;e.burst.scale.setScalar(5+e.age*15);
  }
- e.ring.scale.setScalar(e.burst?.5+e.age*1.15:.55+e.age*.8);
+ e.ring.scale.setScalar(e.burst ? .5+e.age*1.15 : .55+e.age*.8);
  e.ring.material.opacity=fade*.65;
  if(e.age>=.72){scene.remove(e.ring);e.ring.material.dispose();if(e.burst){scene.remove(e.burst);e.burst.material.dispose();}areaBursts.splice(i,1)}
 }
