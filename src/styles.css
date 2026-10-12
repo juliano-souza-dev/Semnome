@@ -67,3 +67,9 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #fire{font-variant-numeric:tabular-nums}
 @media(max-width:700px){#combatCompass{width:min(280px,52vw)}}
 
+
+/* Pacote 2/4: feedback de recarga no mesmo botão de mira e disparo. */
+#fire{background:conic-gradient(#ffca65 calc(var(--ready,1)*360deg),#643e38 0);box-shadow:inset 0 0 0 6px #c65b30,0 0 12px #ef702b50;text-shadow:0 2px 3px #603}
+#fire[data-ready="false"]{color:#fff0cf;filter:saturate(.72)}
+#fire[data-ready="true"]{border-color:#ffe1a4;filter:none}
+#fire:focus-visible{outline:3px solid #a0f6ff;outline-offset:3px}
