@@ -162,7 +162,7 @@ document.body.appendChild(hpHud);
  });
  let lastCompassUpdate=-1,compassQuiet=false;
  function refreshCompass(t){
-  if(t-lastCompassUpdate<.08)return;lastCompassUpdate=t;
+  if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
   let nearestEnemy=null,nearestRange=Infinity;
   for(let i=0;i<enemies.length;i++){
    const enemy=enemies[i],marker=compassPings[i];
