@@ -121,6 +121,7 @@ const playerAtlasReady=false;
 const playerSprite={visible:false};
 // Protótipo de combate: configurações isoladas para calibração.
 const COMBAT={range:195,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
+const WEAPON_STATS=Object.freeze({plasma:{range:205,cooldown:2.1,damage:25,impact:8},iron:{range:235,cooldown:2.5,damage:40,impact:8},torpedo:{range:245,cooldown:4.2,damage:55,impact:55},meteor:{range:265,cooldown:3.4,damage:32,impact:11},scatter:{range:215,cooldown:3.3,damage:22,impact:10},siege:{range:360,cooldown:5.0,damage:45,impact:22}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
@@ -205,7 +206,7 @@ function renderWeaponDock(){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
-  button.textContent=ammo.icon;button.title=ammo.name;button.dataset.weapon=id;button.dataset.special=String(TACTICAL_AMMO.has(id));
+  button.textContent=ammo.icon;button.title=ammo.name+' · Alcance '+WEAPON_STATS[id].range+' · Recarga '+WEAPON_STATS[id].cooldown+'s';button.dataset.weapon=id;button.dataset.special=String(TACTICAL_AMMO.has(id));
   button.setAttribute('aria-label','Selecionar '+ammo.name);button.setAttribute('aria-pressed',String(selectedAmmo.id===id));
   button.addEventListener('pointerdown',e=>{
    e.preventDefault();e.stopPropagation();
@@ -221,7 +222,7 @@ function renderAmmoMenu(){
  for(const ammo of AMMO_TYPES){
   const button=document.createElement('button');button.type='button';
   button.className=ammo.id===selectedAmmo.id?'chosen':'';
-  button.textContent=ammo.icon+' '+ammo.name+' · '+ammo.description;
+  button.textContent=ammo.icon+' '+ammo.name+' · '+ammo.description+' · Alcance '+WEAPON_STATS[ammo.id].range+' · '+WEAPON_STATS[ammo.id].cooldown+'s';
   button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();ammoButton.textContent=ammo.icon;ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu();renderWeaponDock()});
   ammoMenu.append(button);
  }
@@ -274,6 +275,9 @@ function energyFlash(position){
  impactEffects.push({flash,ring,sparks,velocities,age:0});
 }
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
+const weaponReadyAt=Object.fromEntries(Object.keys(WEAPON_STATS).map(id=>[id,0]));
+const currentWeapon=()=>WEAPON_STATS[selectedAmmo.id];
+const weaponRemaining=()=>Math.max(0,weaponReadyAt[selectedAmmo.id]-clock.elapsedTime);
 const AREA_RANGE=360,AREA_RADIUS=22;
 const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
 const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null,holdStarted:0,viewBlend:0,startX:0,startY:0,origin:new THREE.Vector3(),right:new THREE.Vector3(),forward:new THREE.Vector3()};
@@ -336,7 +340,7 @@ function showDamage(enemy,amount){
 }
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
-function weaponRange(){return selectedAmmo.id==='siege'?AREA_RANGE:selectedAmmo.id==='torpedo'?245:selectedAmmo.id==='iron'?235:selectedAmmo.id==='plasma'?205:selectedAmmo.id==='meteor'?265:selectedAmmo.id==='scatter'?215:COMBAT.range;}
+function weaponRange(){return currentWeapon().range;}
 function moveButtonAim(e){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  // Deslocamento relativo ao botão: o dedo nunca precisa sair para tocar o mar.
@@ -349,21 +353,21 @@ function moveButtonAim(e){
  areaAim.point.set(x+ox*ratio,height(x+ox*ratio,z+oz*ratio,clock.elapsedTime)+.35,z+oz*ratio);
  areaAim.valid=true;aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
  // Feedback da mira: vermelho quando o ponto cobre um inimigo.
- const hovering=enemies.some(enemy=>enemy.hp>0&&Math.hypot(enemy.x-areaAim.point.x,enemy.z-areaAim.point.z)<12);
+ const hovering=enemies.some(enemy=>enemy.hp>0&&Math.hypot(enemy.x-areaAim.point.x,enemy.z-areaAim.point.z)<Math.max(10,currentWeapon().impact*.24));
  aimDisc.material.color.setHex(hovering?0xff3636:0x00f0ff);
  for(const mark of aimReticle.children){if(mark.material?.color&&mark!==aimDisc)mark.material.color.setHex(hovering?0xff3131:mark.type==='Line'?0xffff00:0x00ffff)}
 }
 function startAreaAim(e){
- if(playerCombat.hp<=0||areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
+ if(playerCombat.hp<=0||areaAim.active||weaponRemaining()>0)return;
  areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
  areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
  // Especial: visão aérea desde o primeiro toque, sem temporizador.
  areaAim.viewBlend=TACTICAL_AMMO.has(selectedAmmo.id)?1:0;
- aimHint.textContent=TACTICAL_AMMO.has(selectedAmmo.id)?'MIRA AÉREA · ARRASTE E SOLTE':'ARRASTE PARA MIRAR · SOLTE PARA DISPARAR';
+ aimHint.textContent=(TACTICAL_AMMO.has(selectedAmmo.id)?'MIRA AÉREA':'MIRA DIRETA')+' · '+selectedAmmo.name.toUpperCase()+' · '+weaponRange()+' m';
  aimHint.classList.add('active');cancelAimButton.classList.add('active');
  const f=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
  areaAim.forward.copy(f);areaAim.right.set(-f.z,0,f.x);
- const distance=selectedAmmo.id==='siege'?100:selectedAmmo.id==='torpedo'?100:Math.min(70,weaponRange()*.45);
+ const distance=selectedAmmo.id==='siege'?105:selectedAmmo.id==='torpedo'?100:Math.min(80,weaponRange()*.40);
  // Mira aparece imediatamente em frente à nave; o arrasto controla o ponto de impacto.
  areaAim.origin.set(x+f.x*distance,0,z+f.z*distance);
  if(lockedNpc&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
@@ -388,10 +392,14 @@ function finishAreaAim(e,cancel=false){
   if(best)destination.set(best.x,best.y+.3,best.z);
  }
  cancelAreaAim();
- if(destination)launchShot(destination);
+ if(destination){
+  const range=Math.hypot(destination.x-x,destination.z-z);
+  if(range<=weaponRange()+1)launchShot(destination);
+ }
 }
 function launchShot(manualPoint=null){
  lastShotTime=clock.elapsedTime;
+ weaponReadyAt[selectedAmmo.id]=clock.elapsedTime+currentWeapon().cooldown;
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const destination=manualPoint?manualPoint.clone():new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z);
  const ammo=selectedAmmo;
@@ -407,7 +415,7 @@ function launchShot(manualPoint=null){
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='torpedo'?Math.max(.22,origin.distanceTo(destination)/270):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
+ const travel=ammo.id==='torpedo'?Math.max(.20,origin.distanceTo(destination)/285):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -420,7 +428,7 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:ammo.id==='torpedo'?55:ammo.id==='iron'?40:COMBAT.damage};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage};
  if(ammo.id==='torpedo'){
   core.visible=false;plasma.visible=false;glow.visible=false;outerGlow.visible=false;
   const shell=new THREE.MeshStandardMaterial({color:0x3b6871,metalness:.75,roughness:.28});
@@ -774,8 +782,10 @@ for(let i=damageLabels.length-1;i>=0;i--){
 hitFeedback=Math.max(0,hitFeedback-dt*1.9);
 hitOverlay.style.opacity=String(hitFeedback*.85);
 if(noticeUntil>0&&t>=noticeUntil){noticeUntil=0;combatNotice.style.opacity='0';}
-const remaining=Math.max(0,COMBAT.cooldown-(t-lastShotTime));
+const remaining=weaponRemaining();
 if(!areaAim.active)fireButton.textContent=playerCombat.hp<=0?'REPARANDO':remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
+fireButton.setAttribute('aria-label',selectedAmmo.name+' · '+(remaining>0?'recarga '+remaining.toFixed(1)+' segundos':'segure para mirar e solte para disparar'));
+fireButton.style.setProperty('--ready',String(1-remaining/currentWeapon().cooldown));
 fireButton.disabled=remaining>0||playerCombat.hp<=0;
 hpHud.textContent=wonBattle?'🏆 VITÓRIA · Frota inimiga eliminada':playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.hp>0).length+'/'+enemies.length:'💥 NAVE DESTRUÍDA · Reiniciando...';
 hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
@@ -843,17 +853,17 @@ for(let i=projectiles.length-1;i>=0;i--){
     energyFlash(p.mesh.position);
     if(p.ammo==='torpedo'){
      // Anel de choque mostra o alcance real do torpedo no plano do oceano.
-     const ring=new THREE.Mesh(new THREE.RingGeometry(52,55,36),new THREE.MeshBasicMaterial({color:0x91eeff,transparent:true,opacity:.56,side:THREE.DoubleSide,depthWrite:false}));
+     const ring=new THREE.Mesh(new THREE.RingGeometry(51,55,40),new THREE.MeshBasicMaterial({color:0x91eeff,transparent:true,opacity:.56,side:THREE.DoubleSide,depthWrite:false}));
      ring.rotation.x=-Math.PI/2;ring.position.copy(p.mesh.position);ring.position.y+=.15;scene.add(ring);
      areaBursts.push({ring,burst:null,age:0});
     }
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
       const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
-      const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?55:p.ammo==='scatter'?10:8;
+      const radius=WEAPON_STATS[p.ammo].impact;
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius){
-        const damage=Math.min(enemy.hp,p.damage||COMBAT.damage);
+        const damage=Math.min(enemy.hp,p.damage??COMBAT.damage);
         enemy.hp=Math.max(0,enemy.hp-damage);
         showDamage(enemy,damage);
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
