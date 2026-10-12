@@ -366,9 +366,7 @@ function startAreaAim(e){
  const distance=selectedAmmo.id==='siege'?100:selectedAmmo.id==='torpedo'?100:Math.min(70,weaponRange()*.45);
  // Mira aparece imediatamente em frente à nave; o arrasto controla o ponto de impacto.
  areaAim.origin.set(x+f.x*distance,0,z+f.z*distance);
- if(freeAim.enabled){
-  areaAim.origin.set(x-Math.sin(freeAim.angle)*distance,0,z-Math.cos(freeAim.angle)*distance);
- }else if(lockedNpc&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
+ if(lockedNpc&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
   areaAim.origin.set(lockedNpc.x,0,lockedNpc.z);
  }
  areaAim.point.copy(areaAim.origin);areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
@@ -486,34 +484,6 @@ boostButton.addEventListener('pointerdown',event=>{
  // A direção não é travada: analógico e teclado permanecem ativos.
  boostButton.classList.add('active');
 });
-// Mira livre independente do casco: o segundo analógico controla a orientação do canhão.
-const aimPad=document.getElementById('aimPad'),aimStick=document.getElementById('aimStick');
-const freeAim={enabled:false,angle:0,pointer:null};
-function moveAimPad(e){
- const rect=aimPad.getBoundingClientRect(),radius=rect.width*.35;
- const dx=e.clientX-(rect.left+rect.width/2),dy=e.clientY-(rect.top+rect.height/2);
- const distance=Math.hypot(dx,dy),scale=distance>radius?radius/distance:1;
- aimStick.style.transform='translate('+Math.round(dx*scale)+'px,'+Math.round(dy*scale)+'px)';
- if(distance>radius*.20){
-  freeAim.enabled=true;
-  // Para cima aponta à frente do mundo; mover o casco não altera a direção escolhida.
-  freeAim.angle=Math.atan2(-dx,-dy);
- }
-}
-aimPad.addEventListener('pointerdown',e=>{
- if(freeAim.pointer!==null)return;
- e.preventDefault();e.stopPropagation();
- freeAim.pointer=e.pointerId;aimPad.setPointerCapture(e.pointerId);moveAimPad(e);
-});
-aimPad.addEventListener('pointermove',e=>{if(e.pointerId===freeAim.pointer){e.preventDefault();moveAimPad(e)}});
-function releaseAimPad(e){
- if(e.pointerId!==freeAim.pointer)return;
- freeAim.pointer=null;aimStick.style.transform='translate(0,0)';
-}
-aimPad.addEventListener('pointerup',releaseAimPad);
-aimPad.addEventListener('pointercancel',releaseAimPad);
-aimPad.addEventListener('lostpointercapture',releaseAimPad);
-aimPad.addEventListener('dblclick',e=>{e.preventDefault();freeAim.enabled=false;});
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
 let padPointer=null;let stickReferenceYaw=0;
 function movePad(e){
@@ -637,10 +607,9 @@ function animateGun(model,delta){
 animateGun(ship,dt);
 const tower=ship.userData.turretPivot;
 if(tower){
- const target=areaAim.active?areaAim.point:(freeAim.enabled?null:(lockedNpc&&lockedNpc.hp>0?lockedNpc:null));
+ const target=areaAim.active?areaAim.point:(lockedNpc&&lockedNpc.hp>0?lockedNpc:null);
  let desired=0;
- if(freeAim.enabled&&!areaAim.active)desired=freeAim.angle-heading;
- else if(target){
+ if(target){
   const dx=target.x-x,dz=target.z-z;
   if(Math.hypot(dx,dz)>2)desired=Math.atan2(-dx,-dz)-heading;
  }
