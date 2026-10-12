@@ -8,11 +8,13 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  const painted=(color)=>new THREE.MeshStandardMaterial({
   color,metalness:.38,roughness:.62,map:textures.paint,bumpMap:textures.bump,bumpScale:.055
  });
- const orange=painted(enemy?0xa83d41:0xef842d),cream=painted(enemy?0x697781:0xf1e5c5);
- const dark=mat(0x203640,.65,.36),rim=mat(0x112a32,.45,.46);
- const steel=mat(0x637986,.8,.26),recess=mat(0x0d222e,.5,.48),trim=mat(enemy?0xe2ac94:0xffd28a,.6,.32);
- const glass=mat(0x155267,.5,.18,{emissive:0x092d41,emissiveIntensity:.4});
- const glow=mat(enemy?0xff514f:0x23deff,.15,.28,{emissive:enemy?0xff2828:0x00bce9,emissiveIntensity:2});
+ // Paleta legível no celular: pintura quente, blindagem clara, estrutura grafite e energia fria.
+ // Inimigos usam vermelho escuro + aço claro + energia vermelha, sem perder a silhueta.
+ const orange=painted(enemy?0xb93d4a:0xff811f),cream=painted(enemy?0xaebbc7:0xffe4a8);
+ const dark=mat(0x253640,.72,.31),rim=mat(enemy?0x231c2a:0x152936,.45,.42);
+ const steel=mat(enemy?0x778b9a:0x758e9d,.8,.29),recess=mat(0x0b1d28,.5,.53),trim=mat(enemy?0xffb5a3:0xffc44a,.62,.3);
+ const glass=mat(enemy?0x582d48:0x17657f,.5,.16,{emissive:enemy?0x501121:0x08486b,emissiveIntensity:.8});
+ const glow=mat(enemy?0xff353f:0x24e5ff,.15,.22,{emissive:enemy?0xff172e:0x00caff,emissiveIntensity:2.8});
  const add=(geo,material,x=0,y=0,z=0,parent=root)=>{const obj=new THREE.Mesh(geo,material);obj.position.set(x,y,z);obj.castShadow=true;obj.receiveShadow=true;parent.add(obj);return obj};
  // Casco blindado achatado, com saia estanque acima da superfície.
  add(new THREE.CylinderGeometry(3.05,3.25,1.25,40),rim,0,.15,0);
@@ -47,7 +49,7 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  }
  // Grafismos grandes visíveis durante o jogo, não apenas microtexturas.
  // Os decalques geométricos ficam na superfície superior e seguem o corpo 3D.
- const warning=mat(enemy?0xffcfb8:0xffe263,.12,.45);
+ const warning=mat(enemy?0xffbaa7:0xffdf52,.12,.37);
  const ink=mat(0x172b35,.38,.5);
  for(const side of [-1,1]){
   const stripe=add(new THREE.BoxGeometry(.24,.035,1.36),warning,side*1.79,1.62,-.55);
@@ -66,7 +68,7 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  add(new THREE.BoxGeometry(.62,.075,.13),warning,0,1.68,-2.04);
  // Silhueta v3: asas blindadas inclinadas e carenagem frontal larga,
  // para transformar a aparência em vez de só adicionar microdetalhes.
- const accent=mat(enemy?0xff6246:0x31ddff,.3,.28,{emissive:enemy?0x891b12:0x006b95,emissiveIntensity:1.6});
+ const accent=mat(enemy?0xff4357:0x22e8ff,.3,.22,{emissive:enemy?0xa61427:0x008bb0,emissiveIntensity:2.5});
  const armorLip=mat(enemy?0x4d2930:0x293941,.6,.35);
  for(const side of [-1,1]){
   const guard=add(new THREE.BoxGeometry(1.12,.45,3.15),cream,side*2.95,1.31,-.55);
