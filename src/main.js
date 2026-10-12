@@ -168,11 +168,17 @@ const AREA_RANGE=360,AREA_RADIUS=22;
 const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
 const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null,holdStarted:0,viewBlend:0,startX:0,startY:0,origin:new THREE.Vector3(),right:new THREE.Vector3(),forward:new THREE.Vector3()};
 const aimReticle=new THREE.Group();scene.add(aimReticle);aimReticle.visible=false;
-const aimDisc=new THREE.Mesh(new THREE.CircleGeometry(AREA_RADIUS,64),new THREE.MeshBasicMaterial({color:0x9c52e8,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide}));
+const aimDisc=new THREE.Mesh(new THREE.CircleGeometry(AREA_RADIUS,64),new THREE.MeshBasicMaterial({color:0x00f0ff,transparent:true,opacity:.23,depthWrite:false,side:THREE.DoubleSide}));
 aimDisc.rotation.x=-Math.PI/2;aimReticle.add(aimDisc);
 for(const rad of [AREA_RADIUS,AREA_RADIUS*.7]){
- const ring=new THREE.Mesh(new THREE.RingGeometry(rad-.3,rad+.3,64),new THREE.MeshBasicMaterial({color:0xeaa6ff,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide}));
- ring.rotation.x=-Math.PI/2;ring.position.y=.08;aimReticle.add(ring);
+ const ring=new THREE.Mesh(new THREE.RingGeometry(rad-.8,rad+.8,64),new THREE.MeshBasicMaterial({color:0x00ffff,transparent:true,opacity:1,depthWrite:false,depthTest:false,side:THREE.DoubleSide}));
+ ring.rotation.x=-Math.PI/2;ring.position.y=.14;ring.renderOrder=20;aimReticle.add(ring);
+}
+// Cruz central elevada e contrastante, visível também com a câmera tática acima.
+const aimCrossMaterial=new THREE.LineBasicMaterial({color:0xffff00,depthTest:false,transparent:true,opacity:1});
+for(const [ax,az,bx,bz] of [[-8,0,-2,0],[2,0,8,0],[0,-8,0,-2],[0,2,0,8]]){
+ const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(ax,.27,az),new THREE.Vector3(bx,.27,bz)]),aimCrossMaterial);
+ line.renderOrder=22;aimReticle.add(line);
 }
 const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),seaPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 function cancelAreaAim(){areaAim.active=false;areaAim.valid=false;areaAim.pointerId=null;aimReticle.visible=false;aimHint.classList.remove('active');cancelAimButton.classList.remove('active');fireButton.textContent='DISPARAR'}
@@ -224,7 +230,8 @@ function moveButtonAim(e){
  areaAim.valid=true;aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
  // Feedback da mira: vermelho quando o ponto cobre um inimigo.
  const hovering=enemies.some(enemy=>enemy.hp>0&&Math.hypot(enemy.x-areaAim.point.x,enemy.z-areaAim.point.z)<12);
- for(const ring of aimReticle.children){if(ring.material&&ring.material.color)ring.material.color.setHex(hovering?0xff4747:0xeaa6ff)}
+ aimDisc.material.color.setHex(hovering?0xff3636:0x00f0ff);
+ for(const mark of aimReticle.children){if(mark.material?.color&&mark!==aimDisc)mark.material.color.setHex(hovering?0xff3131:mark.type==='Line'?0xffff00:0x00ffff)}
 }
 function startAreaAim(e){
  if(areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
