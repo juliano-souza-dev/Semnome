@@ -187,6 +187,15 @@ const shotView=new THREE.Vector3(),shotLook=new THREE.Vector3(),normalView=new T
 const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
 // O casco só gira por navegação ou arrasto; o tiro em arco mira sem girar a nave.
 
+// Feedback de combate em DOM: leve para GPU mobile e sem geometria extra.
+const hitOverlay=document.createElement('div');
+hitOverlay.style.cssText='position:fixed;inset:0;z-index:31;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 36%,rgba(255,34,39,.65) 100%);transition:opacity 170ms ease-out';
+document.body.appendChild(hitOverlay);
+const combatNotice=document.createElement('div');
+combatNotice.style.cssText='position:fixed;top:19%;left:50%;transform:translateX(-50%);z-index:37;pointer-events:none;text-align:center;color:#fff0ba;text-shadow:0 3px 6px #00121d,0 0 15px #00c8ff;font:900 clamp(15px,2.7vw,29px) system-ui;letter-spacing:.08em;opacity:0;transition:opacity .2s;white-space:nowrap';
+document.body.appendChild(combatNotice);
+let noticeUntil=0,noticeText='',hitFeedback=0,wonBattle=false;
+function notifyCombat(message,duration=2){noticeText=message;noticeUntil=clock.elapsedTime+duration;combatNotice.textContent=message;combatNotice.style.opacity='1'}
 const damageLabels=[];
 function showDamage(enemy,amount){
  const label=document.createElement('div');
@@ -532,6 +541,8 @@ for(let i=enemyShots.length-1;i>=0;i--){
  let remove=false;
  if(contact<5.7&&Math.abs(shot.mesh.position.y-(bob+2.3))<5.5 && t>=playerCombat.invulnerableUntil && playerCombat.hp>0){
   playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);
+  hitFeedback=1;attackCamera.shake=Math.max(attackCamera.shake,.55);
+  if(playerCombat.hp<=0)notifyCombat('NAVE ABATIDA · REPAROS EM CURSO',3);
   playerCombat.invulnerableUntil=t+.45;
   energyFlash(new THREE.Vector3(x,bob+2.5,z));remove=true;
  }
@@ -561,10 +572,14 @@ for(let i=damageLabels.length-1;i>=0;i--){
  d.label.style.opacity=String(Math.max(0,1-d.age/.95));
  if(d.age>=.95){d.label.remove();damageLabels.splice(i,1)}
 }
+// Dano legível na borda da tela, sem cobrir joystick, tiro ou nave.
+hitFeedback=Math.max(0,hitFeedback-dt*1.9);
+hitOverlay.style.opacity=String(hitFeedback*.85);
+if(noticeUntil>0&&t>=noticeUntil){noticeUntil=0;combatNotice.style.opacity='0';}
 const remaining=Math.max(0,COMBAT.cooldown-(t-lastShotTime));
 if(!areaAim.active)fireButton.textContent=remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
 fireButton.disabled=remaining>0;
-hpHud.textContent=playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.hp>0).length+'/'+enemies.length:'💥 NAVE DESTRUÍDA · Reiniciando...';
+hpHud.textContent=wonBattle?'🏆 VITÓRIA · Frota inimiga eliminada':playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.hp>0).length+'/'+enemies.length:'💥 NAVE DESTRUÍDA · Reiniciando...';
 hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
@@ -614,6 +629,9 @@ for(let i=projectiles.length-1;i>=0;i--){
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
         if(enemy.hp===0){
           enemy.state='destroyed';
+          const survivors=enemies.filter(e=>e.hp>0).length;
+          notifyCombat(survivors>0?'ALVO DESTRUÍDO · '+survivors+' RESTANTES':'OCEANO LIBERADO · VITÓRIA!',survivors>0?2:6);
+          if(survivors===0)wonBattle=true;
           enemy.destroyedAt=t;
           // Explosão de destruição maior, seguida de partículas de energia.
           for(let burst=0;burst<3;burst++){
