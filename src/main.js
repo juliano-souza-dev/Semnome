@@ -420,6 +420,13 @@ ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=headin
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
 shadow.position.set(x,height(x,z,t)+.14,z);
+// Jatos de motor simulados por GPU, sincronizados com a propulsão.
+for(const jet of ship.userData.engineFlames||[]){
+ jet.material.uniforms.uTime.value=t;
+ jet.material.uniforms.uPower.value=Math.max(.18,Math.min(1,Math.abs(speed)/72))*(boostRemaining>0?1.35:1);
+ const length=boostRemaining>0?1.7:.65+Math.abs(speed)/100;
+ jet.flame.scale.y=length;jet.flameCross.scale.y=length;
+}
 // Frota de NPCs: patrulha independente, bob nas ondas e separação física.
 let nearest=null,nearestDistance=COMBAT.range;
 for(const enemy of enemies){
@@ -471,7 +478,14 @@ for(const enemy of enemies){
  }
  const waveY=height(enemy.x,enemy.z,t);
  enemy.y=THREE.MathUtils.damp(enemy.y,waveY,4,dt);
- if(enemy.model)enemy.model.position.y=enemy.y;
+ if(enemy.model){
+ enemy.model.position.y=enemy.y;
+ for(const jet of enemy.model.userData.engineFlames||[]){
+  jet.material.uniforms.uTime.value=t+enemy.phase;
+  jet.material.uniforms.uPower.value=Math.max(.24,Math.min(1,tactic.speed/65));
+  jet.flame.scale.y=.75+tactic.speed/95;jet.flameCross.scale.y=.75+tactic.speed/95;
+ }
+}
  if(enemy.sprite){
   enemy.sprite.position.set(enemy.x,enemy.y+4.3,enemy.z);
   enemy.sprite.quaternion.copy(camera.quaternion);
