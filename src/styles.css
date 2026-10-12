@@ -99,3 +99,8 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 @media(prefers-reduced-motion:reduce){
  #combatCompass,#threatStatus,#aimHint,#ammoMenu{transition:none!important}
 }
+
+/* Som procedural: controle discreto, acessível no mobile. */
+#soundToggle{position:absolute;left:16px;top:155px;z-index:39;pointer-events:auto;touch-action:manipulation;width:43px;height:38px;border:1px solid #9ee8f5;border-radius:11px;background:#0d3a52dc;color:white;font:22px system-ui;cursor:pointer}
+@media(max-height:500px){#soundToggle{top:11px;left:240px;width:37px;height:33px;font-size:19px}}
+@media(max-width:650px){#soundToggle{top:6px;left:auto;right:65px}}
