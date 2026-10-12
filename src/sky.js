@@ -1,16 +1,37 @@
-// Panorama 360° de ambientação. O trecho de mar da arte permanece abaixo do oceano 3D;
-// assim as ondas reais não são duplicadas e o horizonte se mistura ao cenário.
+// Skybox de horizonte: imagem repetida no eixo horizontal e oceano 3D independente.
+// Cilindro aberto muito alto impede bordas/teto no campo visual.
+// A camada inferior dissolve na neblina para não sobrepor o mar renderizado.
 export function createSkyPanorama(THREE,scene){
- const texture=new THREE.TextureLoader().load('./assets/backgrounds/file_000000005698820ea14ea3712b8cf9bc.png');
+ const texture=new THREE.TextureLoader().load('./assets/backgrounds/file_0000000078ac820e8d436f3076b8ef09.png');
  texture.colorSpace=THREE.SRGBColorSpace;
  texture.wrapS=THREE.RepeatWrapping;
- const height=400,top=138;
- const cylinder=new THREE.Mesh(
-  new THREE.CylinderGeometry(660,660,height,72,1,true),
-  new THREE.MeshBasicMaterial({map:texture,side:THREE.BackSide,depthWrite:false,fog:false})
- );
- cylinder.position.y=top-height/2;
- cylinder.renderOrder=-50;
- scene.add(cylinder);
- return {update(x,z){cylinder.position.x=x;cylinder.position.z=z}};
+ texture.minFilter=THREE.LinearMipmapLinearFilter;
+ const material=new THREE.ShaderMaterial({
+  uniforms:{uMap:{value:texture}},
+  side:THREE.BackSide,transparent:true,depthWrite:false,fog:false,
+  vertexShader:`
+   varying vec2 vUvSky;
+   varying float vSkyHeight;
+   void main(){
+     vUvSky=uv;
+     vSkyHeight=position.y;
+     gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+   }`,
+  fragmentShader:`
+   uniform sampler2D uMap;
+   varying vec2 vUvSky;
+   varying float vSkyHeight;
+   void main(){
+     // Mapeamento vertical controlado: topo nunca corta, imagem não é esticada.
+     float v=clamp((vSkyHeight+30.)/275.,0.,1.);
+     vec3 color=texture2D(uMap,vec2(vUvSky.x,v)).rgb;
+     // Mescla névoa baixa ao fundo do oceano WebGL.
+     float visibility=smoothstep(-8.,22.,vSkyHeight);
+     gl_FragColor=vec4(color,visibility);
+   }`
+ });
+ const dome=new THREE.Mesh(new THREE.CylinderGeometry(680,680,2200,96,1,true),material);
+ dome.renderOrder=-100;
+ scene.add(dome);
+ return {update(x,z){dome.position.set(x,0,z)}};
 }
