@@ -431,7 +431,7 @@ const hullPhysics={x:0,z:0,vx:0,vz:0};
 // Propulsor: força velocidade máxima por exatamente 2 segundos de simulação.
 const boostButton=document.getElementById('boost');
 let boostUntil=0,boostHeading=0;
-const BOOST_DASH_SPEED=144; // Arrancada: 100% acima dos 72 de velocidade de cruzeiro.
+const BOOST_DASH_SPEED=84; // Impulso tático: 2x a nova velocidade de cruzeiro.
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
  if(playerCombat.hp<=0)return;
@@ -494,7 +494,7 @@ const stickAmount=input.active&&input.magnitude>.13?(input.magnitude-.13)/.87:0;
 const reversing=!keyboardGo&&(keyboardReverse||(stickAmount>0&&input.y>.35));
 const go=keyboardGo||keyboardReverse||stickAmount>0;
 const turn=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
-let target=reversing?-24*(keyboardReverse?1:stickAmount):72*(keyboardGo?1:stickAmount); // ré limitada a 1/3 da velocidade à frente
+let target=reversing?-14*(keyboardReverse?1:stickAmount):42*(keyboardGo?1:stickAmount); // ritmo tático: ré e cruzeiro reduzidos
 const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
 target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
@@ -568,7 +568,7 @@ shadow.position.set(x,height(x,z,t)+.14,z);
 for(const rotor of ship.userData.rotors||[])rotor.rotation.z=t*(3+Math.abs(speed)*.24);
 for(const jet of ship.userData.engineFlames||[]){
  jet.material.uniforms.uTime.value=t;
- jet.material.uniforms.uPower.value=Math.max(.18,Math.min(1,Math.abs(speed)/72))*(boostRemaining>0?1.35:1);
+ jet.material.uniforms.uPower.value=Math.max(.18,Math.min(1,Math.abs(speed)/42))*(boostRemaining>0?1.35:1);
  const length=boostRemaining>0?1.7:.65+Math.abs(speed)/100;
  jet.flame.scale.y=length;jet.flameCross.scale.y=length;
 }
@@ -863,7 +863,7 @@ horizon.update(x,z,t);
 // Câmera de ação baixa: preserva o horizonte sem diminuir muito a nave.
 // Câmera normal: traseira fixa, horizonte visível e arrasto preservado.
 // Câmera arcade: modelo maior na tela e abertura gradual conforme acelera.
-const velocityFactor=THREE.MathUtils.clamp(Math.abs(speed)/72,0,1);
+const velocityFactor=THREE.MathUtils.clamp(Math.abs(speed)/42,0,1);
 const distance=THREE.MathUtils.lerp(18.7,24.8,velocityFactor);
 const cameraHeight=THREE.MathUtils.lerp(9.5,12.8,velocityFactor);
 // FOV progressivo suave reforça velocidade sem distorção excessiva.
