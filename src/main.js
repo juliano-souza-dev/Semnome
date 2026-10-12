@@ -892,10 +892,13 @@ for(let i=projectiles.length-1;i>=0;i--){
 for(let i=areaBursts.length-1;i>=0;i--){
  const e=areaBursts[i];e.age+=dt;
  const fade=Math.max(0,1-e.age/.72);
- e.burst.quaternion.copy(camera.quaternion);e.burst.material.uniforms.uTime.value=t;
- e.burst.material.uniforms.uOpacity.value=fade;
- e.burst.scale.setScalar(5+e.age*15);e.ring.scale.setScalar(.5+e.age*1.15);e.ring.material.opacity=fade*.85;
- if(e.age>=.72){scene.remove(e.burst,e.ring);e.burst.material.dispose();e.ring.material.dispose();areaBursts.splice(i,1)}
+ if(e.burst){
+  e.burst.quaternion.copy(camera.quaternion);e.burst.material.uniforms.uTime.value=t;
+  e.burst.material.uniforms.uOpacity.value=fade;e.burst.scale.setScalar(5+e.age*15);
+ }
+ e.ring.scale.setScalar(e.burst?.5+e.age*1.15:.55+e.age*.8);
+ e.ring.material.opacity=fade*.65;
+ if(e.age>=.72){scene.remove(e.ring);e.ring.material.dispose();if(e.burst){scene.remove(e.burst);e.burst.material.dispose();}areaBursts.splice(i,1)}
 }
 if(areaAim.active&&areaAim.valid){areaAim.point.y=height(areaAim.point.x,areaAim.point.z,t)+.35;aimReticle.position.copy(areaAim.point);aimReticle.rotation.y+=dt*.35;const scale=selectedAmmo.id==='siege'?1:.35;aimReticle.scale.setScalar(scale)}
 for(let i=impactEffects.length-1;i>=0;i--){
