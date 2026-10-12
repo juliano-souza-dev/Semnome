@@ -363,13 +363,16 @@ const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vec
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
 const keyboardGo=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
+const keyboardReverse=keys.has('KeyS')||keys.has('ArrowDown');
 const stickAmount=input.active&&input.magnitude>.13?(input.magnitude-.13)/.87:0;
-const go=keyboardGo||stickAmount>0;
+// Joystick para baixo dá ré, sem girar a proa 180 graus.
+const reversing=!keyboardGo&&(keyboardReverse||(stickAmount>0&&input.y>.35));
+const go=keyboardGo||keyboardReverse||stickAmount>0;
 const turn=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
-let target=72*(keyboardGo?1:stickAmount); // joystick: distância define aceleração
+let target=reversing?-24*(keyboardReverse?1:stickAmount):72*(keyboardGo?1:stickAmount); // ré limitada a 1/3 da velocidade à frente
 const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
-target=go?Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3):0;
+target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
 speed=THREE.MathUtils.damp(speed,target,go?2.8:6.5,dt);
 // O arrasto gira a nave, preservando a traseira voltada para a câmera.
 if(dragTurn!==0){
@@ -377,16 +380,19 @@ if(dragTurn!==0){
  if(input.active)stickReferenceYaw+=dragTurn;
  dragTurn=0;
 }
-if(speed>.35){
-  if(stickAmount>0){
+if(Math.abs(speed)>.35){
+  if(reversing){
+    // Pequenas correções laterais durante a ré, mantendo a orientação.
+    heading+=(-input.x*1.65+turn*1.2)*dt;
+  }else if(stickAmount>0){
     // Ângulo absoluto desejado no plano: analógico pode apontar para qualquer 360°.
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
     const desired=stickReferenceYaw-Math.atan2(input.x,-input.y);
     const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
-    const maxStep=4.2*Math.min(1,speed/9)*dt;
+    const maxStep=4.2*Math.min(1,Math.abs(speed)/9)*dt;
     heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
   }else{
-    heading+=turn*2.35*Math.min(1,speed/7)*dt;
+    heading+=turn*2.35*Math.min(1,Math.abs(speed)/7)*dt;
   }
 }
 x-=Math.sin(heading)*speed*dt;z-=Math.cos(heading)*speed*dt;
@@ -679,7 +685,7 @@ if(playerAtlasReady){
   playerSprite.position.set(x,bob+4.3,z);
   playerSprite.quaternion.copy(camera.quaternion);
 }
-document.getElementById('status').textContent='Velocidade: '+Math.round(speed)+'  |  Ondas ativas';
+document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Ondas ativas';
 renderer.render(scene,camera)
 }
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
