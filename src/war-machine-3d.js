@@ -64,6 +64,30 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
  // Emblema central com alto contraste na blindagem frontal.
  const crest=add(new THREE.BoxGeometry(.92,.065,.36),ink,0,1.63,-2.04);
  add(new THREE.BoxGeometry(.62,.075,.13),warning,0,1.68,-2.04);
+ // Silhueta v3: asas blindadas inclinadas e carenagem frontal larga,
+ // para transformar a aparência em vez de só adicionar microdetalhes.
+ const accent=mat(enemy?0xff6246:0x31ddff,.3,.28,{emissive:enemy?0x891b12:0x006b95,emissiveIntensity:1.6});
+ const armorLip=mat(enemy?0x4d2930:0x293941,.6,.35);
+ for(const side of [-1,1]){
+  const guard=add(new THREE.BoxGeometry(1.12,.45,3.15),cream,side*2.95,1.31,-.55);
+  guard.rotation.y=-side*.32;guard.rotation.z=-side*.14;
+  const spine=add(new THREE.BoxGeometry(.18,.10,2.8),accent,side*2.98,1.61,-.53);
+  spine.rotation.y=-side*.32;
+  const prow=add(new THREE.ConeGeometry(.73,1.75,5),orange,side*2.22,1.12,-2.81);
+  prow.rotation.x=-Math.PI/2;prow.rotation.z=side*.23;
+  const rearGuard=add(new THREE.BoxGeometry(1.30,.28,1.8),armorLip,side*2.85,.83,2.20);
+  rearGuard.rotation.y=side*.20;
+  // Luz lateral contínua visível da perspectiva da câmera.
+  const guide=add(new THREE.BoxGeometry(.13,.10,1.4),accent,side*3.33,1.23,1.98);
+  guide.rotation.y=side*.20;
+ }
+ // Disco superior bipartido, com anel luminoso horizontal.
+ const glowRing=add(new THREE.TorusGeometry(2.34,.075,8,48),accent,0,1.59,0);
+ glowRing.rotation.x=Math.PI/2;
+ const headArmor=add(new THREE.BoxGeometry(2.75,.22,1.10),cream,0,2.10,1.22);
+ headArmor.rotation.x=-.08;
+ const hood=add(new THREE.BoxGeometry(2.65,.22,.67),armorLip,0,1.65,-2.25);
+ hood.rotation.x=.15;
  // Canhão apontado para -Z, alinhado ao eixo de tiro do jogo.
  const turret=add(new THREE.CylinderGeometry(.93,1.2,.7,18),dark,0,1.93,-1.35);
  add(new THREE.TorusGeometry(1.01,.13,8,24),trim,0,2.31,-1.35).rotation.x=Math.PI/2;
