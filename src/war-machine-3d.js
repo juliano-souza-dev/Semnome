@@ -1,9 +1,14 @@
+import {createHullTextures} from './war-machine-textures.js';
 // Máquina marinha de guerra original do Semnome, toda em geometrias Three.js.
 // Frente em -Z, origem na linha de flutuação; sem sprites e sem modelos externos.
 export function createWarMachine3D(THREE,{enemy=false}={}){
  const root=new THREE.Group();root.name=enemy?'Máquina inimiga 3D':'Máquina de guerra 3D';
+ const textures=createHullTextures(THREE);
  const mat=(color,metalness=.2,roughness=.55,extra={})=>new THREE.MeshStandardMaterial({color,metalness,roughness,...extra});
- const orange=mat(enemy?0xa83d41:0xef842d,.45,.4),cream=mat(enemy?0x697781:0xf1e5c5,.25,.58);
+ const painted=(color)=>new THREE.MeshStandardMaterial({
+  color,metalness:.38,roughness:.62,map:textures.paint,bumpMap:textures.bump,bumpScale:.055
+ });
+ const orange=painted(enemy?0xa83d41:0xef842d),cream=painted(enemy?0x697781:0xf1e5c5);
  const dark=mat(0x203640,.65,.36),rim=mat(0x112a32,.45,.46);
  const steel=mat(0x637986,.8,.26),recess=mat(0x0d222e,.5,.48),trim=mat(enemy?0xe2ac94:0xffd28a,.6,.32);
  const glass=mat(0x155267,.5,.18,{emissive:0x092d41,emissiveIntensity:.4});
