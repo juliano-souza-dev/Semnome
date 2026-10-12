@@ -22,3 +22,6 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #orientation svg{width:95px;height:95px;stroke:#ffc16a;fill:none;stroke-width:3}
 #orientation small{font-size:13px;color:#afd7e5;max-width:310px}
 @media(orientation:portrait) and (pointer:coarse){#orientation{display:flex}#ui{visibility:hidden}}
+/* Propulsor: separado do joystick e dos comandos de combate. */
+#boost{position:absolute;left:max(148px,calc(env(safe-area-inset-left) + 128px));bottom:max(42px,env(safe-area-inset-bottom));height:54px;min-width:106px;padding:0 10px;border-radius:14px;border:2px solid #b8fbff;background:#10566ded;color:#fff;font:800 12px system-ui;box-shadow:0 0 15px #19bcff55;pointer-events:auto;touch-action:manipulation;user-select:none}
+#boost.active{background:#eb8625;border-color:#fff3a6;box-shadow:0 0 23px #ffc84ba8}
