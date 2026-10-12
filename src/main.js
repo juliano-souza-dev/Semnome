@@ -421,6 +421,7 @@ ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
 shadow.position.set(x,height(x,z,t)+.14,z);
 // Jatos de motor simulados por GPU, sincronizados com a propulsão.
+for(const rotor of ship.userData.rotors||[])rotor.rotation.z=t*(3+Math.abs(speed)*.24);
 for(const jet of ship.userData.engineFlames||[]){
  jet.material.uniforms.uTime.value=t;
  jet.material.uniforms.uPower.value=Math.max(.18,Math.min(1,Math.abs(speed)/72))*(boostRemaining>0?1.35:1);
@@ -480,6 +481,7 @@ for(const enemy of enemies){
  enemy.y=THREE.MathUtils.damp(enemy.y,waveY,4,dt);
  if(enemy.model){
  enemy.model.position.y=enemy.y;
+ for(const rotor of enemy.model.userData.rotors||[])rotor.rotation.z=t*(3+tactic.speed*.24)+enemy.phase;
  for(const jet of enemy.model.userData.engineFlames||[]){
   jet.material.uniforms.uTime.value=t+enemy.phase;
   jet.material.uniforms.uPower.value=Math.max(.24,Math.min(1,tactic.speed/65));
