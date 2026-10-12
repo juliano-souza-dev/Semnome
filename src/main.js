@@ -7,7 +7,7 @@ import {createGameAudio} from './game-audio.js';
 const audio=createGameAudio();
 const soundButton=document.createElement('button');soundButton.id='soundToggle';soundButton.textContent='🔊';soundButton.title='Ligar ou silenciar sons';soundButton.setAttribute('aria-label','Silenciar sons');document.getElementById('ui').appendChild(soundButton);
 soundButton.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();audio.setEnabled(!audio.enabled);soundButton.textContent=audio.enabled?'🔊':'🔇';soundButton.setAttribute('aria-label',audio.enabled?'Silenciar sons':'Ligar sons');});
-document.addEventListener('pointerdown',()=>audio.unlock(),{passive:true});
+document.addEventListener('pointerdown',()=>audio.unlock(),{capture:true,passive:true});
 document.addEventListener('keydown',()=>audio.unlock());
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
