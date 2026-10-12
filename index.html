@@ -15,4 +15,28 @@ const map=document.createElement("script");map.type="importmap";map.textContent=
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
 <div id="ui"><div id="top"><strong>SEMNOME · COMBATE NAVAL</strong><small>Oceano de ação 3D · combate em tempo real</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><button id="boost" type="button" aria-label="Esquiva rápida dirigível de 0,85 segundo, recarga de 4 segundos">🚀 PROPULSOR</button><div id="lock">Procurando alvo...</div><button id="ammo" aria-label="Escolher munição" aria-expanded="false">⚡</button><div id="ammoMenu" aria-label="Tipos de munição"></div><div id="aimHint">SEGURE E ARRASTE PARA MIRAR · SOLTE PARA DISPARAR</div><button id="cancelAim">CANCELAR</button><button id="fire" disabled>DISPARAR</button></div>
-<script type="module">import("./src/main.js?v="+assetVersion);</script></body></html>
+<script type="module">
+const loading=document.getElementById('loading');
+let started=false;
+for(let attempt=0;attempt<4&&!started;attempt++){
+ try{
+  if(attempt>0){
+   loading.textContent='Reconectando ao oceano... tentativa '+(attempt+1)+'/4';
+   await new Promise(resolve=>setTimeout(resolve,650*attempt));
+  }
+  await import('./src/main.js?v='+assetVersion+'&attempt='+attempt);
+  started=true;
+ }catch(error){
+  console.warn('Falha ao carregar módulo principal (tentativa '+(attempt+1)+'):',error);
+ }
+}
+if(!started){
+ loading.style.cssText='position:fixed;z-index:9999;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;padding:25px;text-align:center;background:#092b40;color:white;font:600 17px system-ui';
+ loading.textContent='O oceano está temporariamente indisponível. Verifique a conexão e tente novamente.';
+ const retry=document.createElement('button');
+ retry.textContent='🔄 TENTAR NOVAMENTE';
+ retry.style.cssText='border:1px solid #8bdfff;border-radius:12px;background:#146081;color:white;padding:13px 20px;font:700 15px system-ui;cursor:pointer';
+ retry.onclick=()=>location.reload();
+ loading.appendChild(retry);
+}
+</script></body></html>
