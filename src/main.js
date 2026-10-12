@@ -3,6 +3,12 @@ import {createWastelandHorizon} from './environment.js';
 import {planEnemy,canEnemyFire,TACTICS} from './enemy-ai.js';
 import {integrateHull,ballisticPoint} from './naval-physics.js';
 import {createWarMachine3D} from './war-machine-3d.js';
+import {createGameAudio} from './game-audio.js';
+const audio=createGameAudio();
+const soundButton=document.createElement('button');soundButton.id='soundToggle';soundButton.textContent='🔊';soundButton.title='Ligar ou silenciar sons';soundButton.setAttribute('aria-label','Silenciar sons');document.getElementById('ui').appendChild(soundButton);
+soundButton.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();audio.setEnabled(!audio.enabled);soundButton.textContent=audio.enabled?'🔊':'🔇';soundButton.setAttribute('aria-label',audio.enabled?'Silenciar sons':'Ligar sons');});
+document.addEventListener('pointerdown',()=>audio.unlock(),{passive:true});
+document.addEventListener('keydown',()=>audio.unlock());
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
@@ -411,6 +417,7 @@ function finishAreaAim(e,cancel=false){
 function launchShot(manualPoint=null){
  lastShotTime=clock.elapsedTime;
  weaponReadyAt[selectedAmmo.id]=clock.elapsedTime+currentWeapon().cooldown;
+ audio.play(selectedAmmo.id);
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const destination=manualPoint?manualPoint.clone():new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z);
  const ammo=selectedAmmo;
@@ -499,6 +506,7 @@ boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
  if(playerCombat.hp<=0||clock.elapsedTime<boostReadyAt)return;
  boostUntil=clock.elapsedTime+BOOST_DASH_DURATION;
+ audio.play('boost');
  boostReadyAt=clock.elapsedTime+BOOST_COOLDOWN;
  // A direção não é travada: analógico e teclado permanecem ativos.
  boostButton.classList.add('active');
@@ -592,6 +600,7 @@ if(Math.abs(speed)>.35||boostRemaining>0){
 hullPhysics.x=x;hullPhysics.z=z;
 const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED:0,dt});
 x=movement.x;z=movement.z;speed=movement.speed;
+audio.update(speed,boostRemaining>0);
 const bow=new THREE.Vector2(-Math.sin(heading),-Math.cos(heading)),side=new THREE.Vector2(Math.cos(heading),-Math.sin(heading));
 const front=height(x+bow.x*1.5,z+bow.y*1.5,t),back=height(x-bow.x*1.5,z-bow.y*1.5,t);
 const left=height(x-side.x*1.5,z-side.y*1.5,t),right=height(x+side.x*1.5,z+side.y*1.5,t);
@@ -879,6 +888,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius){
         const damage=Math.min(enemy.hp,p.damage??COMBAT.damage);
+        audio.play('impact',Math.max(-1,Math.min(1,(enemy.x-x)/140)),Math.hypot(enemy.x-x,enemy.z-z));
         enemy.hp=Math.max(0,enemy.hp-damage);
         showDamage(enemy,damage);
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
