@@ -1,7 +1,7 @@
 // Tática naval: papéis fixos, órbitas alternadas e espaçamento entre NPCs.
 // Funções puras para permitir calibrar as batalhas sem alterar o renderizador.
 export const TACTICS=Object.freeze({
- detect:350,disengage:420,idealRange:92,minRange:31,
+ detect:220,disengage:290,idealRange:145,minRange:50,
  maxActiveShooters:4,shotCadence:1.55,pressureWindow:.7
 });
 export function planEnemy(enemy,player,all,time){
@@ -10,7 +10,7 @@ export function planEnemy(enemy,player,all,time){
  const active=player.alive&&(distance<TACTICS.detect || (enemy.state!=='patrol'&&distance<TACTICS.disengage));
  if(!active)return {active:false,goalX:enemy.anchorX+Math.sin(time*.19+enemy.phase)*enemy.radius,goalZ:enemy.anchorZ+Math.cos(time*.19+enemy.phase)*enemy.radius,distance,role,state:'patrol',speed:enemy.speed};
  const phase=time*(role===0?.6:role===1?-.72:.5)+enemy.phase;
- const radius=role===0?73:role===1?96:57;
+ const radius=(role===0?150:role===1?195:125)+(enemy.id%3)*22;
  let goalX=player.x+Math.sin(phase)*radius;
  let goalZ=player.z+Math.cos(phase)*radius;
  // Duelistas flanqueiam, interceptadores buscam a proa, escaramuçadores alternam distância.
@@ -22,13 +22,13 @@ export function planEnemy(enemy,player,all,time){
  for(const other of all){
   if(other===enemy||other.hp<=0)continue;
   const sx=enemy.x-other.x,sz=enemy.z-other.z,sep=Math.hypot(sx,sz);
-  if(sep<29&&sep>.01){const force=(29-sep)/29*42;goalX+=sx/sep*force;goalZ+=sz/sep*force;}
+  if(sep<85&&sep>.01){const force=(85-sep)/85*125;goalX+=sx/sep*force;goalZ+=sz/sep*force;}
  }
  const lowHp=enemy.hp<=22;
  if(lowHp){goalX-=dx/Math.max(1,distance)*42;goalZ-=dz/Math.max(1,distance)*42;}
  const state=lowHp?'retreat':role===0?'flank':role===1?'orbit':'intercept';
- const chase=distance>150?1.24:1;
- return {active,goalX,goalZ,distance,role,state,speed:(lowHp?29:role===2?48:role===0?43:39)*chase};
+ const chase=distance>260?1.12:1;
+ return {active,goalX,goalZ,distance,role,state,speed:(lowHp?18:role===2?27:role===0?24:22)*chase};
 }
 export function canEnemyFire(enemy,all,shots,now,playerHp){
  if(playerHp<=0||now<enemy.nextShot||enemy.hp<=0)return false;
