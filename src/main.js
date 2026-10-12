@@ -486,7 +486,8 @@ for(const enemy of enemies){
   mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(origin);scene.add(mesh);
   const trailPoints=Array.from({length:12},()=>origin.clone());
   const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),energyTrailMaterial);scene.add(trail);
-  const arcHeight=THREE.MathUtils.clamp(origin.distanceTo(predicted)*.44,13,38);
+  // Disparo direto dos NPCs, partindo da boca da torreta 3D.
+  const arcHeight=0;
   enemyShots.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination:predicted,arcHeight,age:0,duration:flight,source:enemy.id});
   enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%3)*.16+(enemy.hp<22?.5:0);
  }
