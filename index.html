@@ -3,9 +3,16 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#092b40"><meta name="screen-orientation" content="landscape"><title>Semnome | Oceano de Combate</title>
-<link rel="stylesheet" href="./src/styles.css">
+<script>
+// Cache-busting dinâmico: cada abertura busca os assets mais recentes durante os testes.
+const assetVersion=Date.now().toString(36);
+const css=document.createElement("link");css.rel="stylesheet";css.href="./src/styles.css?v="+assetVersion;document.head.appendChild(css);
+const imports={};
+for(const name of ["environment.js","sky.js"]){const path=new URL("./src/"+name,location.href).href;imports[path]=path+"?v="+assetVersion;}
+const map=document.createElement("script");map.type="importmap";map.textContent=JSON.stringify({imports});document.head.appendChild(map);
+</script>
 </head>
 <body>
 <div id="loading">Preparando o oceano...</div><div id="orientation"><svg viewBox="0 0 100 100"><rect x="15" y="30" width="70" height="40" rx="8"/><path d="M22 20Q50 0 78 20 M73 11L79 20L68 22"/></svg><strong>Gire o celular para jogar</strong><small>Semnome foi projetado para a tela horizontal.</small><button id="landscapeFullscreen" style="padding:12px 18px;border-radius:10px;border:1px solid #ffffff55;background:#29546c;color:white;font:inherit">Tela cheia</button></div>
 <div id="ui"><div id="top"><strong>SEMNOME · COMBATE NAVAL</strong><small>Oceano de ação 3D · combate em tempo real</small><div id="status">Velocidade: 0</div><small>Mobile: analógico • arraste para girar • DISPARAR<br>PC: W/↑ acelera, A/D ou ←/→ vira</small></div><div id="pad"><div id="stick"></div></div><div id="lock">Procurando alvo...</div><button id="ammo" aria-label="Escolher munição" aria-expanded="false">⚡</button><div id="ammoMenu" aria-label="Tipos de munição"></div><div id="aimHint">SEGURE E ARRASTE PARA MIRAR · SOLTE PARA DISPARAR</div><button id="cancelAim">CANCELAR</button><button id="fire" disabled>DISPARAR</button></div>
-<script type="module" src="./src/main.js"></script></body></html>
+<script type="module">import("./src/main.js?v="+assetVersion);</script></body></html>
