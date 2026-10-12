@@ -73,3 +73,13 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #fire[data-ready="false"]{color:#fff0cf;filter:saturate(.72)}
 #fire[data-ready="true"]{border-color:#ffe1a4;filter:none}
 #fire:focus-visible{outline:3px solid #a0f6ff;outline-offset:3px}
+
+/* Pacote 3: ameaças na bússola e pistas de combate. */
+#threatStatus{margin-top:3px;font-size:10px;font-weight:800;letter-spacing:.035em;color:#96d9e9;min-height:13px;text-shadow:0 1px 3px #001}
+#threatStatus.hot{color:#ffcf84}
+#threatStatus.incoming{color:#ff7672}
+.compassPing.danger{color:#ff5555;text-shadow:0 0 8px #ff2727}
+.compassPing.damaged:not(.closest){opacity:.62}
+.compassPing.closest.danger{color:#ffdc67;text-shadow:0 0 10px #ffb338}
+#combatCompass.clear #threatStatus{color:#8ff2cb}
+@media(max-height:440px){#threatStatus{font-size:9px;margin-top:2px}}
