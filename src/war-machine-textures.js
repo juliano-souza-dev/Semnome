@@ -27,6 +27,15 @@ export function createHullTextures(THREE){
   ctx.fillStyle='#677780';ctx.beginPath();ctx.arc(x,y,2.7,0,Math.PI*2);ctx.fill();
   ctx.fillStyle='#f0f4f4';ctx.beginPath();ctx.arc(x-.6,y-.7,.9,0,Math.PI*2);ctx.fill();
  }
+ // Marcas largas de desgaste e painéis grandes, legíveis em tela pequena.
+ ctx.strokeStyle='rgba(18,31,39,.72)';ctx.lineWidth=9;
+ for(let x=0;x<=size;x+=128){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,size);ctx.stroke();}
+ ctx.strokeStyle='rgba(255,238,184,.78)';ctx.lineWidth=7;
+ for(let y=64;y<size;y+=128){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(size,y);ctx.stroke();}
+ ctx.fillStyle='rgba(17,35,42,.65)';
+ for(let i=0;i<4;i++){const x=20+i*128;ctx.fillRect(x,270,54,42);}
+ ctx.fillStyle='rgba(255,224,118,.95)';
+ for(let i=0;i<4;i++){const x=25+i*128;ctx.fillRect(x,275,44,7);}
  const paint=new THREE.CanvasTexture(canvas);paint.colorSpace=THREE.SRGBColorSpace;paint.wrapS=paint.wrapT=THREE.RepeatWrapping;
  paint.anisotropy=4;
  const bumpCanvas=document.createElement('canvas');bumpCanvas.width=bumpCanvas.height=size;
