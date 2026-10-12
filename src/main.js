@@ -266,12 +266,15 @@ function finishAreaAim(e,cancel=false){
 function launchShot(manualPoint=null){
  lastShotTime=clock.elapsedTime;
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
- const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
  const destination=manualPoint?manualPoint.clone():new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z);
  const ammo=selectedAmmo;
+ // Nas armas comuns, a saída é a boca real da torre giratória.
+ // Nas especiais, a trajetória aérea também nasce do canhão.
+ ship.updateMatrixWorld(true);
+ const origin=ship.userData.firePoint.getWorldPosition(new THREE.Vector3());
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
  const travel=ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
- const arcHeight=ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
+ const arcHeight=(ammo.id==='plasma'||ammo.id==='iron')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
@@ -442,7 +445,7 @@ if(tower){
   if(Math.hypot(dx,dz)>2)desired=Math.atan2(-dx,-dz)-heading;
  }
  const diff=Math.atan2(Math.sin(desired-tower.rotation.y),Math.cos(desired-tower.rotation.y));
- tower.rotation.y+=diff*(1-Math.exp(-8*dt));
+ tower.rotation.y+=THREE.MathUtils.clamp(diff,-1.15*dt,1.15*dt);
 }
 shadow.position.set(x,height(x,z,t)+.14,z);
 // Jatos de motor simulados por GPU, sincronizados com a propulsão.
@@ -467,7 +470,8 @@ for(const enemy of enemies){
  enemy.z-=Math.cos(enemy.heading)*tactic.speed*dt;
  if(tactic.active&&distanceToPlayer<=ENEMY_AI.fireRange&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
   // Mira calculada no lançamento e não vinculada à câmera nem ao movimento posterior.
-  const origin=new THREE.Vector3(enemy.x,enemy.y+3.5,enemy.z);
+  enemy.model.updateMatrixWorld(true);
+  const origin=enemy.model.userData.firePoint.getWorldPosition(new THREE.Vector3());
   const flight=Math.max(.48,distanceToPlayer/ENEMY_AI.shotSpeed*1.5);
   // Antecipação moderada e dispersão por papel: pode errar navios em movimento.
   const accuracy=tactic.role===2?.79:tactic.role===1?.67:.6;
@@ -512,7 +516,7 @@ for(const enemy of enemies){
   const dx=x-enemy.x,dz=z-enemy.z;
   const desired=tactic.active?Math.atan2(-dx,-dz)-enemy.heading:0;
   const diff=Math.atan2(Math.sin(desired-npcTurret.rotation.y),Math.cos(desired-npcTurret.rotation.y));
-  npcTurret.rotation.y+=diff*(1-Math.exp(-5*dt));
+  npcTurret.rotation.y+=THREE.MathUtils.clamp(diff,-.85*dt,.85*dt);
  }
  for(const rotor of enemy.model.userData.rotors||[])rotor.rotation.z=t*(3+tactic.speed*.24)+enemy.phase;
  for(const jet of enemy.model.userData.engineFlames||[]){
@@ -624,6 +628,8 @@ for(let i=projectiles.length-1;i>=0;i--){
    const move=u<.38?(u/.38)*.72:.72+.28*((u-.38)/.62);
    p.mesh.position.lerpVectors(p.origin,p.destination,move);
    p.mesh.position.y+=p.arcHeight*Math.sin(Math.PI*Math.pow(u,.63));
+  }else if(p.ammo==='plasma'||p.ammo==='iron'){
+   p.mesh.position.lerpVectors(p.origin,p.destination,u);
   }else{
    ballisticPoint(p.origin,p.destination,p.travel,p.age,p.arcHeight,p.mesh.position);
   }
