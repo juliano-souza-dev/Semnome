@@ -341,7 +341,7 @@ function moveButtonAim(e){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  // Deslocamento relativo ao botão: o dedo nunca precisa sair para tocar o mar.
  const dx=e.clientX-areaAim.startX,dy=e.clientY-areaAim.startY;
- const sensitivity=.70; // Arrasto mais controlado no combate tático
+ const sensitivity=.62; // Controle fino do braço de mira em combate móvel
  const px=areaAim.origin.x+areaAim.right.x*dx*sensitivity-areaAim.forward.x*dy*sensitivity;
  const pz=areaAim.origin.z+areaAim.right.z*dx*sensitivity-areaAim.forward.z*dy*sensitivity;
  const ox=px-x,oz=pz-z,dist=Math.hypot(ox,oz),max=weaponRange();
@@ -380,7 +380,7 @@ function finishAreaAim(e,cancel=false){
  // Assistência leve: aproxima o impacto do casco se a mira já estiver perto.
  // Fora dessa tolerância, respeita exatamente a escolha manual.
  if(destination){
-  let best=null,bestDist=12;
+  let best=null,bestDist=selectedAmmo.id==='torpedo'?15:11;
   for(const enemy of enemies){
    const dist=Math.hypot(enemy.x-destination.x,enemy.z-destination.z);
    if(enemy.hp>0&&dist<bestDist){best=enemy;bestDist=dist}
@@ -564,10 +564,10 @@ if(Math.abs(speed)>.35||boostRemaining>0){
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
     const desired=stickReferenceYaw-Math.atan2(input.x,-input.y);
     const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
-    const maxStep=(boostRemaining>0?6.2:3.6)*Math.min(1,Math.abs(speed)/9)*dt;
+    const maxStep=(boostRemaining>0?6.5:3.6)*Math.min(1,Math.abs(speed)/9)*dt;
     heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
   }else{
-    heading+=turn*(boostRemaining>0?5.4:2.15)*Math.min(1,Math.abs(speed)/7)*dt;
+    heading+=turn*(boostRemaining>0?5.8:2.15)*Math.min(1,Math.abs(speed)/7)*dt;
   }
 }
 hullPhysics.x=x;hullPhysics.z=z;
