@@ -101,7 +101,7 @@ const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
  {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
- {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 10× mais rápido · dano 40',color:0xffd28b},
+ {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
  {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
@@ -273,7 +273,7 @@ function launchShot(manualPoint=null){
  const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
  const destination=manualPoint?manualPoint.clone():new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z);
  const ammo=selectedAmmo;
- const travel=ammo.id==='siege'?4.5:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/10):Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
+ const travel=ammo.id==='siege'?4.5:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
  const arcHeight=ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
