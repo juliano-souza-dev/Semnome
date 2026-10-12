@@ -320,12 +320,14 @@ const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
 // Propulsor: força velocidade máxima por exatamente 2 segundos de simulação.
 const boostButton=document.getElementById('boost');
-let boostUntil=0;
+let boostUntil=0,boostHeading=0;
+const BOOST_DASH_SPEED=144; // Arrancada: 100% acima dos 72 de velocidade de cruzeiro.
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
  if(playerCombat.hp<=0)return;
  boostUntil=clock.elapsedTime+2;
- speed=72;
+ boostHeading=heading; // Impulso na direção da proa, mesmo com analógico neutro.
+ speed=BOOST_DASH_SPEED;
  boostButton.classList.add('active');
 });
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
@@ -388,7 +390,10 @@ const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.
 target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
 speed=THREE.MathUtils.damp(speed,target,go?2.8:6.5,dt);
 const boostRemaining=Math.max(0,boostUntil-t);
-if(boostRemaining>0)speed=72;
+if(boostRemaining>0){
+ speed=BOOST_DASH_SPEED;
+ heading=boostHeading;
+}
 boostButton.classList.toggle('active',boostRemaining>0);
 boostButton.textContent=boostRemaining>0?'🚀 '+boostRemaining.toFixed(1)+'s':'🚀 PROPULSOR';
 // O arrasto gira a nave, preservando a traseira voltada para a câmera.
@@ -397,7 +402,7 @@ if(dragTurn!==0){
  if(input.active)stickReferenceYaw+=dragTurn;
  dragTurn=0;
 }
-if(Math.abs(speed)>.35){
+if(boostRemaining<=0&&Math.abs(speed)>.35){
   if(reversing){
     // Pequenas correções laterais durante a ré, mantendo a orientação.
     heading+=(-input.x*1.65+turn*1.2)*dt;
@@ -515,7 +520,7 @@ if(playerCombat.hp<=0){
  if(t>=playerCombat.respawnAt){
   playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
   playerCombat.invulnerableUntil=t+3;
-  x=0;z=0;speed=0;
+  x=0;z=0;speed=0;boostUntil=0;
   for(const shot of enemyShots){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();}
   enemyShots.length=0;
  }
