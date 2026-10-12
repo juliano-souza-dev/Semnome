@@ -85,6 +85,7 @@ const AMMO_TYPES=[
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
  {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
  {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
+ {id:'torpedo',name:'Torpedo',icon:'🐟',description:'Rente à água · dano 55 · alcance 240',color:0x62f2ec},
  {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
@@ -210,7 +211,7 @@ function showDamage(enemy,amount){
 }
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
-function weaponRange(){return selectedAmmo.id==='siege'?AREA_RANGE:COMBAT.range;}
+function weaponRange(){return selectedAmmo.id==='siege'?AREA_RANGE:selectedAmmo.id==='torpedo'?240:COMBAT.range;}
 function moveButtonAim(e){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  // Deslocamento relativo ao botão: o dedo nunca precisa sair para tocar o mar.
@@ -272,11 +273,16 @@ function launchShot(manualPoint=null){
  // Nas especiais, a trajetória aérea também nasce do canhão.
  ship.updateMatrixWorld(true);
  const origin=ship.userData.firePoint.getWorldPosition(new THREE.Vector3());
+ if(ammo.id==='torpedo'){
+  // Tubo lança-torpedos abaixo do casco, sem lançar o projétil pelo ar.
+  origin.set(x-Math.sin(heading)*3,height(x,z,clock.elapsedTime)+.65,z-Math.cos(heading)*3);
+  destination.y=height(destination.x,destination.z,clock.elapsedTime)+.65;
+ }
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
- const arcHeight=(ammo.id==='plasma'||ammo.id==='iron')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
+ const travel=ammo.id==='torpedo'?Math.max(.45,origin.distanceTo(destination)/110):ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
+ const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
@@ -288,7 +294,18 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:ammo.id==='iron'?40:COMBAT.damage};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:ammo.id==='torpedo'?55:ammo.id==='iron'?40:COMBAT.damage};
+ if(ammo.id==='torpedo'){
+  core.visible=false;plasma.visible=false;glow.visible=false;outerGlow.visible=false;
+  const shell=new THREE.MeshStandardMaterial({color:0x3b6871,metalness:.75,roughness:.28});
+  const finMat=new THREE.MeshStandardMaterial({color:0x1b3038,metalness:.6,roughness:.42});
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.46,1.15,10),shell);nose.rotation.x=-Math.PI/2;nose.position.z=-1.05;
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,2.45,12),shell);body.rotation.x=Math.PI/2;
+  mesh.add(nose,body);
+  for(const side of [-1,1]){const fin=new THREE.Mesh(new THREE.BoxGeometry(1.12,.09,.60),finMat);fin.position.set(0,side*.08,1.12);mesh.add(fin)}
+  mesh.rotation.y=Math.atan2(-(destination.x-origin.x),-(destination.z-origin.z));
+  shot.torpedo=true;
+ }
  if(ammo.id==='iron'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
  if(ammo.id==='meteor'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);plasma.material=plasmaMaterial.clone();}
  if(ammo.id==='siege'){core.material=energyCoreMaterial.clone();core.material.color.setHex(0xeebaff);mesh.scale.setScalar(1.65);}
@@ -646,6 +663,9 @@ for(let i=projectiles.length-1;i>=0;i--){
    const move=u<.38?(u/.38)*.72:.72+.28*((u-.38)/.62);
    p.mesh.position.lerpVectors(p.origin,p.destination,move);
    p.mesh.position.y+=p.arcHeight*Math.sin(Math.PI*Math.pow(u,.63));
+  }else if(p.ammo==='torpedo'){
+   p.mesh.position.lerpVectors(p.origin,p.destination,u);
+   p.mesh.position.y=height(p.mesh.position.x,p.mesh.position.z,t)+.65;
   }else if(p.ammo==='plasma'||p.ammo==='iron'){
    p.mesh.position.lerpVectors(p.origin,p.destination,u);
   }else{
@@ -665,7 +685,7 @@ for(let i=projectiles.length-1;i>=0;i--){
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
       const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
-      const radius=p.ammo==='siege'?AREA_RADIUS:8;
+      const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?10:8;
       if(enemy.hp>0&&distance<=radius){
         const damage=Math.min(enemy.hp,p.damage||COMBAT.damage);
         enemy.hp=Math.max(0,enemy.hp-damage);
