@@ -2,6 +2,34 @@
 export function createGameAudio(){
  let context=null,master=null,ambience=null,motor=null,osc=null,noise=null,unlocked=false;
  const settings={enabled:true,effects:.70,environment:.22};
+ // Gravacoes originais CC0: Thimras / OpenGameArt, Battle at Sea.
+ // Em uma próxima etapa, hospedar os OGG localmente para não depender de terceiros.
+ const realSounds={
+  iron:'https://opengameart.org/sites/default/files/cannon_fire_1.ogg',
+  torpedo:'https://opengameart.org/sites/default/files/cannon_fire_1.ogg',
+  impact:'https://opengameart.org/sites/default/files/cannon_hit_1.ogg'
+ };
+ const realBuffers=new Map(),realLoading=new Set();
+ function loadReal(kind){
+  if(!context||!realSounds[kind]||realBuffers.has(kind)||realLoading.has(kind))return;
+  realLoading.add(kind);
+  fetch(realSounds[kind]).then(r=>{if(!r.ok)throw Error('Audio HTTP '+r.status);return r.arrayBuffer()})
+   .then(data=>context.decodeAudioData(data)).then(buffer=>realBuffers.set(kind,buffer))
+   .catch(()=>{}).finally(()=>realLoading.delete(kind));
+ }
+ function playReal(kind,pan=0,distance=0){
+  if(!context||!unlocked||!settings.enabled||!realBuffers.has(kind))return false;
+  const source=context.createBufferSource(),gain=context.createGain();
+  const panner=context.createStereoPanner?context.createStereoPanner():null;
+  source.buffer=realBuffers.get(kind);
+  gain.gain.value=settings.effects*(kind==='impact'?.26:.34)/(1+distance/140);
+  source.connect(gain);
+  if(panner){panner.pan.value=Math.max(-1,Math.min(1,pan));gain.connect(panner);panner.connect(master)}
+  else gain.connect(master);
+  source.start();
+  source.onended=()=>{source.disconnect();gain.disconnect();panner?.disconnect()};
+  return true;
+ }
  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
  function ensure(){
   if(!settings.enabled||!AudioContextClass)return false;
@@ -20,10 +48,11 @@ export function createGameAudio(){
    noise.connect(seaFilter);seaFilter.connect(ambience);noise.start();
   }
   if(context.state==='suspended')context.resume().catch(()=>{});
-  unlocked=true;return true;
+  unlocked=true;for(const kind of Object.keys(realSounds))loadReal(kind);return true;
  }
  function play(kind,pan=0,distance=0){
   if(!unlocked||!settings.enabled||!context)return;
+  if(playReal(kind,pan,distance))return;
   const now=context.currentTime;
   const tone=context.createOscillator(),gain=context.createGain();
   const panner=context.createStereoPanner?context.createStereoPanner():null;
