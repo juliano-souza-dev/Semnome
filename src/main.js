@@ -146,6 +146,7 @@ npcShadow.visible=false;
 const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:180,shotDamage:7,shotCooldown:1.95,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
 const enemyShots=[];
+let threatShotCount=0;
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
 const hpHud=document.createElement('div');
 hpHud.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:35;background:rgba(7,20,32,.82);border:1px solid #7fb4c3;border-radius:10px;padding:6px 14px;color:white;font:700 13px system-ui;pointer-events:none;white-space:nowrap';
@@ -162,24 +163,31 @@ document.body.appendChild(hpHud);
   compassTrack.appendChild(marker);return marker;
  });
  let lastCompassUpdate=-1,compassQuiet=false;
+ const threatStatus=document.createElement('div');threatStatus.id='threatStatus';threatStatus.setAttribute('aria-live','off');compass.appendChild(threatStatus);
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
-  let nearestEnemy=null,nearestRange=Infinity;
+  let nearestEnemy=null,nearestRange=Infinity,activeThreats=0,shooters=0;
   for(let i=0;i<enemies.length;i++){
    const enemy=enemies[i],marker=compassPings[i];
    if(enemy.hp<=0){marker.style.display='none';continue;}
    const dx=enemy.x-x,dz=enemy.z-z,range=Math.hypot(dx,dz);
    if(range<nearestRange){nearestEnemy=enemy;nearestRange=range;}
+   if(range<=ENEMY_AI.detect&&enemy.state!=='patrol')activeThreats++;
+   if(range<=ENEMY_AI.fireRange&&enemy.state!=='patrol')shooters++;
    const bearing=Math.atan2(-dx,-dz);
    const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));
    const position=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95);
    marker.style.display='block';marker.style.left=position.toFixed(1)+'%';
    marker.classList.toggle('closest',enemy===nearestEnemy);
    marker.classList.toggle('behind',Math.abs(delta)>Math.PI*.75);
+   marker.classList.toggle('danger',range<ENEMY_AI.fireRange&&enemy.state!=='patrol');
+   marker.classList.toggle('damaged',enemy.hp<=COMBAT.npcMaxHp*.35);
    marker.textContent=Math.abs(delta)>Math.PI*.75?(delta>0?'▶':'◀'):'◆';
   }
   for(let i=0;i<enemies.length;i++)compassPings[i].classList.toggle('closest',enemies[i]===nearestEnemy);
   compassReadout.textContent=nearestEnemy?'HOSTIS '+enemies.filter(e=>e.hp>0).length+' · '+nearestEnemy.name+' · '+Math.round(nearestRange)+' m':'ÁREA SEGURA · SEM HOSTIS';
+  threatStatus.textContent=shooters?'⚠ '+shooters+' INIMIGO'+(shooters>1?'S':'')+' EM ALCANCE':activeThreats?'⚔ '+activeThreats+' EM APROXIMAÇÃO':nearestEnemy?'PATRULHAS DISTANTES':'SEM AMEAÇAS';
+  threatStatus.classList.toggle('hot',shooters>0);
   if(compassQuiet!==!nearestEnemy){compassQuiet=!nearestEnemy;compass.classList.toggle('clear',compassQuiet);}
  }
 
@@ -784,6 +792,9 @@ hitFeedback=Math.max(0,hitFeedback-dt*1.9);
 hitOverlay.style.opacity=String(hitFeedback*.85);
 if(noticeUntil>0&&t>=noticeUntil){noticeUntil=0;combatNotice.style.opacity='0';}
 const remaining=weaponRemaining();
+threatShotCount=enemyShots.filter(shot=>shot.age<shot.duration).length;
+threatStatus.classList.toggle('incoming',threatShotCount>0);
+if(threatShotCount>0)threatStatus.textContent='⚠ '+threatShotCount+' DISPARO'+(threatShotCount>1?'S':'')+' HOSTIL'+(threatShotCount>1?'IS':'')+' NO AR';
 if(!areaAim.active)fireButton.textContent=playerCombat.hp<=0?'REPARANDO':remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
 fireButton.setAttribute('aria-label',selectedAmmo.name+' · '+(remaining>0?'recarga '+remaining.toFixed(1)+' segundos':'segure para mirar e solte para disparar'));
 fireButton.style.setProperty('--ready',String(1-remaining/currentWeapon().cooldown));
