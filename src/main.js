@@ -661,7 +661,7 @@ for(const enemy of enemies){
   const flight=Math.max(.48,distanceToPlayer/ENEMY_AI.shotSpeed*1.5);
   // Antecipação moderada e dispersão por papel: pode errar navios em movimento.
   const accuracy=tactic.role===2?.79:tactic.role===1?.67:.6;
-  const spread=Math.sin(t*2.7+enemy.id*3.1)*7;
+  const spread=Math.sin(t*2.7+enemy.id*3.1)*(enemy.hp<=35?12:7);
   const predicted=new THREE.Vector3(x-Math.sin(heading)*speed*flight*accuracy+Math.cos(heading)*spread,bob+2.3,z-Math.cos(heading)*speed*flight*accuracy-Math.sin(heading)*spread);
   const mesh=new THREE.Group();
   const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
