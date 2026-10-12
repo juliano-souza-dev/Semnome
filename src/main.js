@@ -149,6 +149,37 @@ const enemyShots=[];
 const hpHud=document.createElement('div');
 hpHud.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:35;background:rgba(7,20,32,.82);border:1px solid #7fb4c3;border-radius:10px;padding:6px 14px;color:white;font:700 13px system-ui;pointer-events:none;white-space:nowrap';
 document.body.appendChild(hpHud);
+ // Bússola de combate: pings persistentes para toda a frota, inclusive fora do campo de visão.
+ const compass=document.createElement('div');compass.id='combatCompass';
+ compass.innerHTML='<div class="compassTrack"><span class="compassCenter">▼</span></div><div class="compassReadout">LOCALIZANDO HOSTIS</div>';
+ document.getElementById('ui').appendChild(compass);
+ const compassTrack=compass.querySelector('.compassTrack');
+ const compassReadout=compass.querySelector('.compassReadout');
+ const compassPings=enemies.map(enemy=>{
+  const marker=document.createElement('span');marker.className='compassPing';
+  marker.textContent='◆';marker.title=enemy.name;
+  compassTrack.appendChild(marker);return marker;
+ });
+ let lastCompassUpdate=-1;
+ function refreshCompass(t){
+  if(t-lastCompassUpdate<.10)return;lastCompassUpdate=t;
+  let nearestEnemy=null,nearestRange=Infinity;
+  for(let i=0;i<enemies.length;i++){
+   const enemy=enemies[i],marker=compassPings[i];
+   if(enemy.hp<=0){marker.style.display='none';continue;}
+   const dx=enemy.x-x,dz=enemy.z-z,range=Math.hypot(dx,dz);
+   if(range<nearestRange){nearestEnemy=enemy;nearestRange=range;}
+   const bearing=Math.atan2(-dx,-dz);
+   const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));
+   const position=THREE.MathUtils.clamp(50-delta/Math.PI*47,3,97);
+   marker.style.display='block';marker.style.left=position+'%';
+   marker.classList.toggle('closest',enemy===nearestEnemy);
+   marker.classList.toggle('behind',Math.abs(delta)>Math.PI*.75);
+  }
+  for(let i=0;i<enemies.length;i++)compassPings[i].classList.toggle('closest',enemies[i]===nearestEnemy);
+  compassReadout.textContent=nearestEnemy?'MAIS PRÓXIMO · '+nearestEnemy.name+' · '+Math.round(nearestRange)+' m':'ÁREA SEGURA · SEM HOSTIS';
+ }
+
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
 const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
@@ -678,6 +709,7 @@ for(const enemy of enemies){
  if(enemy.hp>0&&range<nearestDistance){nearest=enemy;nearestDistance=range}
 }
 lockedNpc=nearest;
+refreshCompass(t);
 targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
 lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP':'Procurando alvo...';
