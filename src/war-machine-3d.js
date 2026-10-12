@@ -45,6 +45,25 @@ export function createWarMachine3D(THREE,{enemy=false}={}){
   plate.rotation.y=a;
   const bolt=add(new THREE.SphereGeometry(.105,8,6),dark,Math.sin(a)*2.63,1.38,Math.cos(a)*2.63);
  }
+ // Grafismos grandes visíveis durante o jogo, não apenas microtexturas.
+ // Os decalques geométricos ficam na superfície superior e seguem o corpo 3D.
+ const warning=mat(enemy?0xffcfb8:0xffe263,.12,.45);
+ const ink=mat(0x172b35,.38,.5);
+ for(const side of [-1,1]){
+  const stripe=add(new THREE.BoxGeometry(.24,.035,1.36),warning,side*1.79,1.62,-.55);
+  stripe.rotation.y=side*.28;
+  const stripe2=add(new THREE.BoxGeometry(.1,.038,1.36),ink,side*1.97,1.64,-.55);
+  stripe2.rotation.y=side*.28;
+  const warningPlate=add(new THREE.BoxGeometry(.65,.052,.35),ink,side*2.1,1.62,1.22);
+  warningPlate.rotation.y=-side*.38;
+  for(let n=0;n<3;n++){
+   const mark=add(new THREE.BoxGeometry(.09,.058,.32),warning,side*(1.90+n*.19),1.66,1.22);
+   mark.rotation.y=-side*.38;
+  }
+ }
+ // Emblema central com alto contraste na blindagem frontal.
+ const crest=add(new THREE.BoxGeometry(.92,.065,.36),ink,0,1.63,-2.04);
+ add(new THREE.BoxGeometry(.62,.075,.13),warning,0,1.68,-2.04);
  // Canhão apontado para -Z, alinhado ao eixo de tiro do jogo.
  const turret=add(new THREE.CylinderGeometry(.93,1.2,.7,18),dark,0,1.93,-1.35);
  add(new THREE.TorusGeometry(1.01,.13,8,24),trim,0,2.31,-1.35).rotation.x=Math.PI/2;
