@@ -77,14 +77,14 @@ const COMBAT={range:190,projectileSpeed:165,damage:25,cooldown:3,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
-npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';
+npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';npcData.hostile=true;
 for(let i=1;i<9;i++){
  const angle=i*Math.PI*2/8;
- const radius=105+(i%3)*36;
+ const radius=215+(i%4)*95;
  enemies.push({id:i+1,name:'Patrulheiro '+String(i+1).padStart(2,'0'),
-  x:Math.sin(angle)*radius,z:-85+Math.cos(angle)*radius,y:0,
-  anchorX:Math.sin(angle)*radius,anchorZ:-85+Math.cos(angle)*radius,
-  heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null,nextShot:2+i*.45,state:'patrol'});
+  x:Math.sin(angle)*radius,z:-110+Math.cos(angle)*radius,y:0,
+  anchorX:Math.sin(angle)*radius,anchorZ:-110+Math.cos(angle)*radius,
+  heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null,nextShot:2+i*.45,state:'patrol',hostile:true});
 }
 
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
@@ -100,6 +100,7 @@ const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
  {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
+ {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 10× mais rápido · dano 40',color:0xffd28b},
  {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
@@ -221,7 +222,7 @@ function moveButtonAim(e){
  areaAim.point.set(x+ox*ratio,height(x+ox*ratio,z+oz*ratio,clock.elapsedTime)+.35,z+oz*ratio);
  areaAim.valid=true;aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
  // Feedback da mira: vermelho quando o ponto cobre um inimigo.
- const hovering=enemies.some(enemy=>Math.hypot(enemy.x-areaAim.point.x,enemy.z-areaAim.point.z)<12);
+ const hovering=enemies.some(enemy=>enemy.hp>0&&Math.hypot(enemy.x-areaAim.point.x,enemy.z-areaAim.point.z)<12);
  for(const ring of aimReticle.children){if(ring.material&&ring.material.color)ring.material.color.setHex(hovering?0xff4747:0xeaa6ff)}
 }
 function startAreaAim(e){
@@ -264,7 +265,7 @@ function launchShot(manualPoint=null){
  const origin=new THREE.Vector3(x-Math.sin(heading)*6,bob+3.4,z-Math.cos(heading)*6);
  const destination=manualPoint?manualPoint.clone():new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z);
  const ammo=selectedAmmo;
- const travel=ammo.id==='siege'?4.5:Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
+ const travel=ammo.id==='siege'?4.5:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/10):Math.max(.55,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8)*(ammo.id==='meteor'?1.2:1);
  const arcHeight=ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -277,7 +278,8 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:COMBAT.damage};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:ammo.id==='iron'?40:COMBAT.damage};
+ if(ammo.id==='iron'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
  if(ammo.id==='meteor'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);plasma.material=plasmaMaterial.clone();}
  if(ammo.id==='siege'){core.material=energyCoreMaterial.clone();core.material.color.setHex(0xeebaff);mesh.scale.setScalar(1.65);}
  if(ammo.id==='scatter'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
@@ -409,6 +411,7 @@ let nearest=null,nearestDistance=COMBAT.range;
 for(const enemy of enemies){
  const patrol=t*.19+enemy.phase;
  const distanceToPlayer=Math.hypot(x-enemy.x,z-enemy.z);
+ if(enemy.hp<=0){enemy.state='destroyed';if(enemy.sprite)enemy.sprite.visible=false;continue;}
  const spotted=distanceToPlayer<ENEMY_AI.detect && playerCombat.hp>0;
  enemy.state=spotted?'engaged':'patrol';
  // Patrulha fora do radar; perseguição/órbita tática quando vê o jogador.
@@ -469,10 +472,10 @@ for(const enemy of enemies){
 lockedNpc=nearest;
 targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
-lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · ∞ HP':'Procurando alvo...';
+lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP':'Procurando alvo...';
 fireButton.disabled=false;
-npc.visible=!playerAtlasReady;
-npcShadow.visible=!playerAtlasReady;
+npc.visible=!playerAtlasReady&&npcData.hp>0;
+npcShadow.visible=!playerAtlasReady&&npcData.hp>0;
 ship.position.x=x;ship.position.z=z;
 // Projéteis inimigos independentes da câmera. Só há dano se acertarem a nave.
 for(let i=enemyShots.length-1;i>=0;i--){
@@ -518,7 +521,7 @@ for(let i=damageLabels.length-1;i>=0;i--){
 const remaining=Math.max(0,COMBAT.cooldown-(t-lastShotTime));
 if(!areaAim.active)fireButton.textContent=remaining>0?'RECARGA '+remaining.toFixed(1)+'s':'DISPARAR';
 fireButton.disabled=remaining>0;
-hpHud.textContent=playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.state==='engaged').length:'💥 NAVE DESTRUÍDA · Reiniciando...';
+hpHud.textContent=playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.hp>0).length+'/'+enemies.length:'💥 NAVE DESTRUÍDA · Reiniciando...';
 hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
@@ -563,8 +566,21 @@ for(let i=projectiles.length-1;i>=0;i--){
       const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
       const radius=p.ammo==='siege'?AREA_RADIUS:8;
       if(enemy.hp>0&&distance<=radius){
-        showDamage(enemy,p.damage||COMBAT.damage);
+        const damage=Math.min(enemy.hp,p.damage||COMBAT.damage);
+        enemy.hp=Math.max(0,enemy.hp-damage);
+        showDamage(enemy,damage);
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
+        if(enemy.hp===0){
+          enemy.state='destroyed';
+          enemy.destroyedAt=t;
+          // Explosão de destruição maior, seguida de partículas de energia.
+          for(let burst=0;burst<3;burst++){
+            const pos=new THREE.Vector3(enemy.x+(Math.random()-.5)*5,enemy.y+2+Math.random()*4,enemy.z+(Math.random()-.5)*5);
+            energyFlash(pos);
+          }
+          if(enemy.sprite)enemy.sprite.visible=false;
+          if(enemy===npcData){npc.visible=false;npcShadow.visible=false;}
+        }
       }
     }
     if(p.ammo==='siege'){
