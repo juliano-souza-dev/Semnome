@@ -77,16 +77,25 @@ const COMBAT={range:95,projectileSpeed:165,damage:25,cooldown:.65,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
-npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;
+npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';
 for(let i=1;i<9;i++){
  const angle=i*Math.PI*2/8;
  const radius=105+(i%3)*36;
  enemies.push({id:i+1,name:'Patrulheiro '+String(i+1).padStart(2,'0'),
   x:Math.sin(angle)*radius,z:-85+Math.cos(angle)*radius,y:0,
   anchorX:Math.sin(angle)*radius,anchorZ:-85+Math.cos(angle)*radius,
-  heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null});
+  heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null,nextShot:2+i*.45,state:'patrol'});
 }
 
+// Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
+const ENEMY_AI={detect:135,fireRange:92,retreatRange:23,shotSpeed:76,shotDamage:9,shotCooldown:3.2,maxHp:100};
+const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
+const enemyShots=[];
+const enemyProjectileGeometry=new THREE.SphereGeometry(.75,10,8);
+const enemyProjectileMaterial=new THREE.MeshBasicMaterial({color:0xff6c35});
+const hpHud=document.createElement('div');
+hpHud.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:35;background:rgba(7,20,32,.82);border:1px solid #7fb4c3;border-radius:10px;padding:6px 14px;color:white;font:700 13px system-ui;pointer-events:none;white-space:nowrap';
+document.body.appendChild(hpHud);
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
 const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
@@ -354,13 +363,30 @@ shadow.position.set(x,height(x,z,t)+.14,z);
 let nearest=null,nearestDistance=COMBAT.range;
 for(const enemy of enemies){
  const patrol=t*.19+enemy.phase;
- const goalX=enemy.anchorX+Math.sin(patrol)*enemy.radius;
- const goalZ=enemy.anchorZ+Math.cos(patrol)*enemy.radius;
+ const distanceToPlayer=Math.hypot(x-enemy.x,z-enemy.z);
+ const spotted=distanceToPlayer<ENEMY_AI.detect && playerCombat.hp>0;
+ enemy.state=spotted?'engaged':'patrol';
+ // Patrulha fora do radar; perseguição/órbita tática quando vê o jogador.
+ const orbitAngle=t*.45+enemy.phase;
+ const followRadius=distanceToPlayer<ENEMY_AI.retreatRange?ENEMY_AI.retreatRange+16:47;
+ const goalX=spotted?x+Math.sin(orbitAngle)*followRadius:enemy.anchorX+Math.sin(patrol)*enemy.radius;
+ const goalZ=spotted?z+Math.cos(orbitAngle)*followRadius:enemy.anchorZ+Math.cos(patrol)*enemy.radius;
  const desiredYaw=-Math.atan2(goalX-enemy.x,-(goalZ-enemy.z));
  const yawDelta=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
  enemy.heading+=THREE.MathUtils.clamp(yawDelta,-1.25*dt,1.25*dt);
- enemy.x-=Math.sin(enemy.heading)*enemy.speed*dt;
- enemy.z-=Math.cos(enemy.heading)*enemy.speed*dt;
+ const moveSpeed=spotted?Math.max(enemy.speed*2.15,12):enemy.speed;
+ enemy.x-=Math.sin(enemy.heading)*moveSpeed*dt;
+ enemy.z-=Math.cos(enemy.heading)*moveSpeed*dt;
+ if(spotted&&distanceToPlayer<=ENEMY_AI.fireRange&&t>=enemy.nextShot){
+  // Mira calculada no lançamento e não vinculada à câmera nem ao movimento posterior.
+  const origin=new THREE.Vector3(enemy.x,enemy.y+3.5,enemy.z);
+  const flight=Math.max(.5,distanceToPlayer/ENEMY_AI.shotSpeed);
+  const predicted=new THREE.Vector3(x-Math.sin(heading)*speed*flight*.55,bob+2.3,z-Math.cos(heading)*speed*flight*.55);
+  const mesh=new THREE.Mesh(enemyProjectileGeometry,enemyProjectileMaterial);
+  mesh.position.copy(origin);scene.add(mesh);
+  enemyShots.push({mesh,origin,destination:predicted,age:0,duration:flight,source:enemy.id});
+  enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%4)*.4;
+ }
  // Colisão jogador × inimigo; nenhum dano durante esta fase de testes.
  let dx=x-enemy.x,dz=z-enemy.z,dist=Math.hypot(dx,dz);
  if(dist<10.6){
@@ -394,6 +420,33 @@ fireButton.disabled=selectedAmmo.id==='siege'?false:!lockedNpc;
 npc.visible=!playerAtlasReady;
 npcShadow.visible=!playerAtlasReady;
 ship.position.x=x;ship.position.z=z;
+// Projéteis inimigos independentes da câmera. Só há dano se acertarem a nave.
+for(let i=enemyShots.length-1;i>=0;i--){
+ const shot=enemyShots[i];shot.age+=dt;
+ const progress=Math.min(1,shot.age/shot.duration);
+ shot.mesh.position.lerpVectors(shot.origin,shot.destination,progress);
+ shot.mesh.position.y+=Math.sin(Math.PI*progress)*Math.max(3,shot.duration*3);
+ const contact=Math.hypot(shot.mesh.position.x-x,shot.mesh.position.z-z);
+ if(contact<5.7&&Math.abs(shot.mesh.position.y-(bob+2.3))<5.5 && t>=playerCombat.invulnerableUntil && playerCombat.hp>0){
+  playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);
+  playerCombat.invulnerableUntil=t+.45;
+  energyFlash(new THREE.Vector3(x,bob+2.5,z));
+  scene.remove(shot.mesh);enemyShots.splice(i,1);continue;
+ }
+ if(progress>=1){scene.remove(shot.mesh);enemyShots.splice(i,1);}
+}
+if(playerCombat.hp<=0){
+ if(playerCombat.respawnAt===0)playerCombat.respawnAt=t+4;
+ if(t>=playerCombat.respawnAt){
+  playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
+  playerCombat.invulnerableUntil=t+3;
+  x=0;z=0;speed=0;
+  for(const shot of enemyShots)scene.remove(shot.mesh);
+  enemyShots.length=0;
+ }
+}
+hpHud.textContent=playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.state==='engaged').length:'💥 NAVE DESTRUÍDA · Reiniciando...';
+hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
   const p=projectiles[i];
