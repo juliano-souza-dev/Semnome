@@ -73,7 +73,7 @@ new THREE.TextureLoader().load(PLAYER_ATLAS,texture=>{
   npc.visible=false;
 },undefined,error=>console.warn('Falha no sprite; usando modelo provisório.',error));
 // Protótipo de combate: configurações isoladas para calibração.
-const COMBAT={range:95,projectileSpeed:165,damage:25,cooldown:.65,npcMaxHp:100};
+const COMBAT={range:190,projectileSpeed:165,damage:25,cooldown:.65,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
@@ -88,11 +88,10 @@ for(let i=1;i<9;i++){
 }
 
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
-const ENEMY_AI={detect:135,fireRange:92,retreatRange:23,shotSpeed:76,shotDamage:9,shotCooldown:3.2,maxHp:100};
+const ENEMY_AI={detect:270,fireRange:184,retreatRange:23,shotSpeed:165,shotDamage:9,shotCooldown:3.2,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
 const enemyShots=[];
-const enemyProjectileGeometry=new THREE.SphereGeometry(.75,10,8);
-const enemyProjectileMaterial=new THREE.MeshBasicMaterial({color:0xff6c35});
+// NPCs compartilham geometria, shader e rastro dos tiros do jogador.
 const hpHud=document.createElement('div');
 hpHud.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:35;background:rgba(7,20,32,.82);border:1px solid #7fb4c3;border-radius:10px;padding:6px 14px;color:white;font:700 13px system-ui;pointer-events:none;white-space:nowrap';
 document.body.appendChild(hpHud);
@@ -101,7 +100,7 @@ const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
  {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
- {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 180 · explosão em área',color:0xe5a4ff}
+ {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
 const ammoButton=document.getElementById('ammo'),ammoMenu=document.getElementById('ammoMenu');
@@ -163,7 +162,7 @@ function energyFlash(position){
  impactEffects.push({flash,ring,sparks,velocities,age:0});
 }
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
-const AREA_RANGE=180,AREA_RADIUS=22;
+const AREA_RANGE=360,AREA_RADIUS=22;
 const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
 const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null,startX:0,startY:0,origin:new THREE.Vector3(),right:new THREE.Vector3(),forward:new THREE.Vector3()};
 const aimReticle=new THREE.Group();scene.add(aimReticle);aimReticle.visible=false;
@@ -395,11 +394,19 @@ for(const enemy of enemies){
  if(spotted&&distanceToPlayer<=ENEMY_AI.fireRange&&t>=enemy.nextShot){
   // Mira calculada no lançamento e não vinculada à câmera nem ao movimento posterior.
   const origin=new THREE.Vector3(enemy.x,enemy.y+3.5,enemy.z);
-  const flight=Math.max(.5,distanceToPlayer/ENEMY_AI.shotSpeed);
+  const flight=Math.max(.55,distanceToPlayer/ENEMY_AI.shotSpeed*1.8);
   const predicted=new THREE.Vector3(x-Math.sin(heading)*speed*flight*.55,bob+2.3,z-Math.cos(heading)*speed*flight*.55);
-  const mesh=new THREE.Mesh(enemyProjectileGeometry,enemyProjectileMaterial);
-  mesh.position.copy(origin);scene.add(mesh);
-  enemyShots.push({mesh,origin,destination:predicted,age:0,duration:flight,source:enemy.id});
+  const mesh=new THREE.Group();
+  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
+  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
+  const glow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
+  const outerGlow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
+  outerGlow.scale.setScalar(1.9);
+  mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(origin);scene.add(mesh);
+  const trailPoints=Array.from({length:12},()=>origin.clone());
+  const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),energyTrailMaterial);scene.add(trail);
+  const arcHeight=THREE.MathUtils.clamp(origin.distanceTo(predicted)*.44,13,38);
+  enemyShots.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination:predicted,arcHeight,age:0,duration:flight,source:enemy.id});
   enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%4)*.4;
  }
  // Colisão jogador × inimigo; nenhum dano durante esta fase de testes.
@@ -440,15 +447,22 @@ for(let i=enemyShots.length-1;i>=0;i--){
  const shot=enemyShots[i];shot.age+=dt;
  const progress=Math.min(1,shot.age/shot.duration);
  shot.mesh.position.lerpVectors(shot.origin,shot.destination,progress);
- shot.mesh.position.y+=Math.sin(Math.PI*progress)*Math.max(3,shot.duration*3);
+ shot.mesh.position.y+=4*shot.arcHeight*progress*(1-progress);
+ shot.glow.quaternion.copy(camera.quaternion);shot.outerGlow.quaternion.copy(camera.quaternion);
+ shot.plasma.rotation.set(t*6,t*9,t*5);
+ shot.trailPoints.pop();shot.trailPoints.unshift(shot.mesh.position.clone());
+ const arr=shot.trail.geometry.attributes.position.array;
+ for(let j=0;j<shot.trailPoints.length;j++){const v=shot.trailPoints[j];arr[j*3]=v.x;arr[j*3+1]=v.y;arr[j*3+2]=v.z}
+ shot.trail.geometry.attributes.position.needsUpdate=true;
  const contact=Math.hypot(shot.mesh.position.x-x,shot.mesh.position.z-z);
+ let remove=false;
  if(contact<5.7&&Math.abs(shot.mesh.position.y-(bob+2.3))<5.5 && t>=playerCombat.invulnerableUntil && playerCombat.hp>0){
   playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);
   playerCombat.invulnerableUntil=t+.45;
-  energyFlash(new THREE.Vector3(x,bob+2.5,z));
-  scene.remove(shot.mesh);enemyShots.splice(i,1);continue;
+  energyFlash(new THREE.Vector3(x,bob+2.5,z));remove=true;
  }
- if(progress>=1){scene.remove(shot.mesh);enemyShots.splice(i,1);}
+ if(progress>=1){energyFlash(shot.mesh.position);remove=true;}
+ if(remove){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();enemyShots.splice(i,1);}
 }
 if(playerCombat.hp<=0){
  if(playerCombat.respawnAt===0)playerCombat.respawnAt=t+4;
@@ -456,7 +470,7 @@ if(playerCombat.hp<=0){
   playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
   playerCombat.invulnerableUntil=t+3;
   x=0;z=0;speed=0;
-  for(const shot of enemyShots)scene.remove(shot.mesh);
+  for(const shot of enemyShots){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();}
   enemyShots.length=0;
  }
 }
