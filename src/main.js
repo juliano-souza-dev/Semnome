@@ -28,35 +28,30 @@ float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+
 void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ);vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
 fragmentShader:`varying vec3 vPos;varying float vHeight;
 vec2 hash2(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}
-float cellularBorder(vec2 p){
- vec2 cell=floor(p),f=fract(p);
- float closest=10.,second=10.;
- for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
-  vec2 g=vec2(float(x),float(y));
-  vec2 offset=hash2(cell+g)*.65+.175;
-  float d=length(g+offset-f);
-  if(d<closest){second=closest;closest=d;}
-  else if(d<second)second=d;
+float border(vec2 p){
+ vec2 cell=floor(p),f=fract(p);float first=10.,second=10.;
+ for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
+  vec2 g=vec2(float(i),float(j));
+  vec2 r=g+hash2(cell+g)*.68+.16-f;
+  float d=dot(r,r);
+  if(d<first){second=first;first=d;}else if(d<second)second=d;
  }
- return second-closest;
+ return sqrt(second)-sqrt(first);
 }
 void main(){
  vec2 p=vPos.xy;
- // Rede irregular de espuma entre grandes células de água, não ondas listradas.
- vec2 drift=vec2(sin(p.y*.018+vHeight*.23),cos(p.x*.021-vHeight*.18))*4.5;
- vec2 warped=p+drift;
- float seams=cellularBorder(warped*.049);
- float lace=1.-smoothstep(.035,.115,seams);
- float crest=smoothstep(2.5,5.5,vHeight);
- float depth=clamp((vHeight+5.5)/11.,0.,1.);
- vec3 deep=vec3(.006,.16,.39);
- vec3 mid=vec3(.008,.37,.67);
- vec3 bright=vec3(.025,.62,.85);
- vec3 sea=mix(deep,mid,smoothstep(.05,.82,depth));
- sea=mix(sea,bright,smoothstep(.55,1.,depth)*.7);
- float ripples=pow(max(0.,sin(p.x*.38+p.y*.31+vHeight*.75)),18.)*.08;
- float foam=clamp(lace*(.83+crest*.15)+crest*.16+ripples,0.,.95);
- sea=mix(sea,vec3(.91,.985,1.),foam);
+ // Escala pequena e baixa cobertura: evita a antiga malha branca gigante.
+ vec2 warp=vec2(sin(p.y*.037+vHeight*.20),cos(p.x*.032-vHeight*.16))*1.8;
+ float edge=border((p+warp)*.125);
+ float thin=1.-smoothstep(.010,.030,edge);
+ // Espuma sobretudo nas cristas, com filamentos discretos nos vales.
+ float crest=smoothstep(1.35,4.8,vHeight);
+ float flecks=pow(max(0.,sin(p.x*.35+p.y*.21+vHeight*.8)),22.)*.07;
+ float foam=clamp(thin*(.10+crest*.62)+crest*.13+flecks,0.,.75);
+ float depth=smoothstep(-5.5,5.5,vHeight);
+ vec3 sea=mix(vec3(.012,.22,.47),vec3(.012,.50,.75),depth);
+ sea+=vec3(.015,.055,.075)*sin(p.x*.065+p.y*.045+vHeight*.28);
+ sea=mix(sea,vec3(.81,.96,.99),foam);
  gl_FragColor=vec4(sea,1.);
 }`
 }));
