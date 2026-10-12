@@ -164,7 +164,7 @@ function energyFlash(position){
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
 const AREA_RANGE=360,AREA_RADIUS=22;
 const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
-const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null,startX:0,startY:0,origin:new THREE.Vector3(),right:new THREE.Vector3(),forward:new THREE.Vector3()};
+const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null,holdStarted:0,viewBlend:0,startX:0,startY:0,origin:new THREE.Vector3(),right:new THREE.Vector3(),forward:new THREE.Vector3()};
 const aimReticle=new THREE.Group();scene.add(aimReticle);aimReticle.visible=false;
 const aimDisc=new THREE.Mesh(new THREE.CircleGeometry(AREA_RADIUS,64),new THREE.MeshBasicMaterial({color:0x9c52e8,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide}));
 aimDisc.rotation.x=-Math.PI/2;aimReticle.add(aimDisc);
@@ -227,7 +227,7 @@ function moveButtonAim(e){
 function startAreaAim(e){
  if(areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
  areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
- areaAim.startX=e.clientX;areaAim.startY=e.clientY;
+ areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
  aimHint.classList.add('active');cancelAimButton.classList.add('active');
  const f=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
  areaAim.forward.copy(f);areaAim.right.set(-f.z,0,f.x);
@@ -359,7 +359,7 @@ function releaseDrag(e){if(e.pointerId===dragId)dragId=null}
 renderer.domElement.addEventListener('pointerup',releaseDrag);
 renderer.domElement.addEventListener('pointercancel',releaseDrag);
 renderer.domElement.addEventListener('lostpointercapture',releaseDrag);
-const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3();let cameraReady=false;
+const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
 const keyboardGo=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
@@ -643,6 +643,22 @@ if(attackCamera.target && attackCamera.blend>.001){
   shotLook.copy(focus);
   wanted.lerp(shotView,attackCamera.blend);
   follow.lerp(shotLook,attackCamera.blend);
+}
+// Segurar por 1s ativa visão tática alta sem alterar o ponto escolhido.
+const tacticalHold=areaAim.active && t-areaAim.holdStarted>=1;
+areaAim.viewBlend=THREE.MathUtils.damp(areaAim.viewBlend,tacticalHold?1:0,tacticalHold?3.7:5.2,dt);
+if(areaAim.viewBlend<.001&&!tacticalHold)areaAim.viewBlend=0;
+if(areaAim.viewBlend>0){
+ const p=areaAim.point;
+ const dx=p.x-x,dz=p.z-z;
+ const span=Math.hypot(dx,dz);
+ // Eleva e afasta para que navio e alvo permaneçam legíveis na mesma tomada.
+ const midX=x+dx*.51,midZ=z+dz*.51;
+ const h=THREE.MathUtils.clamp(48+span*.55,65,190);
+ aimView.set(midX+Math.sin(heading)*Math.min(20,span*.12),h,midZ+Math.cos(heading)*Math.min(20,span*.12));
+ aimLook.set(midX,height(midX,midZ,t),midZ);
+ wanted.lerp(aimView,areaAim.viewBlend);
+ follow.lerp(aimLook,areaAim.viewBlend);
 }
 attackCamera.shake=Math.max(0,attackCamera.shake-dt*2.3);
 camera.position.copy(wanted);
