@@ -88,6 +88,8 @@ const AMMO_TYPES=[
  {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
 ];
 let selectedAmmo=AMMO_TYPES[0];
+// Apenas armas de efeito especial usam a câmera tática superior.
+const TACTICAL_AMMO=new Set(['meteor','scatter','siege']);
 const ammoButton=document.getElementById('ammo'),ammoMenu=document.getElementById('ammoMenu');
 function renderAmmoMenu(){
  ammoMenu.replaceChildren();
@@ -220,6 +222,8 @@ function startAreaAim(e){
  if(areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
  areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
  areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
+ // Especial: visão aérea desde o primeiro toque, sem temporizador.
+ areaAim.viewBlend=TACTICAL_AMMO.has(selectedAmmo.id)?1:0;
  aimHint.classList.add('active');cancelAimButton.classList.add('active');
  const f=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
  areaAim.forward.copy(f);areaAim.right.set(-f.z,0,f.x);
@@ -701,9 +705,9 @@ if(attackCamera.target && attackCamera.blend>.001){
   wanted.lerp(shotView,attackCamera.blend);
   follow.lerp(shotLook,attackCamera.blend);
 }
-// Segurar por 1s ativa visão tática alta sem alterar o ponto escolhido.
-const tacticalHold=areaAim.active && t-areaAim.holdStarted>=1;
-areaAim.viewBlend=THREE.MathUtils.damp(areaAim.viewBlend,tacticalHold?1:0,tacticalHold?3.7:5.2,dt);
+// Armas especiais recebem visão superior imediata; tiros comuns mantêm câmera normal.
+const tacticalHold=areaAim.active && TACTICAL_AMMO.has(selectedAmmo.id);
+areaAim.viewBlend=THREE.MathUtils.damp(areaAim.viewBlend,tacticalHold?1:0,tacticalHold?12:5.2,dt);
 if(areaAim.viewBlend<.001&&!tacticalHold)areaAim.viewBlend=0;
 if(areaAim.viewBlend>0){
  const p=areaAim.point;
