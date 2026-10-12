@@ -165,7 +165,7 @@ function energyFlash(position){
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
 const AREA_RANGE=180,AREA_RADIUS=22;
 const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
-const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null};
+const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null,startX:0,startY:0,origin:new THREE.Vector3(),right:new THREE.Vector3(),forward:new THREE.Vector3()};
 const aimReticle=new THREE.Group();scene.add(aimReticle);aimReticle.visible=false;
 const aimDisc=new THREE.Mesh(new THREE.CircleGeometry(AREA_RADIUS,64),new THREE.MeshBasicMaterial({color:0x9c52e8,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide}));
 aimDisc.rotation.x=-Math.PI/2;aimReticle.add(aimDisc);
@@ -197,20 +197,35 @@ const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
 
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
-function shoot(){
- if(clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
- if(selectedAmmo.id==='siege')return;
- if(!lockedNpc || npcData.hp<=0)return;
- launchShot();
+function weaponRange(){return selectedAmmo.id==='siege'?AREA_RANGE:COMBAT.range;}
+function moveButtonAim(e){
+ if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
+ // Deslocamento relativo ao botão: o dedo nunca precisa sair para tocar o mar.
+ const dx=e.clientX-areaAim.startX,dy=e.clientY-areaAim.startY;
+ const sensitivity=.46;
+ const px=areaAim.origin.x+areaAim.right.x*dx*sensitivity-areaAim.forward.x*dy*sensitivity;
+ const pz=areaAim.origin.z+areaAim.right.z*dx*sensitivity-areaAim.forward.z*dy*sensitivity;
+ const ox=px-x,oz=pz-z,dist=Math.hypot(ox,oz),max=weaponRange();
+ const ratio=dist>max?max/dist:1;
+ areaAim.point.set(x+ox*ratio,height(x+ox*ratio,z+oz*ratio,clock.elapsedTime)+.35,z+oz*ratio);
+ areaAim.valid=true;aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
 }
 function startAreaAim(e){
  if(areaAim.active||clock.elapsedTime-lastShotTime<COMBAT.cooldown)return;
  areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
+ areaAim.startX=e.clientX;areaAim.startY=e.clientY;
  aimHint.classList.add('active');cancelAimButton.classList.add('active');
- const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
- areaAim.point.set(x+forward.x*60,0,z+forward.z*60);
- areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
+ const f=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+ areaAim.forward.copy(f);areaAim.right.set(-f.z,0,f.x);
+ const distance=selectedAmmo.id==='siege'?90:Math.min(60,COMBAT.range*.65);
+ // Mira aparece imediatamente em frente à nave; o arrasto controla o ponto de impacto.
+ areaAim.origin.set(x+f.x*distance,0,z+f.z*distance);
+ if(lockedNpc&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
+  areaAim.origin.set(lockedNpc.x,0,lockedNpc.z);
+ }
+ areaAim.point.copy(areaAim.origin);areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
  aimReticle.position.copy(areaAim.point);aimReticle.visible=true;
+ fireButton.textContent='SOLTE PARA DISPARAR';
  fireButton.setPointerCapture(e.pointerId);
 }
 function finishAreaAim(e,cancel=false){
@@ -268,9 +283,9 @@ function launchShot(manualPoint=null){
 fireButton.addEventListener('pointerdown',e=>{
  if(e.pointerType==='mouse'&&e.button!==0)return;
  e.preventDefault();e.stopPropagation();
- if(selectedAmmo.id==='siege')startAreaAim(e);else shoot();
+ startAreaAim(e);
 });
-fireButton.addEventListener('pointermove',e=>{if(areaAim.active&&e.pointerId===areaAim.pointerId){e.preventDefault();placeAim(e)}});
+fireButton.addEventListener('pointermove',e=>{if(areaAim.active&&e.pointerId===areaAim.pointerId){e.preventDefault();moveButtonAim(e)}});
 fireButton.addEventListener('pointerup',e=>{if(e.pointerId===areaAim.pointerId){e.preventDefault();finishAreaAim(e)}});
 fireButton.addEventListener('pointercancel',e=>finishAreaAim(e,true));
 fireButton.addEventListener('lostpointercapture',e=>finishAreaAim(e,true));
@@ -416,7 +431,7 @@ lockedNpc=nearest;
 targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
 lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · ∞ HP':'Procurando alvo...';
-fireButton.disabled=selectedAmmo.id==='siege'?false:!lockedNpc;
+fireButton.disabled=false;
 npc.visible=!playerAtlasReady;
 npcShadow.visible=!playerAtlasReady;
 ship.position.x=x;ship.position.z=z;
@@ -512,7 +527,7 @@ for(let i=areaBursts.length-1;i>=0;i--){
  e.burst.scale.setScalar(5+e.age*15);e.ring.scale.setScalar(.5+e.age*1.15);e.ring.material.opacity=fade*.85;
  if(e.age>=.72){scene.remove(e.burst,e.ring);e.burst.material.dispose();e.ring.material.dispose();areaBursts.splice(i,1)}
 }
-if(areaAim.active&&areaAim.valid){areaAim.point.y=height(areaAim.point.x,areaAim.point.z,t)+.35;aimReticle.position.copy(areaAim.point);aimReticle.rotation.y+=dt*.35}
+if(areaAim.active&&areaAim.valid){areaAim.point.y=height(areaAim.point.x,areaAim.point.z,t)+.35;aimReticle.position.copy(areaAim.point);aimReticle.rotation.y+=dt*.35;const scale=selectedAmmo.id==='siege'?1:.35;aimReticle.scale.setScalar(scale)}
 for(let i=impactEffects.length-1;i>=0;i--){
  const e=impactEffects[i];e.age+=dt;e.flash.quaternion.copy(camera.quaternion);e.ring.quaternion.copy(camera.quaternion);
  const fade=Math.max(0,1-e.age/.45);
