@@ -432,6 +432,18 @@ const y=height(x,z,t);bob=THREE.MathUtils.damp(bob,y,5,dt);
 ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=heading;
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
+// Torre livre acompanha a mira ou o alvo travado, sem mudar o rumo do casco.
+const tower=ship.userData.turretPivot;
+if(tower){
+ const target=areaAim.active?areaAim.point:(lockedNpc&&lockedNpc.hp>0?lockedNpc:null);
+ let desired=0;
+ if(target){
+  const dx=target.x-x,dz=target.z-z;
+  if(Math.hypot(dx,dz)>2)desired=Math.atan2(-dx,-dz)-heading;
+ }
+ const diff=Math.atan2(Math.sin(desired-tower.rotation.y),Math.cos(desired-tower.rotation.y));
+ tower.rotation.y+=diff*(1-Math.exp(-8*dt));
+}
 shadow.position.set(x,height(x,z,t)+.14,z);
 // Jatos de motor simulados por GPU, sincronizados com a propulsão.
 for(const rotor of ship.userData.rotors||[])rotor.rotation.z=t*(3+Math.abs(speed)*.24);
@@ -494,6 +506,14 @@ for(const enemy of enemies){
  enemy.y=THREE.MathUtils.damp(enemy.y,waveY,4,dt);
  if(enemy.model){
  enemy.model.position.y=enemy.y;
+ // NPCs apontam a torre para o jogador durante o combate, independentemente do casco.
+ const npcTurret=enemy.model.userData.turretPivot;
+ if(npcTurret){
+  const dx=x-enemy.x,dz=z-enemy.z;
+  const desired=tactic.active?Math.atan2(-dx,-dz)-enemy.heading:0;
+  const diff=Math.atan2(Math.sin(desired-npcTurret.rotation.y),Math.cos(desired-npcTurret.rotation.y));
+  npcTurret.rotation.y+=diff*(1-Math.exp(-5*dt));
+ }
  for(const rotor of enemy.model.userData.rotors||[])rotor.rotation.z=t*(3+tactic.speed*.24)+enemy.phase;
  for(const jet of enemy.model.userData.engineFlames||[]){
   jet.material.uniforms.uTime.value=t+enemy.phase;
