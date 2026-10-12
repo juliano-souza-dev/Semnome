@@ -272,6 +272,8 @@ function launchShot(manualPoint=null){
  // Nas especiais, a trajetória aérea também nasce do canhão.
  ship.updateMatrixWorld(true);
  const origin=ship.userData.firePoint.getWorldPosition(new THREE.Vector3());
+ // Recuo e clarão visíveis no instante do disparo.
+ ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
  const travel=ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
@@ -436,6 +438,19 @@ ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=headin
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
 // Torre livre acompanha a mira ou o alvo travado, sem mudar o rumo do casco.
+// Atualiza recuo e luz reutilizada sem criar objetos a cada tiro.
+function animateGun(model,delta){
+ const data=model.userData,turret=data.turretPivot;
+ if(!turret)return;
+ data.recoil=Math.max(0,(data.recoil||0)-delta*1.55);
+ turret.position.z=-1.35+data.recoil;
+ data.flashTime=Math.max(0,(data.flashTime||0)-delta);
+ if(data.muzzleFlash){
+  data.muzzleFlash.visible=data.flashTime>0;
+  data.muzzleFlash.scale.setScalar(.65+data.flashTime*8);
+ }
+}
+animateGun(ship,dt);
 const tower=ship.userData.turretPivot;
 if(tower){
  const target=areaAim.active?areaAim.point:(lockedNpc&&lockedNpc.hp>0?lockedNpc:null);
@@ -489,6 +504,7 @@ for(const enemy of enemies){
   // Disparo direto dos NPCs, partindo da boca da torreta 3D.
   const arcHeight=0;
   enemyShots.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination:predicted,arcHeight,age:0,duration:flight,source:enemy.id});
+  enemy.model.userData.recoil=.34;enemy.model.userData.flashTime=.13;
   enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%3)*.16+(enemy.hp<22?.5:0);
  }
  // Colisão jogador × inimigo; nenhum dano durante esta fase de testes.
@@ -512,6 +528,7 @@ for(const enemy of enemies){
  if(enemy.model){
  enemy.model.position.y=enemy.y;
  // NPCs apontam a torre para o jogador durante o combate, independentemente do casco.
+ animateGun(enemy.model,dt);
  const npcTurret=enemy.model.userData.turretPivot;
  if(npcTurret){
   const dx=x-enemy.x,dz=z-enemy.z;
