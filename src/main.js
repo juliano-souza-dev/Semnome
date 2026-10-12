@@ -543,7 +543,11 @@ if(playerCombat.hp<=0){
  if(t>=playerCombat.respawnAt){
   playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
   playerCombat.invulnerableUntil=t+3;
-  x=0;z=0;speed=0;boostUntil=0;hullPhysics.x=0;hullPhysics.z=0;hullPhysics.vx=0;hullPhysics.vz=0;
+  // Renascimento local: não teletransportar o jogador para a origem do mapa.
+  // Preserva a posição e o HP de todos os NPCs, evitando o salto de câmera/frota.
+  speed=0;boostUntil=0;
+  hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
+  cancelAreaAim();
   for(const shot of enemyShots){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();}
   enemyShots.length=0;
  }
