@@ -8,7 +8,7 @@
 const assetVersion=Date.now().toString(36);
 const css=document.createElement("link");css.rel="stylesheet";css.href="./src/styles.css?v="+assetVersion;document.head.appendChild(css);
 const imports={};
-for(const name of ["environment.js","sky.js","enemy-ai.js","naval-physics.js","war-machine-3d.js","war-machine-textures.js"]){const path=new URL("./src/"+name,location.href).href;imports[path]=path+"?v="+assetVersion;}
+for(const name of ["environment.js","sky.js","enemy-ai.js","naval-physics.js","war-machine-3d.js","war-machine-textures.js","game-audio.js"]){const path=new URL("./src/"+name,location.href).href;imports[path]=path+"?v="+assetVersion;}
 const map=document.createElement("script");map.type="importmap";map.textContent=JSON.stringify({imports});document.head.appendChild(map);
 </script>
 </head>
