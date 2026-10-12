@@ -55,6 +55,45 @@ const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
 const ship=createWarMachine3D(THREE);scene.add(ship);
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
+// Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
+const wakeMaterial=new THREE.MeshBasicMaterial({color:0xe5ffff,transparent:true,opacity:.52,depthWrite:false,side:THREE.DoubleSide});
+const wakeGeometry=new THREE.RingGeometry(.52,1.03,18);
+const wakePool=Array.from({length:26},()=>{
+ const mesh=new THREE.Mesh(wakeGeometry,wakeMaterial.clone());
+ mesh.rotation.x=-Math.PI/2;mesh.visible=false;mesh.renderOrder=2;scene.add(mesh);
+ return {mesh,life:0,duration:1.5};
+});
+let wakeCursor=0,wakeTimer=0;
+function emitWake(px,pz,t,boost){
+ const item=wakePool[wakeCursor];wakeCursor=(wakeCursor+1)%wakePool.length;
+ item.life=item.duration=boost?1.15:1.8;
+ item.mesh.position.set(px,height(px,pz,t)+.23,pz);
+ item.mesh.scale.setScalar(boost?2.2:1.35);
+ item.mesh.material.opacity=boost?.86:.58;
+ item.mesh.visible=true;
+}
+function animateWake(dt,t,px,pz,yaw,velocity,boost){
+ const rate=boost?.045:.085;
+ wakeTimer+=dt;
+ if(Math.abs(velocity)>9){
+  let count=0;
+  while(wakeTimer>=rate&&count++<3){
+   wakeTimer-=rate;
+   const behind=5.4+Math.random()*1.4;
+   const offset=(Math.random()-.5)*4.5;
+   emitWake(px+Math.sin(yaw)*behind+Math.cos(yaw)*offset,pz+Math.cos(yaw)*behind-Math.sin(yaw)*offset,t,boost);
+  }
+ }else wakeTimer=0;
+ for(const item of wakePool){
+  if(item.life<=0)continue;
+  item.life=Math.max(0,item.life-dt);
+  const progress=1-item.life/item.duration;
+  item.mesh.scale.multiplyScalar(1+dt*.45);
+  item.mesh.material.opacity=(boost?.86:.58)*(1-progress)*(1-progress);
+  item.mesh.position.y=height(item.mesh.position.x,item.mesh.position.z,t)+.23;
+  item.mesh.visible=item.life>0;
+ }
+}
 // NPC 01: patrulheiro de teste, geometria temporária até chegada dos sprites.
 const npc=new THREE.Group();scene.add(npc);npc.scale.setScalar(1.9);
 const npcHull=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.8,1.05,28),new THREE.MeshStandardMaterial({color:0xb94348,metalness:.35,roughness:.48}));npcHull.position.y=.25;npc.add(npcHull);
@@ -470,6 +509,7 @@ const bow=new THREE.Vector2(-Math.sin(heading),-Math.cos(heading)),side=new THRE
 const front=height(x+bow.x*1.5,z+bow.y*1.5,t),back=height(x-bow.x*1.5,z-bow.y*1.5,t);
 const left=height(x-side.x*1.5,z-side.y*1.5,t),right=height(x+side.x*1.5,z+side.y*1.5,t);
 const y=height(x,z,t);bob=THREE.MathUtils.damp(bob,y,5,dt);
+animateWake(dt,t,x,z,heading,speed,boostRemaining>0);
 ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=heading;
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
