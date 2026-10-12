@@ -27,9 +27,28 @@ vertexShader:`uniform float uTime;uniform vec2 uOffset;varying vec3 vPos;varying
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
 void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ);vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
 fragmentShader:`varying vec3 vPos;varying float vHeight;
-void main(){float foam=smoothstep(3.2,5.6,vHeight);float ribbons=pow(max(0.,sin(vPos.x*.29+vPos.y*.17+vHeight*1.4)),12.)*.17;
-vec3 deep=vec3(.013,.22,.34),bright=vec3(.03,.54,.66);float m=clamp((vHeight+5.)/10.,0.,1.);vec3 c=mix(deep,bright,m);
-c=mix(c,vec3(.63,.96,.95),foam*.82+ribbons);gl_FragColor=vec4(c,1.);}`
+void main(){
+ vec2 p=vPos.xy;
+ // Espuma arcade em células orgânicas, deformadas pelas ondas: padrão de mar, não grade.
+ vec2 q=p*.103;
+ q+=vec2(sin(p.y*.053+vHeight*.65),cos(p.x*.047-vHeight*.52))*.82;
+ float a=sin(q.x*2.45+sin(q.y*1.73));
+ float b=sin(q.y*2.66-cos(q.x*1.81));
+ float c=sin((q.x+q.y)*1.76+sin(q.x*1.32-q.y));
+ float seams=max(max(abs(a),abs(b)),abs(c));
+ float foamLines=smoothstep(.938,.987,seams);
+ float crest=smoothstep(2.0,5.15,vHeight);
+ float smallRipples=pow(max(0.,sin(p.x*.32+p.y*.24+vHeight*.96)),15.)*.16;
+ float depth=clamp((vHeight+5.5)/11.,0.,1.);
+ vec3 deep=vec3(.005,.17,.42);
+ vec3 middle=vec3(.005,.42,.73);
+ vec3 shallow=vec3(.02,.68,.87);
+ vec3 sea=mix(deep,middle,smoothstep(.08,.85,depth));
+ sea=mix(sea,shallow,smoothstep(.55,1.,depth)*.62);
+ float foam=clamp(foamLines*(.65+crest*.34)+crest*.30+smallRipples,0.,.95);
+ sea=mix(sea,vec3(.86,.985,1.),foam);
+ gl_FragColor=vec4(sea,1.);
+}`
 }));
 water.rotation.x=-Math.PI/2;scene.add(water);
 const horizon=createWastelandHorizon(THREE,scene);
