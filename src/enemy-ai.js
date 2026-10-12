@@ -2,7 +2,7 @@
 // Funções puras para permitir calibrar as batalhas sem alterar o renderizador.
 export const TACTICS=Object.freeze({
  detect:210,disengage:285,idealRange:155,minRange:58,
- maxActiveShooters:3,shotCadence:1.8,pressureWindow:.85
+ maxActiveShooters:3,shotCadence:1.8,pressureWindow:.95
 });
 export function planEnemy(enemy,player,all,time){
  const dx=player.x-enemy.x,dz=player.z-enemy.z;
