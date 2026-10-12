@@ -99,6 +99,13 @@ function animateWake(dt,t,px,pz,yaw,velocity,boost){
   item.mesh.visible=item.life>0;
  }
 }
+// Reflexos de sustentação sob os dois propulsores, leves e reutilizados.
+const hoverHaloGeometry=new THREE.CircleGeometry(1.35,24);
+const hoverHaloMaterial=new THREE.MeshBasicMaterial({color:0x59e7ff,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
+const hoverHalos=[-1,1].map(()=>{
+ const halo=new THREE.Mesh(hoverHaloGeometry,hoverHaloMaterial.clone());
+ halo.rotation.x=-Math.PI/2;halo.renderOrder=3;scene.add(halo);return halo;
+});
 // NPC 01: patrulheiro de teste, geometria temporária até chegada dos sprites.
 const npc=new THREE.Group();scene.add(npc);npc.scale.setScalar(1.9);
 const npcHull=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.8,1.05,28),new THREE.MeshStandardMaterial({color:0xb94348,metalness:.35,roughness:.48}));npcHull.position.y=.25;npc.add(npcHull);
@@ -535,6 +542,16 @@ const front=height(x+bow.x*1.5,z+bow.y*1.5,t),back=height(x-bow.x*1.5,z-bow.y*1.
 const left=height(x-side.x*1.5,z-side.y*1.5,t),right=height(x+side.x*1.5,z+side.y*1.5,t);
 const y=height(x,z,t);bob=THREE.MathUtils.damp(bob,y,5,dt);
 animateWake(dt,t,x,z,heading,speed,boostRemaining>0);
+for(let i=0;i<hoverHalos.length;i++){
+ const side=i===0?-1:1;
+ const halo=hoverHalos[i], lateral=side*2.5, rear=3.3;
+ const px=x+Math.cos(heading)*lateral+Math.sin(heading)*rear;
+ const pz=z-Math.sin(heading)*lateral+Math.cos(heading)*rear;
+ halo.position.set(px,height(px,pz,t)+.20,pz);
+ halo.material.opacity=(boostRemaining>0?.26:.11)*(.92+.08*Math.sin(t*11+i));
+ halo.scale.setScalar(boostRemaining>0?1.5:1);
+}
+
 ship.position.set(x,bob+1.45,z);ship.rotation.order='YXZ';ship.rotation.y=heading;
 ship.rotation.x=THREE.MathUtils.damp(ship.rotation.x,THREE.MathUtils.clamp(Math.atan2(back-front,3),-.24,.24),4,dt);
 ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,THREE.MathUtils.clamp(Math.atan2(left-right,3),-.23,.23),4,dt);
