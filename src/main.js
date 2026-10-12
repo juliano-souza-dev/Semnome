@@ -317,6 +317,16 @@ fireButton.addEventListener('pointercancel',e=>finishAreaAim(e,true));
 fireButton.addEventListener('lostpointercapture',e=>finishAreaAim(e,true));
 const input={x:0,y:0,magnitude:0,active:false};
 let speed=0,heading=0,x=0,z=0,bob=0;
+// Propulsor: força velocidade máxima por exatamente 2 segundos de simulação.
+const boostButton=document.getElementById('boost');
+let boostUntil=0;
+boostButton.addEventListener('pointerdown',event=>{
+ event.preventDefault();event.stopPropagation();
+ if(playerCombat.hp<=0)return;
+ boostUntil=clock.elapsedTime+2;
+ speed=72;
+ boostButton.classList.add('active');
+});
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
 let padPointer=null;let stickReferenceYaw=0;
 function movePad(e){
@@ -376,6 +386,10 @@ const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
 target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
 speed=THREE.MathUtils.damp(speed,target,go?2.8:6.5,dt);
+const boostRemaining=Math.max(0,boostUntil-t);
+if(boostRemaining>0)speed=72;
+boostButton.classList.toggle('active',boostRemaining>0);
+boostButton.textContent=boostRemaining>0?'🚀 '+boostRemaining.toFixed(1)+'s':'🚀 PROPULSOR';
 // O arrasto gira a nave, preservando a traseira voltada para a câmera.
 if(dragTurn!==0){
  heading+=dragTurn;
