@@ -777,12 +777,18 @@ horizon.update(x,z,t);
 // Enquadramento compacto: nave ocupa cerca de 30% da altura da tela.
 // Câmera de ação baixa: preserva o horizonte sem diminuir muito a nave.
 // Câmera normal: traseira fixa, horizonte visível e arrasto preservado.
-const distance=THREE.MathUtils.lerp(24,27,Math.min(1,speed/72));
-const cameraHeight=THREE.MathUtils.lerp(12,14,Math.min(1,speed/72));
+// Câmera arcade: modelo maior na tela e abertura gradual conforme acelera.
+const velocityFactor=THREE.MathUtils.clamp(Math.abs(speed)/72,0,1);
+const distance=THREE.MathUtils.lerp(18.7,24.8,velocityFactor);
+const cameraHeight=THREE.MathUtils.lerp(9.5,12.8,velocityFactor);
+// FOV progressivo suave reforça velocidade sem distorção excessiva.
+const desiredFov=62+velocityFactor*5+(boostRemaining>0?3:0);
+const newFov=THREE.MathUtils.damp(camera.fov,desiredFov,2.1,dt);
+if(Math.abs(newFov-camera.fov)>.015){camera.fov=newFov;camera.updateProjectionMatrix();}
 const cameraYaw=heading;
 normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
 // Mantém o modelo 3D no enquadramento, inclusive os detalhes do canhão e das turbinas.
-normalLook.set(x-Math.sin(cameraYaw)*11,bob+2.4,z-Math.cos(cameraYaw)*11);
+normalLook.set(x-Math.sin(cameraYaw)*9,bob+2.0,z-Math.cos(cameraYaw)*9);
 // Modo ataque: distancia-se o suficiente para mostrar embarcação, alvo e arco 3D.
 let desiredBlend=0;
 if(attackCamera.phase==='flight' && attackCamera.shot)desiredBlend=1;
