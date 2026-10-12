@@ -7,11 +7,11 @@ export function integrateHull(body,{heading,targetSpeed,boostSpeed=0,dt}){
  const lateral=body.vx*sx+body.vz*sz;
  const desired=boostSpeed>0?boostSpeed:targetSpeed;
  // Motor empurra para frente; a água freia naturalmente ao soltar.
- const accel=boostSpeed>0?300:desired===0?58:desired<0?52:68;
+ const accel=boostSpeed>0?255:desired===0?62:desired<0?48:62;
  const forwardStep=Math.max(-accel*dt,Math.min(accel*dt,desired-forward));
  const nextForward=forward+forwardStep;
  // Deriva residual da curva, eliminada progressivamente pela resistência lateral.
- const nextLateral=lateral*Math.exp(-3.6*dt);
+ const nextLateral=lateral*Math.exp(-4.1*dt);
  body.vx=fx*nextForward+sx*nextLateral;
  body.vz=fz*nextForward+sz*nextLateral;
  body.x+=body.vx*dt;
