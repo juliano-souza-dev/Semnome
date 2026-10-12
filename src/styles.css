@@ -50,3 +50,12 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 @media(max-height:480px){#weaponDock{top:48px;right:7px;display:grid;grid-template-columns:repeat(2,38px);gap:5px;max-height:calc(100vh - 108px)}#weaponDock .weaponSlot{width:38px;height:38px;font-size:20px;border-width:2px}}
 /* Direções traseiras na bússola deixam de competir com alvos à frente. */
 .compassPing.behind{color:#fa9393;opacity:.48;text-shadow:none}
+
+/* Patch 50: clareza nos controles sem bloquear a visão ou a navegação. */
+.weaponSlot[data-special="true"]{border-color:#c9a8f0;background:linear-gradient(145deg,#473a6e,#17213b)}
+.weaponSlot[data-special="true"].selected{border-color:#ffe188;background:linear-gradient(145deg,#6d4e8c,#233c56)}
+#combatCompass.clear .compassTrack{border-color:#6ddfc588;opacity:.72}
+#combatCompass.clear .compassReadout{color:#8ff2cb}
+#aimHint{max-width:72vw;white-space:normal;line-height:1.2}
+@media(max-height:440px){#aimHint{top:26px;padding:5px 9px;font-size:10px}#cancelAim{top:45px;padding:6px}}
+@media(prefers-reduced-motion:reduce){.weaponSlot,.compassPing,#fire{transition:none!important}#combatCompass .compassCenter{animation:none!important}}
