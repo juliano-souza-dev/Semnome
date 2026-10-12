@@ -120,7 +120,7 @@ const FRAME_STEP=Math.PI/8;
 const playerAtlasReady=false;
 const playerSprite={visible:false};
 // Protótipo de combate: configurações isoladas para calibração.
-const COMBAT={range:190,projectileSpeed:165,damage:25,cooldown:3,npcMaxHp:100};
+const COMBAT={range:195,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
@@ -142,7 +142,7 @@ for(const enemy of enemies){
 }
 npc.visible=false;
 npcShadow.visible=false;
-const ENEMY_AI={detect:TACTICS.detect,fireRange:215,retreatRange:31,shotSpeed:205,shotDamage:7,shotCooldown:1.65,maxHp:100};
+const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:180,shotDamage:7,shotCooldown:1.95,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
 const enemyShots=[];
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
@@ -336,12 +336,12 @@ function showDamage(enemy,amount){
 }
 const targetRing=new THREE.Mesh(new THREE.RingGeometry(6.4,6.9,48),new THREE.MeshBasicMaterial({color:0xff5555,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
 targetRing.rotation.x=-Math.PI/2;targetRing.visible=false;scene.add(targetRing);
-function weaponRange(){return selectedAmmo.id==='siege'?AREA_RANGE:selectedAmmo.id==='torpedo'?240:COMBAT.range;}
+function weaponRange(){return selectedAmmo.id==='siege'?AREA_RANGE:selectedAmmo.id==='torpedo'?245:selectedAmmo.id==='iron'?235:selectedAmmo.id==='plasma'?205:selectedAmmo.id==='meteor'?265:selectedAmmo.id==='scatter'?215:COMBAT.range;}
 function moveButtonAim(e){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  // Deslocamento relativo ao botão: o dedo nunca precisa sair para tocar o mar.
  const dx=e.clientX-areaAim.startX,dy=e.clientY-areaAim.startY;
- const sensitivity=.85; // Ajuste fino mais responsivo, sem perder o alvo inicial
+ const sensitivity=.70; // Arrasto mais controlado no combate tático
  const px=areaAim.origin.x+areaAim.right.x*dx*sensitivity-areaAim.forward.x*dy*sensitivity;
  const pz=areaAim.origin.z+areaAim.right.z*dx*sensitivity-areaAim.forward.z*dy*sensitivity;
  const ox=px-x,oz=pz-z,dist=Math.hypot(ox,oz),max=weaponRange();
@@ -363,7 +363,7 @@ function startAreaAim(e){
  aimHint.classList.add('active');cancelAimButton.classList.add('active');
  const f=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
  areaAim.forward.copy(f);areaAim.right.set(-f.z,0,f.x);
- const distance=selectedAmmo.id==='siege'?90:selectedAmmo.id==='torpedo'?95:Math.min(60,COMBAT.range*.65);
+ const distance=selectedAmmo.id==='siege'?100:selectedAmmo.id==='torpedo'?100:Math.min(70,weaponRange()*.45);
  // Mira aparece imediatamente em frente à nave; o arrasto controla o ponto de impacto.
  areaAim.origin.set(x+f.x*distance,0,z+f.z*distance);
  if(lockedNpc&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
@@ -407,7 +407,7 @@ function launchShot(manualPoint=null){
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='torpedo'?Math.max(.22,origin.distanceTo(destination)/260):ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
+ const travel=ammo.id==='torpedo'?Math.max(.22,origin.distanceTo(destination)/270):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -474,11 +474,11 @@ const hullPhysics={x:0,z:0,vx:0,vz:0};
 // Propulsor: força velocidade máxima por exatamente 2 segundos de simulação.
 const boostButton=document.getElementById('boost');
 let boostUntil=0,boostHeading=0;
-const BOOST_DASH_SPEED=84; // Impulso tático: 2x a nova velocidade de cruzeiro.
+const BOOST_DASH_SPEED=78; // Impulso tático: 2x a nova velocidade de cruzeiro.
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
  if(playerCombat.hp<=0)return;
- boostUntil=clock.elapsedTime+2;
+ boostUntil=clock.elapsedTime+1.7;
  boostHeading=heading; // Impulso na direção da proa, mesmo com analógico neutro.
  speed=BOOST_DASH_SPEED;
  boostButton.classList.add('active');
@@ -537,7 +537,7 @@ const stickAmount=input.active&&input.magnitude>.13?(input.magnitude-.13)/.87:0;
 const reversing=!keyboardGo&&(keyboardReverse||(stickAmount>0&&input.y>.35));
 const go=keyboardGo||keyboardReverse||stickAmount>0;
 const turn=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
-let target=reversing?-14*(keyboardReverse?1:stickAmount):42*(keyboardGo?1:stickAmount); // ritmo tático: ré e cruzeiro reduzidos
+let target=reversing?-15*(keyboardReverse?1:stickAmount):42*(keyboardGo?1:stickAmount); // ritmo tático: ré e cruzeiro reduzidos
 const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
 const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
 target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
@@ -564,10 +564,10 @@ if(boostRemaining<=0&&Math.abs(speed)>.35){
     // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
     const desired=stickReferenceYaw-Math.atan2(input.x,-input.y);
     const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
-    const maxStep=4.2*Math.min(1,Math.abs(speed)/9)*dt;
+    const maxStep=3.6*Math.min(1,Math.abs(speed)/9)*dt;
     heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
   }else{
-    heading+=turn*2.35*Math.min(1,Math.abs(speed)/7)*dt;
+    heading+=turn*2.15*Math.min(1,Math.abs(speed)/7)*dt;
   }
 }
 hullPhysics.x=x;hullPhysics.z=z;
@@ -850,7 +850,7 @@ for(let i=projectiles.length-1;i>=0;i--){
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
       const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
-      const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?55:8;
+      const radius=p.ammo==='siege'?AREA_RADIUS:p.ammo==='torpedo'?55:p.ammo==='scatter'?10:8;
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius){
         const damage=Math.min(enemy.hp,p.damage||COMBAT.damage);
