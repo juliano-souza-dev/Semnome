@@ -61,7 +61,7 @@ const horizon=createWastelandHorizon(THREE,scene);
 const ship=createWarMachine3D(THREE);scene.add(ship);
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
-const wakeMaterial=new THREE.MeshBasicMaterial({color:0xe5ffff,transparent:true,opacity:.52,depthWrite:false,side:THREE.DoubleSide});
+const wakeMaterial=new THREE.MeshBasicMaterial({color:0xdafaff,transparent:true,opacity:.44,depthWrite:false,side:THREE.DoubleSide});
 const wakeGeometry=new THREE.RingGeometry(.52,1.03,18);
 const wakePool=Array.from({length:22},()=>{
  const mesh=new THREE.Mesh(wakeGeometry,wakeMaterial.clone());
@@ -71,16 +71,16 @@ const wakePool=Array.from({length:22},()=>{
 let wakeCursor=0,wakeTimer=0;
 function emitWake(px,pz,t,boost){
  const item=wakePool[wakeCursor];wakeCursor=(wakeCursor+1)%wakePool.length;
- item.life=item.duration=boost?1.15:1.8;
+ item.life=item.duration=boost?1.0:1.5;
  item.mesh.position.set(px,height(px,pz,t)+.23,pz);
- item.mesh.scale.setScalar(boost?2.2:1.35);
- item.mesh.material.opacity=boost?.86:.58;
+ item.mesh.scale.setScalar(boost?1.9:1.22);
+ item.mesh.material.opacity=boost?.65:.42;
  item.mesh.visible=true;
 }
 function animateWake(dt,t,px,pz,yaw,velocity,boost){
  const rate=boost?.065:.11;
  wakeTimer+=dt;
- if(Math.abs(velocity)>9){
+ if(Math.abs(velocity)>11){
   let count=0;
   while(wakeTimer>=rate&&count++<3){
    wakeTimer-=rate;
@@ -93,15 +93,15 @@ function animateWake(dt,t,px,pz,yaw,velocity,boost){
   if(item.life<=0)continue;
   item.life=Math.max(0,item.life-dt);
   const progress=1-item.life/item.duration;
-  item.mesh.scale.multiplyScalar(1+dt*.45);
-  item.mesh.material.opacity=(boost?.86:.58)*(1-progress)*(1-progress);
+  item.mesh.scale.multiplyScalar(1+dt*.32);
+  item.mesh.material.opacity=(boost?.65:.42)*(1-progress)*(1-progress);
   item.mesh.position.y=height(item.mesh.position.x,item.mesh.position.z,t)+.23;
   item.mesh.visible=item.life>0;
  }
 }
 // Reflexos de sustentação sob os dois propulsores, leves e reutilizados.
 const hoverHaloGeometry=new THREE.CircleGeometry(1.35,20);
-const hoverHaloMaterial=new THREE.MeshBasicMaterial({color:0x59e7ff,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
+const hoverHaloMaterial=new THREE.MeshBasicMaterial({color:0x59e7ff,transparent:true,opacity:.105,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
 const hoverHalos=[-1,1].map(()=>{
  const halo=new THREE.Mesh(hoverHaloGeometry,hoverHaloMaterial.clone());
  halo.rotation.x=-Math.PI/2;halo.renderOrder=3;scene.add(halo);return halo;
@@ -160,9 +160,9 @@ document.body.appendChild(hpHud);
   marker.textContent='◆';marker.title=enemy.name;
   compassTrack.appendChild(marker);return marker;
  });
- let lastCompassUpdate=-1;
+ let lastCompassUpdate=-1,compassQuiet=false;
  function refreshCompass(t){
-  if(t-lastCompassUpdate<.10)return;lastCompassUpdate=t;
+  if(t-lastCompassUpdate<.08)return;lastCompassUpdate=t;
   let nearestEnemy=null,nearestRange=Infinity;
   for(let i=0;i<enemies.length;i++){
    const enemy=enemies[i],marker=compassPings[i];
@@ -171,17 +171,19 @@ document.body.appendChild(hpHud);
    if(range<nearestRange){nearestEnemy=enemy;nearestRange=range;}
    const bearing=Math.atan2(-dx,-dz);
    const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));
-   const position=THREE.MathUtils.clamp(50-delta/Math.PI*47,3,97);
-   marker.style.display='block';marker.style.left=position+'%';
+   const position=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95);
+   marker.style.display='block';marker.style.left=position.toFixed(1)+'%';
    marker.classList.toggle('closest',enemy===nearestEnemy);
    marker.classList.toggle('behind',Math.abs(delta)>Math.PI*.75);
-   marker.textContent=Math.abs(delta)>Math.PI*.75?'◀':'◆';
+   marker.textContent=Math.abs(delta)>Math.PI*.75?(delta>0?'▶':'◀'):'◆';
   }
   for(let i=0;i<enemies.length;i++)compassPings[i].classList.toggle('closest',enemies[i]===nearestEnemy);
   compassReadout.textContent=nearestEnemy?'HOSTIS '+enemies.filter(e=>e.hp>0).length+' · '+nearestEnemy.name+' · '+Math.round(nearestRange)+' m':'ÁREA SEGURA · SEM HOSTIS';
+  if(compassQuiet!==!nearestEnemy){compassQuiet=!nearestEnemy;compass.classList.toggle('clear',compassQuiet);}
  }
 
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
+fireButton.setAttribute('aria-label','Segurar para mirar e soltar para disparar');
 const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
  {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
@@ -203,7 +205,7 @@ function renderWeaponDock(){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
-  button.textContent=ammo.icon;button.title=ammo.name;button.dataset.weapon=id;
+  button.textContent=ammo.icon;button.title=ammo.name;button.dataset.weapon=id;button.dataset.special=String(TACTICAL_AMMO.has(id));
   button.setAttribute('aria-label','Selecionar '+ammo.name);button.setAttribute('aria-pressed',String(selectedAmmo.id===id));
   button.addEventListener('pointerdown',e=>{
    e.preventDefault();e.stopPropagation();
@@ -321,7 +323,7 @@ let noticeUntil=0,noticeText='',hitFeedback=0,wonBattle=false;
 function notifyCombat(message,duration=2){noticeText=message;noticeUntil=clock.elapsedTime+duration;combatNotice.textContent=message;combatNotice.style.opacity='1'}
 const damageLabels=[];
 function showDamage(enemy,amount){
- if(damageLabels.length>=16){const old=damageLabels.shift();old.label.remove();}
+ if(damageLabels.length>=12){const old=damageLabels.shift();old.label.remove();}
  const label=document.createElement('div');
  label.textContent='-'+amount;
  label.style.cssText='position:fixed;z-index:48;color:#ff4545;font:900 23px system-ui;text-shadow:0 2px 2px #300,0 0 8px #ff0000;pointer-events:none;transform:translate(-50%,-50%)';
@@ -357,6 +359,7 @@ function startAreaAim(e){
  areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
  // Especial: visão aérea desde o primeiro toque, sem temporizador.
  areaAim.viewBlend=TACTICAL_AMMO.has(selectedAmmo.id)?1:0;
+ aimHint.textContent=TACTICAL_AMMO.has(selectedAmmo.id)?'MIRA AÉREA · ARRASTE E SOLTE':'ARRASTE PARA MIRAR · SOLTE PARA DISPARAR';
  aimHint.classList.add('active');cancelAimButton.classList.add('active');
  const f=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
  areaAim.forward.copy(f);areaAim.right.set(-f.z,0,f.x);
@@ -404,7 +407,7 @@ function launchShot(manualPoint=null){
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='torpedo'?Math.max(.19,origin.distanceTo(destination)/260):ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
+ const travel=ammo.id==='torpedo'?Math.max(.22,origin.distanceTo(destination)/260):ammo.id==='siege'?3.1:ammo.id==='iron'?Math.max(.045,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/3):Math.max(.32,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.2:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -581,7 +584,7 @@ for(let i=0;i<hoverHalos.length;i++){
  const px=x+Math.cos(heading)*lateral+Math.sin(heading)*rear;
  const pz=z-Math.sin(heading)*lateral+Math.cos(heading)*rear;
  halo.position.set(px,height(px,pz,t)+.20,pz);
- halo.material.opacity=(boostRemaining>0?.26:.11)*(.92+.08*Math.sin(t*11+i));
+ halo.material.opacity=(boostRemaining>0?.20:.085)*(.94+.06*Math.sin(t*9+i));
  halo.scale.setScalar(boostRemaining>0?1.5:1);
 }
 
@@ -736,7 +739,7 @@ for(let i=enemyShots.length-1;i>=0;i--){
  if(contact<5.7&&Math.abs(shot.mesh.position.y-(bob+2.3))<5.5 && t>=playerCombat.invulnerableUntil && playerCombat.hp>0){
   playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);
   hitFeedback=1;attackCamera.shake=Math.max(attackCamera.shake,.55);
-  if(playerCombat.hp<=0)notifyCombat('NAVE ABATIDA · REPAROS EM CURSO',3);
+  if(playerCombat.hp<=0){cancelAreaAim();notifyCombat('NAVE ABATIDA · REPAROS EM CURSO',3);}
   playerCombat.invulnerableUntil=t+.45;
   energyFlash(new THREE.Vector3(x,bob+2.5,z));remove=true;
  }
@@ -840,7 +843,7 @@ for(let i=projectiles.length-1;i>=0;i--){
     energyFlash(p.mesh.position);
     if(p.ammo==='torpedo'){
      // Anel de choque mostra o alcance real do torpedo no plano do oceano.
-     const ring=new THREE.Mesh(new THREE.RingGeometry(52,55,48),new THREE.MeshBasicMaterial({color:0x91eeff,transparent:true,opacity:.56,side:THREE.DoubleSide,depthWrite:false}));
+     const ring=new THREE.Mesh(new THREE.RingGeometry(52,55,36),new THREE.MeshBasicMaterial({color:0x91eeff,transparent:true,opacity:.56,side:THREE.DoubleSide,depthWrite:false}));
      ring.rotation.x=-Math.PI/2;ring.position.copy(p.mesh.position);ring.position.y+=.15;scene.add(ring);
      areaBursts.push({ring,burst:null,age:0});
     }
@@ -991,5 +994,5 @@ if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=nu
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Ondas ativas';
 renderer.render(scene,camera)
 }
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));});
 document.getElementById('loading').remove();tick();
