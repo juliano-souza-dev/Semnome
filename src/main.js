@@ -27,26 +27,36 @@ vertexShader:`uniform float uTime;uniform vec2 uOffset;varying vec3 vPos;varying
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
 void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ);vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
 fragmentShader:`varying vec3 vPos;varying float vHeight;
+vec2 hash2(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}
+float cellularBorder(vec2 p){
+ vec2 cell=floor(p),f=fract(p);
+ float closest=10.,second=10.;
+ for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+  vec2 g=vec2(float(x),float(y));
+  vec2 offset=hash2(cell+g)*.65+.175;
+  float d=length(g+offset-f);
+  if(d<closest){second=closest;closest=d;}
+  else if(d<second)second=d;
+ }
+ return second-closest;
+}
 void main(){
  vec2 p=vPos.xy;
- // Espuma arcade em células orgânicas, deformadas pelas ondas: padrão de mar, não grade.
- vec2 q=p*.103;
- q+=vec2(sin(p.y*.053+vHeight*.65),cos(p.x*.047-vHeight*.52))*.82;
- float a=sin(q.x*2.45+sin(q.y*1.73));
- float b=sin(q.y*2.66-cos(q.x*1.81));
- float c=sin((q.x+q.y)*1.76+sin(q.x*1.32-q.y));
- float seams=max(max(abs(a),abs(b)),abs(c));
- float foamLines=smoothstep(.938,.987,seams);
- float crest=smoothstep(2.0,5.15,vHeight);
- float smallRipples=pow(max(0.,sin(p.x*.32+p.y*.24+vHeight*.96)),15.)*.16;
+ // Rede irregular de espuma entre grandes células de água, não ondas listradas.
+ vec2 drift=vec2(sin(p.y*.018+vHeight*.23),cos(p.x*.021-vHeight*.18))*4.5;
+ vec2 warped=p+drift;
+ float seams=cellularBorder(warped*.049);
+ float lace=1.-smoothstep(.035,.115,seams);
+ float crest=smoothstep(2.5,5.5,vHeight);
  float depth=clamp((vHeight+5.5)/11.,0.,1.);
- vec3 deep=vec3(.005,.17,.42);
- vec3 middle=vec3(.005,.42,.73);
- vec3 shallow=vec3(.02,.68,.87);
- vec3 sea=mix(deep,middle,smoothstep(.08,.85,depth));
- sea=mix(sea,shallow,smoothstep(.55,1.,depth)*.62);
- float foam=clamp(foamLines*(.65+crest*.34)+crest*.30+smallRipples,0.,.95);
- sea=mix(sea,vec3(.86,.985,1.),foam);
+ vec3 deep=vec3(.006,.16,.39);
+ vec3 mid=vec3(.008,.37,.67);
+ vec3 bright=vec3(.025,.62,.85);
+ vec3 sea=mix(deep,mid,smoothstep(.05,.82,depth));
+ sea=mix(sea,bright,smoothstep(.55,1.,depth)*.7);
+ float ripples=pow(max(0.,sin(p.x*.38+p.y*.31+vHeight*.75)),18.)*.08;
+ float foam=clamp(lace*(.83+crest*.15)+crest*.16+ripples,0.,.95);
+ sea=mix(sea,vec3(.91,.985,1.),foam);
  gl_FragColor=vec4(sea,1.);
 }`
 }));
