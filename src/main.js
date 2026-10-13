@@ -1033,8 +1033,11 @@ horizon.update(x,z,t,height);
 // Câmera arcade: modelo maior na tela e abertura gradual conforme acelera.
 // Câmera aérea de filmagem com orientação imutável no mundo.
 // Translada com a posição XZ do jogador, sem copiar heading, ondas ou tiros.
-camera.position.set(x,39,z+26);
-camTarget.set(x,0,z);
+// Enquadramento inspirado na referência: perspectiva baixa, horizonte visível
+// e bastante mar à frente. A nave ocupa o terço inferior da imagem.
+// Orientação permanece fixa no mundo, sem seguir a rotação do casco.
+camera.position.set(x,16,z+29);
+camTarget.set(x,4,z-44);
 camera.lookAt(camTarget);
 cameraReady=true;
 attackCamera.blend=0;
