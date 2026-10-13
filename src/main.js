@@ -556,7 +556,7 @@ const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','A
 addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
 // Teste: câmera fixa atrás da nave; nenhum arrasto altera a orientação.
-// Arrastar o oceano muda o rumo do casco e da câmera juntos.
+// Arrastar o oceano gira apenas a câmera; ao soltar, ela retorna atrás da nave.
 let dragId=null,lastDragX=0,lastDragY=0,cameraYawOffset=0,cameraPitchOffset=0;
 renderer.domElement.style.touchAction='none';
 renderer.domElement.addEventListener('pointerdown',e=>{
@@ -580,6 +580,14 @@ renderer.domElement.addEventListener('lostpointercapture',releaseDrag);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
+// Ao soltar o arrasto, regressa suavemente ao enquadramento de perseguição.
+// Decaimento exponencial independente do FPS e sem inverter o sentido do gesto.
+if(dragId===null){
+ cameraYawOffset=THREE.MathUtils.damp(cameraYawOffset,0,2.35,dt);
+ cameraPitchOffset=THREE.MathUtils.damp(cameraPitchOffset,0,2.35,dt);
+ if(Math.abs(cameraYawOffset)<.0003)cameraYawOffset=0;
+ if(Math.abs(cameraPitchOffset)<.003)cameraPitchOffset=0;
+}
 const keyboardGo=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
 const keyboardReverse=keys.has('KeyS')||keys.has('ArrowDown');
 const stickAmount=input.active&&input.magnitude>.13?(input.magnitude-.13)/.87:0;
