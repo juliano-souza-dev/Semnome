@@ -265,3 +265,38 @@ export function chooseNpcWeapon(origin,target,estimatedVelocity,readyAt,now,{
  candidates.sort((a,b)=>b.probability-a.probability||a.flight-b.flight);
  return candidates[0]??null;
 }
+
+
+// Direção de leme, não deslocamento por posição. Obstáculos geram curvatura
+// preventiva; o motor e a inércia são executados pela física naval.
+export function steerNpc(enemy,plan,obstacles,dashing=false){
+ const ai=enemy.ai||{};
+ const dx=dashing?(ai.dashX||0)*120:plan.goalX-enemy.x;
+ const dz=dashing?(ai.dashZ||0)*120:plan.goalZ-enemy.z;
+ const distance=Math.hypot(dx,dz);
+ let fx=dx/Math.max(distance,.001),fz=dz/Math.max(distance,.001);
+ let lateralX=0,lateralZ=0;
+ const lookAhead=Math.max(25,Math.min(62,25+Math.hypot(enemy.vx||0,enemy.vz||0)*.95));
+ for(const o of obstacles){
+  const rx=o.x-enemy.x,rz=o.z-enemy.z;
+  const projection=rx*fx+rz*fz;
+  if(projection< -3||projection>lookAhead+o.radius)continue;
+  const lateral=rx*fz-rz*fx;
+  const safe=o.radius+12;
+  if(Math.abs(lateral)>safe)continue;
+  const strength=Math.max(0,1-Math.abs(lateral)/safe)*
+   Math.max(0,1-Math.max(0,projection)/(lookAhead+o.radius));
+  const side=Math.abs(lateral)<.1?(enemy.id%2===0?1:-1):Math.sign(lateral);
+  lateralX+=fz*side*strength*3.6;
+  lateralZ-=fx*side*strength*3.6;
+ }
+ fx+=lateralX;fz+=lateralZ;
+ const desiredYaw=-Math.atan2(fx,-fz);
+ const angle=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
+ const rate=dashing?5.1:plan.intent==='withdraw'?3.1:plan.active?2.5:1.35;
+ const alignment=Math.max(.3,1-Math.abs(angle)/Math.PI*.76);
+ // Não acelera até o máximo enquanto precisa executar curva fechada.
+ const targetSpeed=plan.speed*alignment;
+ return {desiredYaw,angle,rate,targetSpeed,
+  boostSpeed:dashing&&Math.abs(angle)<.84?70:0};
+}
