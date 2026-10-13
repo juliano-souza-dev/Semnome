@@ -202,9 +202,50 @@ function discardEnemyShot(shot){
  shot.plasma?.geometry.dispose();
  if(shot.warning){scene.remove(shot.warning);shot.warning.geometry.dispose();shot.warning.material.dispose();}
 }
-const repairButton=document.createElement('button');repairButton.id='repairButton';repairButton.textContent='REPARAR +20';repairButton.type='button';document.getElementById('ui').appendChild(repairButton);
-const outOfCombat=()=>playerCombat.hp>0&&clock.elapsedTime-playerCombat.lastDamageAt>=5&&enemyShots.length===0&&!enemies.some(e=>e.hp>0&&e.state!=='patrol');
-repairButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();if(!outOfCombat()||playerCombat.hp>=ENEMY_AI.maxHp)return;playerCombat.hp=Math.min(ENEMY_AI.maxHp,playerCombat.hp+20)});
+// Kits flutuantes disputados por todas as naves. Geometrias compartilhadas.
+const REPAIR={interval:19,amount:25,max:5,lifetime:65,radius:11};
+const repairKits=[];
+const repairGeometry=new THREE.OctahedronGeometry(3.4,0);
+const repairMaterial=new THREE.MeshBasicMaterial({color:0x42ff91});
+const repairRingGeometry=new THREE.TorusGeometry(5.5,.55,6,16);
+const repairRingMaterial=new THREE.MeshBasicMaterial({color:0xd6ffdf,transparent:true,opacity:.85});
+let nextRepairSpawn=7;
+function spawnRepairKit(now){
+ if(repairKits.length>=REPAIR.max)return;
+ for(let attempt=0;attempt<14;attempt++){
+  const angle=Math.random()*Math.PI*2,distance=75+Math.random()*230;
+  const sx=x+Math.cos(angle)*distance,sz=z+Math.sin(angle)*distance;
+  if(horizon.colliders.some(o=>Math.hypot(sx-o.x,sz-o.z)<o.radius+17))continue;
+  const core=new THREE.Mesh(repairGeometry,repairMaterial);
+  const ring=new THREE.Mesh(repairRingGeometry,repairRingMaterial);
+  ring.rotation.x=Math.PI/2;core.add(ring);scene.add(core);
+  repairKits.push({x:sx,z:sz,mesh:core,expires:now+REPAIR.lifetime,phase:Math.random()*6.28});
+  break;
+ }
+}
+function updateRepairKits(now){
+ if(now>=nextRepairSpawn){spawnRepairKit(now);nextRepairSpawn=now+REPAIR.interval;}
+ for(let i=repairKits.length-1;i>=0;i--){
+  const kit=repairKits[i];
+  kit.mesh.position.set(kit.x,height(kit.x,kit.z,now)+3+Math.sin(now*2+kit.phase)*.7,kit.z);
+  kit.mesh.rotation.y+=.014;
+  let collector=null,bestDistance=REPAIR.radius;
+  if(playerCombat.hp>0&&playerCombat.hp<ENEMY_AI.maxHp){
+   const distance=Math.hypot(x-kit.x,z-kit.z);
+   if(distance<bestDistance){bestDistance=distance;collector=playerCombat;}
+  }
+  for(const enemy of enemies){
+   if(enemy.hp<=0||enemy.hp>=enemy.maxHp)continue;
+   const distance=Math.hypot(enemy.x-kit.x,enemy.z-kit.z);
+   if(distance<bestDistance){bestDistance=distance;collector=enemy;}
+  }
+  if(collector){
+   collector.hp=Math.min(collector===playerCombat?ENEMY_AI.maxHp:collector.maxHp,collector.hp+REPAIR.amount);
+   if(collector===playerCombat)notifyCombat('KIT DE REPARO +'+REPAIR.amount+' HP',2);
+  }
+  if(collector||now>=kit.expires){scene.remove(kit.mesh);repairKits.splice(i,1);}
+ }
+}
 let threatShotCount=0;
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
 // Barra de integridade acompanha a nave no espaço da tela, sempre horizontal.
@@ -839,7 +880,14 @@ for(const enemy of enemies){
  // Fugir não muda diretamente x/z: requer aceleração e tempo de manobra.
  const oldEnemyX=enemy.x,oldEnemyZ=enemy.z;
  enemy.previousX=oldEnemyX;enemy.previousZ=oldEnemyZ;
- const controls=steerNpc(enemy,tactic,horizon.colliders,dodging);
+ let navigation=tactic;
+ // Danificados podem buscar kits, mantendo manobras normais e evasão.
+ if(!dodging&&enemy.hp<enemy.maxHp*.7&&repairKits.length){
+  let closest=null,dist=Infinity;
+  for(const kit of repairKits){const d=Math.hypot(kit.x-enemy.x,kit.z-enemy.z);if(d<dist){dist=d;closest=kit;}}
+  if(closest&&dist<260)navigation={...tactic,goalX:closest.x,goalZ:closest.z,speed:Math.max(tactic.speed,29),intent:'repair'};
+ }
+ const controls=steerNpc(enemy,navigation,horizon.colliders,dodging);
  enemy.heading+=THREE.MathUtils.clamp(controls.angle,
   -controls.rate*dt,controls.rate*dt);
  const body=ai.body;
@@ -1161,8 +1209,7 @@ fireButton.setAttribute('aria-label',selectedAmmo.name+' · '+(remaining>0?'reca
 fireButton.style.setProperty('--ready',String(1-remaining/currentWeapon().cooldown));
 fireButton.dataset.ready=remaining<=0?'true':'false';
 fireButton.disabled=remaining>0||playerCombat.hp<=0;
-repairButton.disabled=!outOfCombat()||playerCombat.hp>=ENEMY_AI.maxHp;
-repairButton.textContent=playerCombat.hp>=ENEMY_AI.maxHp?'VIDA CHEIA':outOfCombat()?'REPARAR +20':'EM COMBATE';
+// A recuperação depende exclusivamente de kits recolhidos no mar.
 // Atualização da barra ocorre após o posicionamento final da câmera.
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
@@ -1363,6 +1410,7 @@ cameraReady=true;
 attackCamera.blend=0;
 attackCamera.shake=0;
 areaAim.viewBlend=0;
+updateRepairKits(t);
 refreshPlayerHealth();
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Mar '+(currentSeaIntensity<.24?'calmo':currentSeaIntensity<.37?'médio':'bravinho');
