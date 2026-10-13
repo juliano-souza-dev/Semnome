@@ -23,7 +23,7 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #orientation small{font-size:13px;color:#afd7e5;max-width:310px}
 @media(orientation:portrait) and (pointer:coarse){#orientation{display:flex}#ui{visibility:hidden}}
 /* Propulsor: separado do joystick e dos comandos de combate. */
-#boost{position:absolute;left:max(148px,calc(env(safe-area-inset-left) + 128px));bottom:max(42px,env(safe-area-inset-bottom));height:54px;min-width:106px;padding:0 10px;border-radius:14px;border:2px solid #b8fbff;background:#10566ded;color:#fff;font:800 12px system-ui;box-shadow:0 0 15px #19bcff55;pointer-events:auto;touch-action:manipulation;user-select:none}
+#boost{position:absolute;left:auto;right:calc(env(safe-area-inset-right) + 192px);bottom:max(36px,env(safe-area-inset-bottom));height:54px;min-width:106px;padding:0 10px;border-radius:14px;border:2px solid #b8fbff;background:#10566ded;color:#fff;font:800 12px system-ui;box-shadow:0 0 15px #19bcff55;pointer-events:auto;touch-action:manipulation;user-select:none}
 #boost.active{background:#eb8625;border-color:#fff3a6;box-shadow:0 0 23px #ffc84ba8}
 
 /* Combate arcade: seleção rápida vertical à direita, sem cobrir o disparo. */
@@ -117,3 +117,7 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #playerHealthFill{position:absolute;inset:0 auto 0 0;width:100%;background:linear-gradient(180deg,#aaff56,#52ce18);transition:width 160ms ease-out,background 160ms ease-out}
 #playerHealthValue{position:relative;z-index:1;color:white;font:900 11px system-ui;text-shadow:0 1px 3px #13221d,0 0 2px #000;letter-spacing:.2px}
 @media(max-height:450px){#playerHealthBar{height:18px;width:108px}#playerHealthValue{font-size:10px}}
+
+/* BOOST à direita, à esquerda das armas, sem encobrir DISPARAR. */
+@media(max-height:450px){#boost{right:calc(env(safe-area-inset-right) + 182px);bottom:30px;min-width:88px;height:46px;font-size:10px;padding:0 5px}}
+@media(max-width:550px){#boost{right:calc(env(safe-area-inset-right) + 178px);bottom:24px;min-width:82px;height:43px;font-size:10px;padding:0 4px}}
