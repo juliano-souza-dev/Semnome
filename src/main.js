@@ -646,8 +646,10 @@ if(playerCombat.hp>0){
   const impactSpeed=Math.max(Math.hypot(hullPhysics.vx,hullPhysics.vz),Math.hypot(vx,vz)/Math.max(dt,.001));
   hullPhysics.x=x;hullPhysics.z=z;
   hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostUntil=0;
-  if(t>=playerCombat.invulnerableUntil&&impactSpeed>2){
-   const damage=first.kind==='building'?18:10;
+  // Construções são obstáculos sólidos, mas não retiram vida do jogador.
+  // Somente resíduos flutuantes mantêm dano de impacto.
+  if(first.kind==='debris'&&t>=playerCombat.invulnerableUntil&&impactSpeed>2){
+   const damage=10;
    playerCombat.hp=Math.max(0,playerCombat.hp-damage);playerCombat.lastDamageAt=t;
    playerCombat.invulnerableUntil=t+1.1;hitFeedback=1;
    attackCamera.shake=Math.max(attackCamera.shake,.3);
