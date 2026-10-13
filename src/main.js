@@ -561,7 +561,7 @@ addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
 // Órbita manual 360°: a câmera conserva sua inclinação e distância,
 // mas pode circular livremente ao redor da nave sem alterar o casco.
-let orbitYaw=0,orbitPointer=null,orbitLastX=0;
+let orbitYaw=0,orbitPointer=null,orbitLastX=0,orbitManualUntil=0;
 renderer.domElement.style.touchAction='none';
 renderer.domElement.addEventListener('pointerdown',e=>{
  if(orbitPointer!==null||areaAim.active||(e.pointerType==='mouse'&&e.button!==0))return;
@@ -573,6 +573,7 @@ renderer.domElement.addEventListener('pointermove',e=>{
  if(e.pointerId!==orbitPointer)return;
  const dx=e.clientX-orbitLastX;orbitLastX=e.clientX;
  orbitYaw+=dx*.0075;
+ orbitManualUntil=clock.elapsedTime+3.5;
  e.preventDefault();
 });
 function releaseOrbit(e){if(e.pointerId===orbitPointer)orbitPointer=null}
@@ -1044,6 +1045,18 @@ horizon.update(x,z,t,height);
 // Câmera arcade: modelo maior na tela e abertura gradual conforme acelera.
 // Câmera aérea de filmagem com orientação imutável no mundo.
 // Translada com a posição XZ do jogador, sem copiar heading, ondas ou tiros.
+// Acompanhamento inteligente da torreta: mira travada orienta lentamente
+// a observação para que o alvo não desapareça atrás da nave.
+// O arrasto manual sempre tem prioridade e suspende o acompanhamento por 3,5 s.
+if(orbitPointer===null&&t>=orbitManualUntil&&lockedNpc&&lockedNpc.hp>0&&playerCombat.hp>0&&!areaAim.active){
+ const dx=lockedNpc.x-x,dz=lockedNpc.z-z;
+ const distanceToTarget=Math.hypot(dx,dz);
+ if(distanceToTarget>8&&distanceToTarget<COMBAT.range){
+  const desiredYaw=Math.atan2(-dx,-dz);
+  const delta=Math.atan2(Math.sin(desiredYaw-orbitYaw),Math.cos(desiredYaw-orbitYaw));
+  orbitYaw+=delta*(1-Math.exp(-1.65*dt));
+ }
+}
 // Enquadramento inspirado na referência: perspectiva baixa, horizonte visível
 // e bastante mar à frente. A nave ocupa o terço inferior da imagem.
 // Orientação permanece fixa no mundo, sem seguir a rotação do casco.
