@@ -72,7 +72,7 @@ const ship=createWarMachine3D(THREE);scene.add(ship);
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
 const wakeMaterial=new THREE.MeshBasicMaterial({color:0xdafaff,transparent:true,opacity:.44,depthWrite:false,side:THREE.DoubleSide});
-const wakeGeometry=new THREE.RingGeometry(.52,1.03,18);
+const wakeGeometry=new THREE.RingGeometry(.45,1.28,28);
 const wakePool=Array.from({length:18},()=>{
  const mesh=new THREE.Mesh(wakeGeometry,wakeMaterial.clone());
  mesh.rotation.x=-Math.PI/2;mesh.visible=false;mesh.renderOrder=2;scene.add(mesh);
@@ -84,7 +84,7 @@ function emitWake(px,pz,t,boost){
  item.life=item.duration=boost?1.0:1.5;
  item.mesh.position.set(px,height(px,pz,t)+.23,pz);
  item.mesh.scale.setScalar(boost?1.9:1.22);
- item.mesh.material.opacity=boost?.65:.42;
+ item.mesh.material.opacity=boost?.77:.54;
  item.mesh.visible=true;
 }
 function animateWake(dt,t,px,pz,yaw,velocity,boost){
