@@ -1,6 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 import {createWastelandHorizon} from './environment.js';
-import {planEnemy,canEnemyFire,TACTICS,predictIntercept,assessProjectileThreat,evadeVector,sweptMovingContact,NPC_WEAPONS,chooseNpcWeapon} from './enemy-ai.js';
+import {planEnemy,canEnemyFire,TACTICS,predictIntercept,assessProjectileThreat,evadeVector,sweptMovingContact,NPC_WEAPONS,chooseNpcWeapon,steerNpc} from './enemy-ai.js';
 import {integrateHull,ballisticPoint} from './naval-physics.js';
 import {createWarMachine3D} from './war-machine-3d.js';
 import {createGameAudio} from './game-audio.js';
@@ -822,30 +822,56 @@ for(const enemy of enemies){
   // Rastro curto de água para sinalizar o impulso lateral, sem novos sistemas.
   if(t>=ai.nextWake){emitWake(enemy.x,enemy.z,t,true);ai.nextWake=t+.23;}
  }
- const desiredYaw=-Math.atan2(tactic.goalX-enemy.x,-(tactic.goalZ-enemy.z));
- const yawDelta=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
- enemy.heading+=THREE.MathUtils.clamp(yawDelta,-(tactic.active?3.1:1.1)*dt,(tactic.active?3.1:1.1)*dt);
+ // O piloto aponta o leme para o objetivo escolhido pela IA.
+ // Fugir não muda diretamente x/z: requer aceleração e tempo de manobra.
  const oldEnemyX=enemy.x,oldEnemyZ=enemy.z;
  enemy.previousX=oldEnemyX;enemy.previousZ=oldEnemyZ;
- let moveDX=-Math.sin(enemy.heading)*tactic.speed*dt+(dodging?ai.dashX*80*dt:0);
- let moveDZ=-Math.cos(enemy.heading)*tactic.speed*dt+(dodging?ai.dashZ*80*dt:0);
- // Paredes/ruínas também são sólidas para os NPCs em movimento e em dash.
- let nextX=enemy.x+moveDX,nextZ=enemy.z+moveDZ;
+ const controls=steerNpc(enemy,tactic,horizon.colliders,dodging);
+ enemy.heading+=THREE.MathUtils.clamp(controls.angle,
+  -controls.rate*dt,controls.rate*dt);
+ const body=ai.body;
+ body.x=enemy.x;body.z=enemy.z;
+ const moved=integrateHull(body,{heading:enemy.heading,
+  targetSpeed:controls.targetSpeed,boostSpeed:controls.boostSpeed,dt});
+ // Obstáculos são sólidos: varredura contra círculos, sem teleportes de fuga.
+ const mx=moved.x-oldEnemyX,mz=moved.z-oldEnemyZ,lengthSq=mx*mx+mz*mz;
+ let first=1,contactX=0,contactZ=0;
  for(const obstacle of horizon.colliders){
-  const radius=obstacle.radius+6;
-  const rx=nextX-obstacle.x,rz=nextZ-obstacle.z;
-  const separation=Math.hypot(rx,rz);
-  if(separation<radius){
-   const startX=enemy.x-obstacle.x,startZ=enemy.z-obstacle.z;
-   const startDist=Math.hypot(startX,startZ);
-   const nx=separation>.001?rx/separation:startDist>.001?startX/startDist:1;
-   const nz=separation>.001?rz/separation:startDist>.001?startZ/startDist:0;
-   nextX=obstacle.x+nx*radius;nextZ=obstacle.z+nz*radius;
+  const radius=obstacle.radius+5.8;
+  const rx=oldEnemyX-obstacle.x,rz=oldEnemyZ-obstacle.z;
+  const startSq=rx*rx+rz*rz;
+  if(startSq<radius*radius){
+   const outward=mx*rx+mz*rz;
+   if(outward<0){
+    const len=Math.sqrt(startSq)||1,nx=rx/len,nz=rz/len;
+    // Uma sobreposição prévia não permite avançar ainda mais para dentro.
+    const inward=mx*nx+mz*nz;
+    body.x-=Math.min(0,inward)*nx;
+    body.z-=Math.min(0,inward)*nz;
+   }
+   continue;
   }
+  if(lengthSq<1e-8)continue;
+  const b=2*(rx*mx+rz*mz),c=startSq-radius*radius;
+  const disc=b*b-4*lengthSq*c;
+  if(disc<0)continue;
+  const fraction=(-b-Math.sqrt(disc))/(2*lengthSq);
+  if(fraction<0||fraction>=first)continue;
+  first=fraction;
+  const hx=oldEnemyX+mx*fraction-obstacle.x;
+  const hz=oldEnemyZ+mz*fraction-obstacle.z;
+  const h=Math.hypot(hx,hz)||1;
+  contactX=hx/h;contactZ=hz/h;
  }
- enemy.x=nextX;enemy.z=nextZ;
- enemy.vx=(enemy.x-oldEnemyX)/Math.max(dt,.001);
- enemy.vz=(enemy.z-oldEnemyZ)/Math.max(dt,.001);
+ if(first<1){
+  body.x=oldEnemyX+mx*Math.max(0,first-.002);
+  body.z=oldEnemyZ+mz*Math.max(0,first-.002);
+  const normalSpeed=Math.min(0,body.vx*contactX+body.vz*contactZ);
+  body.vx-=normalSpeed*contactX;
+  body.vz-=normalSpeed*contactZ;
+ }
+ enemy.x=body.x;enemy.z=body.z;
+ enemy.vx=body.vx;enemy.vz=body.vz;
  // Solução de interceptação por velocidade REAL observada e tempo de voo.
  // Cada piloto reavalia o arsenal em intervalos curtos. A pontuação matemática
  // escolhe a maior P(acerto) dentre as armas ALCANÇÁVEIS e disponíveis.
