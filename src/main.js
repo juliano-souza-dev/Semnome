@@ -85,7 +85,8 @@ import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoad
   if(Math.max(size.x,size.y,size.z)<.001)throw Error('Modelo 3D vazio');
   const scale=footprint/Math.max(size.x,size.z);
   model.scale.setScalar(scale);
-  model.position.set(-(bounds.min.x+bounds.max.x)*.5*scale,-bounds.min.y*scale,-(bounds.min.z+bounds.max.z)*.5*scale);
+  const center=bounds.getCenter(new THREE.Vector3());
+  model.position.set(-center.x*scale,-bounds.min.y*scale,-center.z*scale);
   return {width:size.x*scale,height:size.y*scale,depth:size.z*scale};
  }
  function giveFinish(model){
@@ -105,17 +106,20 @@ import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoad
  try{
   // Carregar ambos antes de esconder a nave antiga evita casco invisível.
   const [hull,turretModel]=await Promise.all([load(HULL_GLB),load(TURRET_GLB)]);
-  const hullDims=normalize(hull,9.5);
-  normalize(turretModel,Math.min(5,hullDims.width*.58));
+  const hullDims=normalize(hull,11.0);
+  // A torreta deve ser um acessório do casco, não outro navio.
+  // Largura limitada a 24% do comprimento/largura maior do casco.
+  const turretFootprint=Math.min(2.8,Math.max(1.3,Math.max(hullDims.width,hullDims.depth)*.24));
+  const turretDims=normalize(turretModel,turretFootprint);
   hull.name='Casco Blazing Wave Runner (teste)';
   turretModel.name='Torreta independente (teste)';
-  hull.position.y=-.55;
+  hull.position.y=-.8;
   giveFinish(hull);giveFinish(turretModel);
   const originalTurret=ship.userData.turretPivot;
   // Usa o centro de rotação e o algoritmo de acompanhamento já existentes.
   const gunMount=new THREE.Group();
   gunMount.name='Pivô da nova torreta';
-  gunMount.position.set(0,2.3,-.6);
+  gunMount.position.set(0,Math.min(3.0,Math.max(1.1,hullDims.height*.57)),-.25);
   // Malha posicionada com sua base sobre o suporte giratório.
   gunMount.add(turretModel);
   ship.add(hull);
@@ -127,7 +131,7 @@ import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoad
   // Oculta apenas a geometria da torreta antiga; mantém o pivô girando.
   for(const part of originalTurret.children)if(part!==gunMount)part.visible=false;
   ship.userData.testHull=hull;ship.userData.testTurret=turretModel;
-  console.info('[Semnome] Casco e torreta independentes carregados',HULL_GLB,TURRET_GLB);
+  console.info('[Semnome] Casco e torreta independentes carregados',{hullDims,turretDims,turretFootprint,HULL_GLB,TURRET_GLB});
  }catch(error){
   console.warn('[Semnome] Falha na montagem dos dois GLBs; mantendo nave original',error);
   // Conserva a nave original enquanto a montagem experimental não carrega.
