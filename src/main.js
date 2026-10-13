@@ -12,8 +12,29 @@ document.addEventListener('keydown',()=>audio.unlock());
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8db6d5');scene.fog=new THREE.FogExp2('#759ab4',.00155);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
+// GPU móvel: mesma física e IA, mas menos pixels por quadro.
+const MOBILE_RENDER=window.matchMedia('(pointer: coarse)').matches;
+let renderRatio=MOBILE_RENDER?Math.min(devicePixelRatio,1):Math.min(devicePixelRatio,1.5);
+const renderer=new THREE.WebGLRenderer({antialias:!MOBILE_RENDER,powerPreference:'high-performance'});
+renderer.setPixelRatio(renderRatio);
+renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;
+const mobilePerf={elapsed:0,frames:0,lastAdjust:0};
+function updateMobileQuality(frameSeconds,t){
+ if(!MOBILE_RENDER)return;
+ mobilePerf.elapsed+=Math.min(frameSeconds,.10);
+ mobilePerf.frames++;
+ if(mobilePerf.elapsed<4||t-mobilePerf.lastAdjust<5)return;
+ const fps=mobilePerf.frames/mobilePerf.elapsed;
+ mobilePerf.elapsed=0;mobilePerf.frames=0;
+ let next=renderRatio;
+ if(fps<42)next=Math.max(.8,renderRatio-.1);
+ else if(fps>55)next=Math.min(Math.min(devicePixelRatio,1),renderRatio+.1);
+ if(Math.abs(next-renderRatio)>.02){
+  renderRatio=Math.round(next*10)/10;
+  renderer.setPixelRatio(renderRatio);
+  mobilePerf.lastAdjust=t;
+ }
+}
 document.body.prepend(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xb8dfff,0x123e58,1.65));
 const sun=new THREE.DirectionalLight(0xffd99b,3.3);sun.position.set(165,92,-330);scene.add(sun);
@@ -625,7 +646,8 @@ renderer.domElement.addEventListener('pointercancel',releaseOrbit);
 renderer.domElement.addEventListener('lostpointercapture',releaseOrbit);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
-requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;
+requestAnimationFrame(tick);const frameSeconds=clock.getDelta(),dt=Math.min(frameSeconds,.04),t=clock.elapsedTime;
+updateMobileQuality(frameSeconds,t);
 currentSeaIntensity=seaIntensityAt(t);
 uniforms.uTime.value=t;
 uniforms.uWaveIntensity.value=currentSeaIntensity;
@@ -1358,5 +1380,5 @@ if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=nu
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Mar '+(currentSeaIntensity<.24?'calmo':currentSeaIntensity<.37?'médio':'bravinho');
 renderer.render(scene,camera);
 }
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(renderRatio);});
 document.getElementById('loading').remove();tick();
