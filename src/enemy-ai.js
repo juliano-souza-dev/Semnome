@@ -281,7 +281,7 @@ export function steerNpc(enemy,plan,obstacles,dashing=false){
   const rx=o.x-enemy.x,rz=o.z-enemy.z;
   const projection=rx*fx+rz*fz;
   if(projection< -3||projection>lookAhead+o.radius)continue;
-  const lateral=rx*fz-rz*fx;
+  const lateral=fx*rz-fz*rx;
   const safe=o.radius+12;
   if(Math.abs(lateral)>safe)continue;
   const strength=Math.max(0,1-Math.abs(lateral)/safe)*
