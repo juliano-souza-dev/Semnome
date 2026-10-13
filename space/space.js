@@ -21,16 +21,8 @@ const darkMat=new THREE.MeshStandardMaterial({color:0x203b59,metalness:.75,rough
 const glassMat=new THREE.MeshStandardMaterial({color:0x14cffa,emissive:0x0799d8,emissiveIntensity:.8,metalness:.15});
 const enemyHull=new THREE.MeshStandardMaterial({color:0xe47177,metalness:.7,roughness:.34});
 const enemyGlow=new THREE.MeshStandardMaterial({color:0xff6b36,emissive:0xff3915,emissiveIntensity:1.7});
-function shipModel(enemy=false){const group=new THREE.Group();
- const body=new THREE.Mesh(new THREE.ConeGeometry(4.3,15,5),enemy?enemyHull:hullMat);body.rotation.x=-Math.PI/2;body.position.z=-1.7;group.add(body);
- const spine=new THREE.Mesh(new THREE.BoxGeometry(5,2.3,13),darkMat);spine.position.z=2;group.add(spine);
- const cockpit=new THREE.Mesh(new THREE.SphereGeometry(2.6,12,8),enemy?enemyGlow:glassMat);cockpit.scale.set(.9,.47,1.5);cockpit.position.set(0,2,-.7);group.add(cockpit);
- for(const side of [-1,1]){const wing=new THREE.Mesh(new THREE.BoxGeometry(8,.7,7),enemy?enemyHull:hullMat);wing.position.set(side*7.2,0,3);wing.rotation.y=side*.19;group.add(wing);
- const engine=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.8,4.5,10),darkMat);engine.rotation.x=Math.PI/2;engine.position.set(side*4.4,-.4,8);group.add(engine);
- const flare=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),enemy?enemyGlow:glassMat);flare.position.set(side*4.4,-.4,10.4);flare.userData.flare=true;group.add(flare);}
- const turret=new THREE.Group();turret.position.set(0,2,-2);const gun=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,7),darkMat);gun.position.z=-3;turret.add(gun);group.add(turret);group.userData.turret=turret;return group;}
-const ship=createWarMachine3D(THREE);ship.scale.setScalar(1.75);scene.add(ship);
-const enemies=[];for(let i=0;i<9;i++){const angle=2*Math.PI*i/9,dist=110+(i%3)*80;const model=createWarMachine3D(THREE,{enemy:true});model.scale.setScalar(1.55);model.position.set(Math.sin(angle)*dist,(i%3-1)*14,-110+Math.cos(angle)*dist);scene.add(model);enemies.push({model,x:model.position.x,z:model.position.z,y:model.position.y,hp:100,angle:angle,state:'patrol',cooldown:i*.34,seed:i+1})}
+const ship=createWarMachine3D(THREE);ship.scale.setScalar(2.7);scene.add(ship);
+const enemies=[];for(let i=0;i<9;i++){const angle=2*Math.PI*i/9,dist=110+(i%3)*80;const model=createWarMachine3D(THREE,{enemy:true});model.scale.setScalar(2.25);model.position.set(Math.sin(angle)*dist,(i%3-1)*14,-110+Math.cos(angle)*dist);scene.add(model);enemies.push({model,x:model.position.x,z:model.position.z,y:model.position.y,hp:100,angle:angle,state:'patrol',cooldown:i*.34,seed:i+1})}
 let x=0,z=0,heading=0,speed=0,hp=100,boost=0,boostReady=0,last=performance.now(),noticeTimeout=0,sound=true;
 const input={x:0,y:0,pointer:null},pad=document.getElementById('pad'),stick=document.getElementById('stick');
 function updatePad(e){const box=pad.getBoundingClientRect(),dx=e.clientX-(box.left+box.width/2),dy=e.clientY-(box.top+box.height/2),radius=box.width*.34,len=Math.hypot(dx,dy)||1;input.x=THREE.MathUtils.clamp(dx/radius,-1,1);input.y=THREE.MathUtils.clamp(-dy/radius,-1,1);if(len>radius){input.x=dx/len;input.y=-dy/len;}stick.style.transform='translate('+Math.round(input.x*radius)+'px,'+Math.round(-input.y*radius)+'px)'}
@@ -106,7 +98,7 @@ function tick(){requestAnimationFrame(tick);const now=performance.now(),dt=Math.
  }
  for(let i=flashes.length-1;i>=0;i--){const f=flashes[i];f.age+=dt;f.mesh.scale.setScalar(1+f.age*f.size*3);f.mesh.material.opacity=Math.max(0,.7-f.age*2);if(f.age>.36){scene.remove(f.mesh);f.mesh.material.dispose();flashes.splice(i,1)}}
  // A camera permanece na nave enquanto os projeteis viajam.
- targetCam.set(x+Math.sin(heading)*40,23,z+Math.cos(heading)*40);camera.position.lerp(targetCam,1-Math.exp(-dt*3));tmp.set(x-Math.sin(heading)*55,0,z-Math.cos(heading)*55);camera.lookAt(tmp);
+ targetCam.set(x+Math.sin(heading)*30,20,z+Math.cos(heading)*30);camera.position.lerp(targetCam,1-Math.exp(-dt*3));tmp.set(x-Math.sin(heading)*30,0,z-Math.cos(heading)*30);camera.lookAt(tmp);
  stars.position.set(x,0,z);
  const alive=enemies.filter(e=>e.hp>0),nearest=alive.reduce((best,e)=>{const d=Math.hypot(e.x-x,e.z-z);return !best||d<best.d?{e,d}:best},null);
  document.getElementById('radar').textContent=alive.length?'HOSTIS '+alive.length+' · PRÓXIMO '+Math.round(nearest.d)+' m':'🚀 SETOR LIBERADO';
