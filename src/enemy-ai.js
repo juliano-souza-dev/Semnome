@@ -1,8 +1,8 @@
 // Tática naval: papéis fixos, órbitas alternadas e espaçamento entre NPCs.
 // Funções puras para permitir calibrar as batalhas sem alterar o renderizador.
 export const TACTICS=Object.freeze({
- detect:215,disengage:300,idealRange:165,minRange:65,
- maxActiveShooters:3,shotCadence:1.8,pressureWindow:1.1
+ detect:335,disengage:410,idealRange:165,minRange:65,
+ maxActiveShooters:5,shotCadence:1.8,pressureWindow:1.1
 });
 export function planEnemy(enemy,player,all,time){
  const dx=player.x-enemy.x,dz=player.z-enemy.z;
@@ -131,4 +131,56 @@ export function evadeVector(enemy,threat,side=1){
  const sideDot=(futureX-threat.hitX)*lateralX+(futureZ-threat.hitZ)*lateralZ;
  const sign=Math.abs(sideDot)<.5?(side>=0?1:-1):Math.sign(sideDot);
  return {x:lateralX*sign,z:lateralZ*sign};
+}
+
+
+// Arsenal completo dos patrulheiros. A chance de ACERTO é sempre o critério
+// de escolha; dano, aparência e cadência são consequências, não pesos ocultos.
+// Perfis próprios dos NPCs para equilibrar o combate sem alterar o jogador.
+export const NPC_WEAPONS=Object.freeze({
+ plasma: Object.freeze({name:'Plasma',range:112,speed:330,mode:'direct',radius:5.7,spread:2.2,damage:6,cooldown:1.55,color:0x25cfff}),
+ iron: Object.freeze({name:'Teste de Ferro',range:190,speed:265,mode:'direct',radius:5.7,spread:4.3,damage:9,cooldown:2.55,color:0xffd28b}),
+ torpedo: Object.freeze({name:'Torpedo',range:245,speed:83,mode:'torpedo',radius:6.8,spread:2.7,damage:15,cooldown:4.5,blast:35,color:0x62f2ec}),
+ scatter: Object.freeze({name:'Chuva de Energia',range:214,speed:170,delay:.55,mode:'area',radius:13,spread:10,damage:4,cooldown:3.25,blast:13,color:0xbc80ff}),
+ meteor: Object.freeze({name:'Meteoro',range:285,speed:195,delay:1.75,mode:'area',radius:16,spread:10.5,damage:9,cooldown:3.6,blast:16,color:0xff8b35}),
+ siege: Object.freeze({name:'Tempestade Orbital',range:360,speed:230,delay:2.35,mode:'area',radius:25,spread:14,damage:13,cooldown:5.4,blast:25,color:0xe5a4ff})
+});
+
+// A incerteza cresce com o TEMPO DE VOO e as manobras do alvo.
+// Aproximação Gaussiana 2D: P(dentro do raio)=1-exp(-r²/(2*sigma²)).
+// A área da explosão entra no raio só nas armas que realmente explodem ao
+// chegar. Torpedo exige contato: seu raio de explosão NÃO garante detoná-lo.
+export function chooseNpcWeapon(origin,target,estimatedVelocity,readyAt,now,{
+ weapons=NPC_WEAPONS,skill=.8,instability=0,blocked=()=>false
+}={}){
+ const dx=target.x-origin.x,dz=target.z-origin.z;
+ const distance=Math.hypot(dx,dz);
+ const targetSpeed=Math.hypot(estimatedVelocity.x||0,estimatedVelocity.z||0);
+ const candidates=[];
+ for(const [id,weapon] of Object.entries(weapons)){
+  if(distance>weapon.range||now<(readyAt?.[id]??0))continue;
+  const direct=weapon.mode!=='area';
+  let lead,flight;
+  if(direct){
+   lead=predictIntercept(origin,target,estimatedVelocity,weapon.speed,Math.max(2.5,weapon.range/weapon.speed*1.6));
+   if(!lead.reachable)continue;
+   flight=Math.max(.12,lead.time);
+   if(blocked(origin,lead,id))continue;
+  }else{
+   flight=(weapon.delay||0)+distance/weapon.speed;
+   lead={x:target.x+(estimatedVelocity.x||0)*flight,z:target.z+(estimatedVelocity.z||0)*flight};
+  }
+  // Tiros de queda são mais visíveis/evitáveis; o alvo tem tempo para reagir.
+  const uncertaintyFactor=direct?.18:.34;
+  const motionError=targetSpeed*flight*uncertaintyFactor + Math.max(0,instability)*flight*flight*.07;
+  const aimError=weapon.spread*(1.55-.65*skill);
+  const sigma=Math.hypot(aimError,motionError,1.5);
+  const probability=Math.min(.995,1-Math.exp(-(weapon.radius*weapon.radius)/(2*sigma*sigma)));
+  candidates.push({id,weapon,aimX:lead.x,aimZ:lead.z,flight,probability,
+   distance,sigma});
+ }
+ // Critério matemático único: maior chance estimada de contato/dano no alvo.
+ // Empate numérico: tiro de menor duração para evitar escolhas instáveis.
+ candidates.sort((a,b)=>b.probability-a.probability||a.flight-b.flight);
+ return candidates[0]??null;
 }
