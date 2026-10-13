@@ -611,30 +611,54 @@ if(Math.abs(speed)>.35||boostRemaining>0){
     heading+=turn*(boostRemaining>0?5.8:2.15)*Math.min(1,Math.abs(speed)/7)*dt;
   }
 }
+const collisionStartX=x,collisionStartZ=z;
 hullPhysics.x=x;hullPhysics.z=z;
 const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED:0,dt});
 x=movement.x;z=movement.z;speed=movement.speed;
-// Colisões de cenário em XZ: obstáculos sólidos travam o casco e causam dano.
-// O casco não acompanha fisicamente o balanço dos resíduos na água.
+// Varredura contínua do trajeto: evita atravessar estruturas no BOOST ou FPS baixo.
+// Um contato bloqueia imediatamente o avanço; a onda só afeta a representação visual.
 if(playerCombat.hp>0){
+ const originX=collisionStartX,originZ=collisionStartZ;
+ const vx=x-originX,vz=z-originZ;
+ let first=null,hitTime=Infinity,hitNX=0,hitNZ=0;
  for(const obstacle of horizon.colliders){
-  const dx=x-obstacle.x,dz=z-obstacle.z,minimum=obstacle.radius+5.8;
-  const distance=Math.hypot(dx,dz);
-  if(distance>=minimum)continue;
-  const nx=distance>.0001?dx/distance:Math.cos(heading),nz=distance>.0001?dz/distance:Math.sin(heading);
-  const impactSpeed=Math.hypot(hullPhysics.vx,hullPhysics.vz);
-  x=obstacle.x+nx*minimum;z=obstacle.z+nz*minimum;
-  // Descarta velocidade na direção da barreira; evita atravessar e tremular.
-  const into=hullPhysics.vx*nx+hullPhysics.vz*nz;
-  if(into<0){hullPhysics.vx-=into*nx;hullPhysics.vz-=into*nz}
-  hullPhysics.vx*=.24;hullPhysics.vz*=.24;speed=0;
+  const radius=obstacle.radius+5.8;
+  const rx=originX-obstacle.x,rz=originZ-obstacle.z;
+  const startDistSq=rx*rx+rz*rz;
+  const a=vx*vx+vz*vz;
+  let hit=null;
+  if(startDistSq<radius*radius){
+   // Já sobreposto: expulsar sempre, mesmo parado.
+   hit=0;
+  }else if(a>1e-9){
+   const bb=2*(rx*vx+rz*vz),cc=startDistSq-radius*radius;
+   const discriminant=bb*bb-4*a*cc;
+   if(discriminant>=0){
+    const entry=(-bb-Math.sqrt(discriminant))/(2*a);
+    if(entry>=0&&entry<=1)hit=entry;
+   }
+  }
+  if(hit===null||hit>=hitTime)continue;
+  let impactX=originX+vx*hit,impactZ=originZ+vz*hit;
+  let nx=impactX-obstacle.x,nz=impactZ-obstacle.z;
+  const length=Math.hypot(nx,nz);
+  if(length>1e-6){nx/=length;nz/=length}
+  else {const movementLength=Math.hypot(vx,vz)||1;nx=-vx/movementLength;nz=-vz/movementLength}
+  first=obstacle;hitTime=hit;hitNX=nx;hitNZ=nz;
+ }
+ if(first){
+  const contactRadius=first.radius+5.8+.15;
+  x=first.x+hitNX*contactRadius;z=first.z+hitNZ*contactRadius;
+  const impactSpeed=Math.max(Math.hypot(hullPhysics.vx,hullPhysics.vz),Math.hypot(vx,vz)/Math.max(dt,.001));
+  hullPhysics.x=x;hullPhysics.z=z;
+  hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostUntil=0;
   if(t>=playerCombat.invulnerableUntil&&impactSpeed>2){
-   const damage=obstacle.kind==='building'?18:10;
+   const damage=first.kind==='building'?18:10;
    playerCombat.hp=Math.max(0,playerCombat.hp-damage);
    playerCombat.invulnerableUntil=t+1.1;hitFeedback=1;
    attackCamera.shake=Math.max(attackCamera.shake,.3);
    energyFlash(new THREE.Vector3(x,bob+1.5,z));audio.play('impact');
-   notifyCombat((obstacle.kind==='building'?'COLISÃO COM ESTRUTURA':'COLISÃO COM DESTROÇOS')+' · -'+damage,1);
+   notifyCombat((first.kind==='building'?'COLISÃO COM ESTRUTURA':'COLISÃO COM DESTROÇOS')+' · -'+damage,1);
    if(playerCombat.hp===0){
     playerCombat.deathX=x;playerCombat.deathZ=z;playerCombat.deathHeading=heading;
     playerCombat.respawnAt=t+3;speed=0;boostUntil=0;
