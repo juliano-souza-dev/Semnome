@@ -172,7 +172,7 @@ export function chooseNpcWeapon(origin,target,estimatedVelocity,readyAt,now,{
   }
   // Tiros de queda são mais visíveis/evitáveis; o alvo tem tempo para reagir.
   const uncertaintyFactor=direct?.18:.34;
-  const motionError=targetSpeed*flight*uncertaintyFactor + Math.max(0,instability)*flight*flight*.07;
+  const motionError=(targetSpeed*uncertaintyFactor+4.5)*flight + Math.max(0,instability)*flight*flight*.07;
   const aimError=weapon.spread*(1.55-.65*skill);
   const sigma=Math.hypot(aimError,motionError,1.5);
   const probability=Math.min(.995,1-Math.exp(-(weapon.radius*weapon.radius)/(2*sigma*sigma)));
