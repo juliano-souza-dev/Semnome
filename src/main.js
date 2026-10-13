@@ -155,8 +155,10 @@ const FRAME_STEP=Math.PI/8;
 const playerAtlasReady=false;
 const playerSprite={visible:false};
 // Protótipo de combate: configurações isoladas para calibração.
-const COMBAT={range:195,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
-const WEAPON_STATS=Object.freeze({plasma:{range:205,cooldown:2.1,damage:25,impact:8},iron:{range:235,cooldown:2.5,damage:40,impact:8},torpedo:{range:245,cooldown:4.2,damage:55,impact:55},meteor:{range:265,cooldown:3.4,damage:32,impact:11},scatter:{range:215,cooldown:3.3,damage:22,impact:10},siege:{range:360,cooldown:5.0,damage:45,impact:22}});
+// Alcance do jogador ampliado cerca de 20% para manter a perseguição aos NPCs viável.
+// IA inimiga, recargas, danos e velocidades de projétil permanecem iguais.
+const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
+const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:4.2,damage:55,impact:55},meteor:{range:320,cooldown:3.4,damage:32,impact:11},scatter:{range:260,cooldown:3.3,damage:22,impact:10},siege:{range:430,cooldown:5.0,damage:45,impact:22}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
@@ -768,7 +770,7 @@ for(const jet of ship.userData.engineFlames||[]){
  jet.flame.scale.y=length;jet.flameCross.scale.y=length;
 }
 // Frota de NPCs: patrulha independente, bob nas ondas e separação física.
-let nearest=null,nearestDistance=COMBAT.range;
+let nearest=null,nearestDistance=weaponRange();
 for(const enemy of enemies){
  const distanceToPlayer=Math.hypot(x-enemy.x,z-enemy.z);
  if(enemy.hp<=0){enemy.state='destroyed';if(enemy.sprite)enemy.sprite.visible=false;if(enemy.model)enemy.model.visible=false;continue;}
@@ -1335,7 +1337,7 @@ horizon.update(x,z,t,height);
 if(orbitPointer===null&&t>=orbitManualUntil&&lockedNpc&&lockedNpc.hp>0&&playerCombat.hp>0&&!areaAim.active){
  const dx=lockedNpc.x-x,dz=lockedNpc.z-z;
  const distanceToTarget=Math.hypot(dx,dz);
- if(distanceToTarget>8&&distanceToTarget<COMBAT.range){
+ if(distanceToTarget>8&&distanceToTarget<weaponRange()){
   const desiredYaw=Math.atan2(-dx,-dz);
   const delta=Math.atan2(Math.sin(desiredYaw-orbitYaw),Math.cos(desiredYaw-orbitYaw));
   orbitYaw+=delta*(1-Math.exp(-1.65*dt));
