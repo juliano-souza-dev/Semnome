@@ -17,25 +17,26 @@ renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(deviceP
 document.body.prepend(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xb8dfff,0x123e58,1.65));
 const sun=new THREE.DirectionalLight(0xffd99b,3.3);sun.position.set(165,92,-330);scene.add(sun);
-// Mesmo campo de ondas no shader e no CPU: soma de ondas direcionais.
+// Ondas 45% mais suaves, com o mesmo fator no shader e na física da nave.
+const WAVE_INTENSITY=.55;
 const waves=[
 {dx:1,dz:.25,a:2.8,k:.055,s:1.1},
 {dx:-.3,dz:1,a:1.7,k:.092,s:1.6},
 {dx:.75,dz:-.65,a:1.15,k:.17,s:2.0},
 {dx:-.65,dz:-.75,a:.65,k:.29,s:2.8}
-].map(w=>({...w,len:Math.hypot(w.dx,w.dz)}));
+].map(w=>({...w,a:w.a*WAVE_INTENSITY,len:Math.hypot(w.dx,w.dz)}));
 function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y}
 function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
-const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
+const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uWaveIntensity:{value:WAVE_INTENSITY},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
 const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,190,190),new THREE.ShaderMaterial({
 uniforms,side:THREE.DoubleSide,
-vertexShader:`uniform float uTime;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
+vertexShader:`uniform float uTime;uniform float uWaveIntensity;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
-void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ);vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
-fragmentShader:`uniform float uTime;uniform vec2 uOffset;uniform vec3 uSunDirection;
+void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ)*uWaveIntensity;vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+fragmentShader:`uniform float uTime;uniform float uWaveIntensity;uniform vec2 uOffset;uniform vec3 uSunDirection;
 varying vec3 vPos;varying float vHeight;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float wave(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
+float wave(vec2 p){return uWaveIntensity*(2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8));}
 void main(){
  vec2 p=vPos.xy;
  float h=.75;
@@ -47,7 +48,7 @@ void main(){
  float fresnel=pow(1.-max(dot(n,viewDir),0.),3.);
  float spec=pow(max(dot(reflect(-lightDir,n),viewDir),0.),85.)*1.4;
  float glint=pow(max(dot(reflect(-lightDir,n),viewDir),0.),240.)*2.;
- float trough=smoothstep(-5.,3.5,vHeight);
+ float trough=smoothstep(-2.8,2.0,vHeight);
  vec3 deep=vec3(.006,.075,.135),shallow=vec3(.015,.36,.46);
  vec3 sea=mix(deep,shallow,trough*.7+lit*.18);
  sea=mix(sea,vec3(.13,.39,.53),fresnel*.33);
@@ -55,8 +56,8 @@ void main(){
  vec2 warp=p*.21+gradient.yx*.17;
  float filaments=sin(warp.x+sin(warp.y*.75)*2.8)*cos(warp.y*.66+sin(warp.x*.8)*2.);
  float jitter=hash(floor(p*.48))*0.35;
- float crest=smoothstep(2.0,5.0,vHeight+filaments*.95);
- float ribbons=smoothstep(.54,.87,filaments+jitter)*smoothstep(.2,4.5,vHeight);
+ float crest=smoothstep(1.1,2.8,vHeight+filaments*.60);
+ float ribbons=smoothstep(.54,.87,filaments+jitter)*smoothstep(.1,2.5,vHeight);
  float foam=clamp(crest*.30+ribbons*.57,0.,.72);
  sea=mix(sea,vec3(.79,.96,1.),foam);
  sea+=vec3(1.,.77,.46)*(spec*.38+glint*.22);
