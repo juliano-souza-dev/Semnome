@@ -177,7 +177,7 @@ for(const enemy of enemies){
  enemy.vx=0;enemy.vz=0;
  // Cada NPC mantém memória curta da velocidade vista, tempo de reação e dash.
  enemy.ai={estimateVx:0,estimateVz:0,nextDash:0,dashUntil:0,dashX:0,dashZ:0,
-  trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0};
+  trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0,nextWake:0};
  scene.add(enemy.model);
 }
 npc.visible=false;
@@ -801,7 +801,11 @@ for(const enemy of enemies){
   }
  }else if(t>=ai.dashUntil){ai.trackedShot=null;}
  const dodging=t<ai.dashUntil;
- if(dodging)enemy.state='evade';
+ if(dodging){
+  enemy.state='evade';
+  // Rastro curto de água para sinalizar o impulso lateral, sem novos sistemas.
+  if(t>=ai.nextWake){emitWake(enemy.x,enemy.z,t,true);ai.nextWake=t+.23;}
+ }
  const desiredYaw=-Math.atan2(tactic.goalX-enemy.x,-(tactic.goalZ-enemy.z));
  const yawDelta=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
  enemy.heading+=THREE.MathUtils.clamp(yawDelta,-(tactic.active?3.1:1.1)*dt,(tactic.active?3.1:1.1)*dt);
@@ -895,8 +899,8 @@ for(const enemy of enemies){
  for(const rotor of enemy.model.userData.rotors||[])rotor.rotation.z=t*(3+tactic.speed*.24)+enemy.phase;
  for(const jet of enemy.model.userData.engineFlames||[]){
   jet.material.uniforms.uTime.value=t+enemy.phase;
-  jet.material.uniforms.uPower.value=Math.max(.24,Math.min(1,tactic.speed/65));
-  jet.flame.scale.y=.75+tactic.speed/95;jet.flameCross.scale.y=.75+tactic.speed/95;
+  jet.material.uniforms.uPower.value=dodging?1.25:Math.max(.24,Math.min(1,tactic.speed/65));
+  jet.flame.scale.y=dodging?1.45:.75+tactic.speed/95;jet.flameCross.scale.y=jet.flame.scale.y;
  }
 }
  if(enemy.sprite){
@@ -919,7 +923,7 @@ lockedNpc=nearest;
 refreshCompass(t);
 targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
-lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP':'Procurando alvo...';
+lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP'+(lockedNpc.state==='evade'?' · ESQUIVA 🚀':''):'Procurando alvo...';
 // Estado de recarga do botão é atualizado no fechamento do frame.
 // Antigo protótipo oculto: somente a máquina 3D deve aparecer.
 npc.visible=false;
