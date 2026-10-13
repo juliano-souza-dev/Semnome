@@ -953,9 +953,20 @@ for(let i=projectiles.length-1;i>=0;i--){
     const v=p.trailPoints[j];arr[j*3]=v.x;arr[j*3+1]=v.y;arr[j*3+2]=v.z;
   }
   p.trail.geometry.attributes.position.needsUpdate=true;
-  // A explosão ocorre na chegada; não atravessa o alvo entre frames.
+  // Torpedo só detona depois de colisão física varrida. Chegar ao alcance
+  // máximo sem atingir um objeto encerra o projétil sem explosão ou dano.
+  const torpedoHit=p.ammo==='torpedo'&&torpedoImpact!==null;
+  const torpedoExpired=p.ammo==='torpedo'&&u>=1&&!torpedoHit;
   if(u>=1||torpedoImpact){
-    if(torpedoImpact)p.destination.copy(p.mesh.position);
+    if(torpedoExpired){
+      scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();p.trail.material.dispose();
+      for(const part of p.mesh.children){
+        if(part.material!==energyCoreMaterial&&part.material!==energyGlowMaterial&&part.material!==plasmaMaterial)part.material.dispose();
+      }
+      projectiles.splice(i,1);
+      continue;
+    }
+    if(torpedoHit)p.destination.copy(p.mesh.position);
     energyFlash(p.mesh.position);
     if(p.ammo==='torpedo'){
      // Anel de choque mostra o alcance real do torpedo no plano do oceano.
@@ -965,7 +976,8 @@ for(let i=projectiles.length-1;i>=0;i--){
     }
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
-      const distance=Math.hypot(enemy.x-p.destination.x,enemy.z-p.destination.z);
+      const epicenter=torpedoHit?p.mesh.position:p.destination;
+      const distance=Math.hypot(enemy.x-epicenter.x,enemy.z-epicenter.z);
       const radius=WEAPON_STATS[p.ammo].impact;
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius){
