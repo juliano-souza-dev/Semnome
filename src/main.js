@@ -807,10 +807,10 @@ for(const enemy of enemies){
  enemy.heading+=THREE.MathUtils.clamp(yawDelta,-(tactic.active?3.1:1.1)*dt,(tactic.active?3.1:1.1)*dt);
  const oldEnemyX=enemy.x,oldEnemyZ=enemy.z;
  enemy.previousX=oldEnemyX;enemy.previousZ=oldEnemyZ;
- let dx=-Math.sin(enemy.heading)*tactic.speed*dt+(dodging?ai.dashX*80*dt:0);
- let dz=-Math.cos(enemy.heading)*tactic.speed*dt+(dodging?ai.dashZ*80*dt:0);
+ let moveDX=-Math.sin(enemy.heading)*tactic.speed*dt+(dodging?ai.dashX*80*dt:0);
+ let moveDZ=-Math.cos(enemy.heading)*tactic.speed*dt+(dodging?ai.dashZ*80*dt:0);
  // Paredes/ruínas também são sólidas para os NPCs em movimento e em dash.
- let nextX=enemy.x+dx,nextZ=enemy.z+dz;
+ let nextX=enemy.x+moveDX,nextZ=enemy.z+moveDZ;
  for(const obstacle of horizon.colliders){
   const radius=obstacle.radius+6;
   const rx=nextX-obstacle.x,rz=nextZ-obstacle.z;
