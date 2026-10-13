@@ -554,18 +554,21 @@ addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
 // Teste: câmera fixa atrás da nave; nenhum arrasto altera a orientação.
 // Arrastar o oceano muda o rumo do casco e da câmera juntos.
-let dragId=null,lastDragX=0,dragTurn=0;
+let dragId=null,lastDragX=0,lastDragY=0,cameraYawOffset=0,cameraPitchOffset=0;
 renderer.domElement.style.touchAction='none';
 renderer.domElement.addEventListener('pointerdown',e=>{
  if(dragId!==null || (e.pointerType==='mouse'&&e.button!==0))return;
- e.preventDefault();dragId=e.pointerId;lastDragX=e.clientX;
+ e.preventDefault();dragId=e.pointerId;lastDragX=e.clientX;lastDragY=e.clientY;
  renderer.domElement.setPointerCapture(e.pointerId);
 });
 renderer.domElement.addEventListener('pointermove',e=>{
  if(e.pointerId!==dragId)return;
  e.preventDefault();
- const dx=e.clientX-lastDragX;lastDragX=e.clientX;
- dragTurn+=dx*.008;
+ const dx=e.clientX-lastDragX,dy=e.clientY-lastDragY;
+ lastDragX=e.clientX;lastDragY=e.clientY;
+ // Direções relativas à tela, independentes do rumo do casco.
+ cameraYawOffset+=dx*.006;
+ cameraPitchOffset=THREE.MathUtils.clamp(cameraPitchOffset-dy*.085,-6,26);
 });
 function releaseDrag(e){if(e.pointerId===dragId)dragId=null}
 renderer.domElement.addEventListener('pointerup',releaseDrag);
@@ -592,12 +595,7 @@ boostButton.classList.toggle('active',boostRemaining>0);
 const boostCooldown=Math.max(0,boostReadyAt-t);
 boostButton.textContent=boostRemaining>0?'🚀 ESQUIVA':boostCooldown>0?'🚀 '+boostCooldown.toFixed(1)+'s':'🚀 PROPULSOR';
 boostButton.disabled=boostCooldown>0||playerCombat.hp<=0;
-// O arrasto gira a nave, preservando a traseira voltada para a câmera.
-if(dragTurn!==0){
- heading+=dragTurn;
- if(input.active)stickReferenceYaw+=dragTurn;
- dragTurn=0;
-}
+// O arrasto controla apenas a câmera; a direção de navegação é independente.
 if(Math.abs(speed)>.35||boostRemaining>0){
   if(reversing&&boostRemaining<=0){
     // Pequenas correções laterais durante a ré, mantendo a orientação.
@@ -987,8 +985,8 @@ const cameraHeight=THREE.MathUtils.lerp(9.5,12.8,velocityFactor);
 const desiredFov=62+velocityFactor*5+(boostRemaining>0?3:0);
 const newFov=THREE.MathUtils.damp(camera.fov,desiredFov,2.1,dt);
 if(Math.abs(newFov-camera.fov)>.015){camera.fov=newFov;camera.updateProjectionMatrix();}
-const cameraYaw=heading;
-normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)*distance);
+const cameraYaw=heading+cameraYawOffset;
+normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight+cameraPitchOffset,z+Math.cos(cameraYaw)*distance);
 // Mantém o modelo 3D no enquadramento, inclusive os detalhes do canhão e das turbinas.
 normalLook.set(x-Math.sin(cameraYaw)*9,bob+2.0,z-Math.cos(cameraYaw)*9);
 // Modo ataque: distancia-se o suficiente para mostrar embarcação, alvo e arco 3D.
