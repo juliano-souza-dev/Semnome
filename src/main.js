@@ -166,10 +166,20 @@ function refreshPlayerHealth(){
  hpFill.style.background=percent>.6?'linear-gradient(180deg,#aaff56,#52ce18)':percent>.3?'linear-gradient(180deg,#ffe76b,#e7a528)':'linear-gradient(180deg,#ff8380,#d72832)';
  hpValue.textContent=playerCombat.hp+' / '+ENEMY_AI.maxHp;
  hpHud.setAttribute('aria-valuenow',String(playerCombat.hp));
- hpScreenPoint.set(x,ship.position.y-3.9,z).project(camera);
+ // Posição em pixels abaixo da nave projetada: não deslocar a âncora para baixo
+ // no mundo 3D, pois a câmera naval baixa pode projetá-la para fora da tela.
+ ship.getWorldPosition(hpScreenPoint);
+ hpScreenPoint.y+=1;
+ hpScreenPoint.project(camera);
+ const screenX=(hpScreenPoint.x*.5+.5)*innerWidth;
+ const screenY=(-hpScreenPoint.y*.5+.5)*innerHeight;
+ const offset=Math.min(88,Math.max(48,innerHeight*.145));
  const visible=hpScreenPoint.z>=-1&&hpScreenPoint.z<=1&&playerCombat.hp>0;
  hpHud.style.display=visible?'flex':'none';
- if(visible){hpHud.style.left=((hpScreenPoint.x*.5+.5)*innerWidth).toFixed(1)+'px';hpHud.style.top=((-hpScreenPoint.y*.5+.5)*innerHeight).toFixed(1)+'px';}
+ if(visible){
+  hpHud.style.left=Math.max(65,Math.min(innerWidth-65,screenX)).toFixed(1)+'px';
+  hpHud.style.top=Math.max(30,Math.min(innerHeight-26,screenY+offset)).toFixed(1)+'px';
+ }
 }
  // Bússola de combate: pings persistentes para toda a frota, inclusive fora do campo de visão.
  const compass=document.createElement('div');compass.id='combatCompass';
