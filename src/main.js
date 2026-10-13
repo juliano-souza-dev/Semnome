@@ -1,6 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 import {createWastelandHorizon} from './environment.js';
-import {planEnemy,canEnemyFire,TACTICS,predictIntercept,assessProjectileThreat,evadeVector,sweptMovingContact} from './enemy-ai.js';
+import {planEnemy,canEnemyFire,TACTICS,predictIntercept,assessProjectileThreat,evadeVector,sweptMovingContact,NPC_WEAPONS,chooseNpcWeapon} from './enemy-ai.js';
 import {integrateHull,ballisticPoint} from './naval-physics.js';
 import {createWarMachine3D} from './war-machine-3d.js';
 import {createGameAudio} from './game-audio.js';
@@ -177,7 +177,7 @@ for(const enemy of enemies){
  enemy.vx=0;enemy.vz=0;
  // Cada NPC mantém memória curta da velocidade vista, tempo de reação e dash.
  enemy.ai={estimateVx:0,estimateVz:0,nextDash:0,dashUntil:0,dashX:0,dashZ:0,
-  trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0,nextWake:0};
+  trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0,nextWake:0,weaponReadyAt:{},choice:null,lastChoiceAt:-100,currentWeapon:null};
  scene.add(enemy.model);
 }
 npc.visible=false;
@@ -831,40 +831,103 @@ for(const enemy of enemies){
  enemy.vx=(enemy.x-oldEnemyX)/Math.max(dt,.001);
  enemy.vz=(enemy.z-oldEnemyZ)/Math.max(dt,.001);
  // Solução de interceptação por velocidade REAL observada e tempo de voo.
- const approxOrigin={x:enemy.x,z:enemy.z};
+ // Cada piloto reavalia o arsenal em intervalos curtos. A pontuação matemática
+ // escolhe a maior P(acerto) dentre as armas ALCANÇÁVEIS e disponíveis.
+ // Inércia perceptiva: decisões não mudam freneticamente a cada quadro.
  const skill=role===2?.92:role===1?.84:.77;
  const estimate={x:ai.estimateVx*skill,z:ai.estimateVz*skill};
- const lead=predictIntercept(approxOrigin,{x,z},estimate,ENEMY_AI.shotSpeed,2.2);
- ai.aimX=lead.x;ai.aimZ=lead.z;
- if(tactic.active&&distanceToPlayer<=ENEMY_AI.fireRange&&!dodging&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
+ if(t-ai.lastChoiceAt>.16||!ai.choice){
+  ai.lastChoiceAt=t;
+  const blocked=(origin,point,weaponId)=>{
+   if(weaponId!=='torpedo'&&weaponId!=='plasma'&&weaponId!=='iron')return false;
+   const ux=point.x-origin.x,uz=point.z-origin.z,lenSq=ux*ux+uz*uz;
+   if(lenSq<1)return false;
+   for(const obstacle of horizon.colliders){
+    // Ponto mais próximo ao segmento direto; ignora estruturas atrás do tiro.
+    const projection=THREE.MathUtils.clamp(((obstacle.x-origin.x)*ux+(obstacle.z-origin.z)*uz)/lenSq,0,1);
+    const cx=origin.x+projection*ux,cz=origin.z+projection*uz;
+    const collisionRadius=obstacle.radius+(weaponId==='torpedo'?2:0);
+    if(Math.hypot(obstacle.x-cx,obstacle.z-cz)<collisionRadius)return true;
+   }
+   return false;
+  };
+  ai.choice=chooseNpcWeapon({x:enemy.x,z:enemy.z},{x,z},estimate,ai.weaponReadyAt,t,{
+   skill,instability:Math.abs(steering)*40,
+   blocked
+  });
+ }
+ const choice=ai.choice;
+ const aim=choice||predictIntercept({x:enemy.x,z:enemy.z},{x,z},estimate,140,2.2);
+ ai.aimX=choice?.aimX??aim.x;ai.aimZ=choice?.aimZ??aim.z;
+ if(choice&&tactic.active&&!dodging&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
   const turret=enemy.model.userData.turretPivot;
-  const desiredGun=Math.atan2(-(lead.x-enemy.x),-(lead.z-enemy.z))-enemy.heading;
+  const desiredGun=Math.atan2(-(choice.aimX-enemy.x),-(choice.aimZ-enemy.z))-enemy.heading;
   const gunError=turret?Math.abs(Math.atan2(Math.sin(desiredGun-turret.rotation.y),Math.cos(desiredGun-turret.rotation.y))):0;
-  // Só dispara quando sua torreta conseguiu acompanhar a solução de tiro.
   if(gunError<.32){
+   const weapon=choice.weapon;
    const gunAngle=enemy.heading+(turret?.rotation.y||0);
-   const origin=new THREE.Vector3(enemy.x-Math.sin(gunAngle)*5.4,enemy.y+3.3,enemy.z-Math.cos(gunAngle)*5.4);
-   const flightLead=predictIntercept(origin,{x,z},estimate,ENEMY_AI.shotSpeed,2.2);
-   // Dispersão física: disparos de pilotos diferentes podem errar.
-   const aimError=(1-skill)*13+(enemy.hp<=25?3:0);
-   const spreadX=Math.sin(t*3.7+enemy.id*9.1)*aimError;
-   const spreadZ=Math.cos(t*2.9+enemy.id*7.3)*aimError;
-   const predicted=new THREE.Vector3(flightLead.x+spreadX,bob+2.3,flightLead.z+spreadZ);
-   const distance=Math.hypot(predicted.x-origin.x,predicted.z-origin.z);
-   const flight=Math.max(.16,distance/ENEMY_AI.shotSpeed);
-   const mesh=new THREE.Group();
-   const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
-   const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
-   const glow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
-   const outerGlow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
-   outerGlow.scale.setScalar(1.9);
-   mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(origin);scene.add(mesh);
-   const trailPoints=Array.from({length:12},()=>origin.clone());
-   const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),energyTrailMaterial);scene.add(trail);
-   enemyShots.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination:predicted,arcHeight:0,
-    age:0,duration:flight,source:enemy.id});
-   enemy.model.userData.recoil=.34;enemy.model.userData.flashTime=.13;
-   enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%3)*.16+(enemy.hp<22?.5:0);
+   const origin=new THREE.Vector3(enemy.x-Math.sin(gunAngle)*5.4,
+       weapon.mode==='torpedo'?height(enemy.x,enemy.z,t)+.65:enemy.y+3.3,
+       enemy.z-Math.cos(gunAngle)*5.4);
+   // A previsão é recalculada a partir da boca do canhão no instante real do tiro.
+   const shotChoice=chooseNpcWeapon(origin,{x,z},estimate,{[choice.id]:0},t,{
+     weapons:{[choice.id]:weapon},skill,instability:Math.abs(steering)*40
+   });
+   if(shotChoice){
+    const deviation=weapon.spread*(1.15-skill*.6)+(enemy.hp<=25?3:0);
+    const vx=Math.sin(t*4.3+enemy.id*13.7),vz=Math.cos(t*3.1+enemy.id*7.1);
+    const predicted=new THREE.Vector3(shotChoice.aimX+vx*deviation,
+     weapon.mode==='torpedo'?height(shotChoice.aimX,shotChoice.aimZ,t)+.65:bob+2.3,
+     shotChoice.aimZ+vz*deviation);
+    const flight=shotChoice.flight;
+    const spawnShot=(destination,extraTime=0,secondary=false)=>{
+     const mesh=new THREE.Group();
+     const coreMat=new THREE.MeshBasicMaterial({color:weapon.color,toneMapped:false});
+     const core=new THREE.Mesh(energyCoreGeometry,coreMat);
+     const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.05,1),plasmaMaterial);
+     const glowMat=energyGlowMaterial.clone();
+     glowMat.uniforms.uColor.value.setHex(weapon.color);
+     const glow=new THREE.Mesh(energyGlowGeometry,glowMat);
+     const outerGlow=new THREE.Mesh(energyGlowGeometry,glowMat);
+     outerGlow.scale.setScalar(1.9);
+     mesh.add(core,plasma,glow,outerGlow);
+     mesh.position.copy(origin);scene.add(mesh);
+     const trailPoints=Array.from({length:12},()=>origin.clone());
+     const trailMat=new THREE.LineBasicMaterial({color:weapon.color,transparent:true,opacity:.85,
+      blending:THREE.AdditiveBlending,depthWrite:false});
+     const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),trailMat);
+     scene.add(trail);
+     let warning=null;
+     if(weapon.mode==='area'){
+      warning=new THREE.Mesh(new THREE.RingGeometry(weapon.radius*.88,weapon.radius,40),
+       new THREE.MeshBasicMaterial({color:weapon.color,transparent:true,opacity:.38,
+         depthWrite:false,side:THREE.DoubleSide}));
+      warning.rotation.x=-Math.PI/2;
+      warning.position.set(destination.x,height(destination.x,destination.z,t)+.28,destination.z);
+      scene.add(warning);
+     }
+     enemyShots.push({weaponId:choice.id,weapon,mesh,glow,outerGlow,plasma,core,
+       trail,trailPoints,origin:origin.clone(),destination:destination.clone(),arcHeight:0,
+       age:0,duration:flight+extraTime,source:enemy.id,warning,coreMat,glowMat,trailMat,
+       secondary,hitDamage:secondary?Math.max(2,Math.round(weapon.damage*.65)):weapon.damage});
+    };
+    spawnShot(predicted);
+    if(choice.id==='scatter'){
+     // Chuva: três munições em tempos/espaços próximos, nunca dano automático.
+     const angle=Math.atan2(predicted.z-origin.z,predicted.x-origin.x);
+     const perpendicularX=-Math.sin(angle),perpendicularZ=Math.cos(angle);
+     for(const side of [-1,1]){
+      const dest=predicted.clone().add(new THREE.Vector3(perpendicularX*side*8,0,perpendicularZ*side*8));
+      spawnShot(dest,side<0?.16:.32,true);
+     }
+    }
+    enemy.model.userData.recoil=.34;enemy.model.userData.flashTime=.13;
+    ai.weaponReadyAt[choice.id]=t+weapon.cooldown;
+    ai.currentWeapon=choice.id;
+    ai.choice=null;ai.lastChoiceAt=-100;
+    // Intervalo geral entre decisões de fogo; recarga individual por arma.
+    enemy.nextShot=t+Math.max(.9,Math.min(2.3,weapon.cooldown*.55))+(enemy.id%3)*.18;
+   }
   }
  }
  // Colisão jogador × inimigo; nenhum dano durante esta fase de testes.
@@ -923,7 +986,7 @@ lockedNpc=nearest;
 refreshCompass(t);
 targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
-lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP'+(lockedNpc.state==='evade'?' · ESQUIVA 🚀':''):'Procurando alvo...';
+lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP'+(lockedNpc.state==='evade'?' · ESQUIVA 🚀':'')+(lockedNpc.ai.currentWeapon?' · '+NPC_WEAPONS[lockedNpc.ai.currentWeapon].name:''):'Procurando alvo...';
 // Estado de recarga do botão é atualizado no fechamento do frame.
 // Antigo protótipo oculto: somente a máquina 3D deve aparecer.
 npc.visible=false;
