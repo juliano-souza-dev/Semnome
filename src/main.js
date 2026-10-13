@@ -427,13 +427,13 @@ function launchShot(manualPoint=null){
  const origin=ship.userData.firePoint.getWorldPosition(new THREE.Vector3());
  if(ammo.id==='torpedo'){
   // Tubo lança-torpedos abaixo do casco, sem lançar o projétil pelo ar.
-  origin.set(x-Math.sin(heading)*3,height(x,z,clock.elapsedTime)+.65,z-Math.cos(heading)*3);
+  origin.set(x-Math.sin(heading)*6,height(x,z,clock.elapsedTime)+.55,z-Math.cos(heading)*6);
   destination.y=height(destination.x,destination.z,clock.elapsedTime)+.65;
  }
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='torpedo'?Math.max(.20,origin.distanceTo(destination)/285):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
+ const travel=ammo.id==='torpedo'?Math.max(.65,Math.hypot(origin.x-destination.x,origin.z-destination.z)/72):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -445,18 +445,19 @@ function launchShot(manualPoint=null){
  energyFlash(origin);
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
- const trail=new THREE.Line(trailGeometry,energyTrailMaterial);scene.add(trail);
+ const trail=new THREE.Line(trailGeometry,ammo.id==='torpedo'?new THREE.LineBasicMaterial({color:0xd6ffff,transparent:true,opacity:.7,depthWrite:false}):energyTrailMaterial);scene.add(trail);
  const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage};
  if(ammo.id==='torpedo'){
   core.visible=false;plasma.visible=false;glow.visible=false;outerGlow.visible=false;
-  const shell=new THREE.MeshStandardMaterial({color:0x3b6871,metalness:.75,roughness:.28});
+  const shell=new THREE.MeshStandardMaterial({color:0x657c83,metalness:.65,roughness:.3});
   const finMat=new THREE.MeshStandardMaterial({color:0x1b3038,metalness:.6,roughness:.42});
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(.46,1.15,10),shell);nose.rotation.x=-Math.PI/2;nose.position.z=-1.05;
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,2.45,12),shell);body.rotation.x=Math.PI/2;
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.6,1.5,10),shell);nose.rotation.x=-Math.PI/2;nose.position.z=-1.05;
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.6,.6,3.25,12),shell);body.rotation.x=Math.PI/2;
   mesh.add(nose,body);
   for(const side of [-1,1]){const fin=new THREE.Mesh(new THREE.BoxGeometry(1.12,.09,.60),finMat);fin.position.set(0,side*.08,1.12);mesh.add(fin)}
   mesh.rotation.y=Math.atan2(-(destination.x-origin.x),-(destination.z-origin.z));
-  shot.torpedo=true;
+  shot.torpedo=true;shot.foamTimer=0;
+  const finGlow=new THREE.Mesh(new THREE.SphereGeometry(.38,8,8),new THREE.MeshBasicMaterial({color:0xff6b2f}));finGlow.position.z=1.85;mesh.add(finGlow);
  }
  if(ammo.id==='iron'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
  if(ammo.id==='meteor'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);plasma.material=plasmaMaterial.clone();}
@@ -839,7 +840,9 @@ for(let i=projectiles.length-1;i>=0;i--){
    p.mesh.position.y+=p.arcHeight*Math.sin(Math.PI*Math.pow(u,.63));
   }else if(p.ammo==='torpedo'){
    p.mesh.position.lerpVectors(p.origin,p.destination,u);
-   p.mesh.position.y=height(p.mesh.position.x,p.mesh.position.z,t)+.65;
+   p.mesh.position.y=height(p.mesh.position.x,p.mesh.position.z,t)+.55;
+   p.foamTimer+=dt;
+   if(p.foamTimer>=.12){p.foamTimer=0;emitWake(p.mesh.position.x,p.mesh.position.z,t,false);}
   }else if(p.ammo==='plasma'||p.ammo==='iron'){
    p.mesh.position.lerpVectors(p.origin,p.destination,u);
   }else{
@@ -922,7 +925,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       attackCamera.phase='impact';attackCamera.impactAt=t;
       attackCamera.shot=null;attackCamera.shake=.42;
     }
-    scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();
+    scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();if(p.ammo==='torpedo')p.trail.material.dispose();
     for(const part of p.mesh.children){if(part.material!==energyCoreMaterial && part.material!==energyGlowMaterial && part.material!==plasmaMaterial)part.material.dispose()}
     projectiles.splice(i,1);
   }
@@ -976,7 +979,7 @@ normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight,z+Math.cos(cameraYaw)
 normalLook.set(x-Math.sin(cameraYaw)*9,bob+2.0,z-Math.cos(cameraYaw)*9);
 // Modo ataque: distancia-se o suficiente para mostrar embarcação, alvo e arco 3D.
 let desiredBlend=0;
-if(attackCamera.phase==='flight' && attackCamera.shot)desiredBlend=1;
+if(attackCamera.phase==='flight' && attackCamera.shot)desiredBlend=attackCamera.shot.ammo==='torpedo'?0:1;
 else if(attackCamera.phase==='impact'){
   desiredBlend=t-attackCamera.impactAt<.26?1:0;
   if(t-attackCamera.impactAt>.85)attackCamera.phase='idle';
