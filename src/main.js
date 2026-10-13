@@ -12,30 +12,8 @@ document.addEventListener('keydown',()=>audio.unlock());
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8db6d5');scene.fog=new THREE.FogExp2('#759ab4',.00155);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
-// GPU móvel: mesma física e IA, mas menos pixels por quadro.
-const MOBILE_RENDER=window.matchMedia('(pointer: coarse)').matches;
-// Entrada mobile conservadora: evita iniciar a GPU no pico de pixels.
-let renderRatio=MOBILE_RENDER?Math.min(devicePixelRatio,.85):Math.min(devicePixelRatio,1.5);
-const renderer=new THREE.WebGLRenderer({antialias:!MOBILE_RENDER,powerPreference:'high-performance'});
-renderer.setPixelRatio(renderRatio);
-renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;
-const mobilePerf={elapsed:0,frames:0,lastAdjust:0};
-function updateMobileQuality(frameSeconds,t){
- if(!MOBILE_RENDER)return;
- mobilePerf.elapsed+=Math.min(frameSeconds,.10);
- mobilePerf.frames++;
- if(mobilePerf.elapsed<2.5||t-mobilePerf.lastAdjust<3)return;
- const fps=mobilePerf.frames/mobilePerf.elapsed;
- mobilePerf.elapsed=0;mobilePerf.frames=0;
- let next=renderRatio;
- if(fps<44)next=Math.max(.7,renderRatio-.1);
- else if(fps>57)next=Math.min(Math.min(devicePixelRatio,.95),renderRatio+.05);
- if(Math.abs(next-renderRatio)>.02){
-  renderRatio=Math.round(next*10)/10;
-  renderer.setPixelRatio(renderRatio);
-  mobilePerf.lastAdjust=t;
- }
-}
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xb8dfff,0x123e58,1.65));
 const sun=new THREE.DirectionalLight(0xffd99b,3.3);sun.position.set(165,92,-330);scene.add(sun);
@@ -72,10 +50,8 @@ const waves=[
 function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y*currentSeaIntensity}
 function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
 const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uWaveIntensity:{value:currentSeaIntensity},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
-// Menos triângulos no mar para aparelhos de toque, mantendo formato global.
-const waterSegments=MOBILE_RENDER?110:190;
-const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,waterSegments,waterSegments),new THREE.ShaderMaterial({
-uniforms,side:THREE.DoubleSide,defines:MOBILE_RENDER?{MOBILE_WATER:1}:{},
+const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,190,190),new THREE.ShaderMaterial({
+uniforms,side:THREE.DoubleSide,
 vertexShader:`uniform float uTime;uniform float uWaveIntensity;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
 void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ)*uWaveIntensity;vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
@@ -86,31 +62,14 @@ float wave(vec2 p){return uWaveIntensity*(2.8*sin(dot(p,normalize(vec2(1.,.25)))
 void main(){
  vec2 p=vPos.xy;
  float h=.75;
-#ifdef MOBILE_WATER
- // Gradiente analítico: 4 cossenos em vez de 16 senos por pixel.
- vec2 d1=normalize(vec2(1.,.25));
- vec2 d2=normalize(vec2(-.3,1.));
- vec2 d3=normalize(vec2(.75,-.65));
- vec2 d4=normalize(vec2(-.65,-.75));
- vec2 gradient=2.*h*uWaveIntensity*(
-  2.8*.055*cos(dot(p,d1)*.055-uTime*1.1)*d1+
-  1.7*.092*cos(dot(p,d2)*.092-uTime*1.6)*d2+
-  1.15*.17*cos(dot(p,d3)*.17-uTime*2.)*d3+
-  .65*.29*cos(dot(p,d4)*.29-uTime*2.8)*d4);
-#else
  vec2 gradient=vec2(wave(p+vec2(h,0.))-wave(p-vec2(h,0.)),wave(p+vec2(0.,h))-wave(p-vec2(0.,h)));
-#endif
  vec3 n=normalize(vec3(-gradient.x,2.*h,-gradient.y));
  vec3 viewDir=normalize(cameraPosition-vec3(p.x,vHeight,p.y));
  vec3 lightDir=normalize(uSunDirection);
  float lit=.3+.7*max(dot(n,lightDir),0.);
  float fresnel=pow(1.-max(dot(n,viewDir),0.),3.);
  float spec=pow(max(dot(reflect(-lightDir,n),viewDir),0.),85.)*1.4;
- #ifdef MOBILE_WATER
- float glint=0.;
-#else
  float glint=pow(max(dot(reflect(-lightDir,n),viewDir),0.),240.)*2.;
-#endif
  float normalizedHeight=vHeight/max(uWaveIntensity,.08);
  float trough=smoothstep(-5.,3.5,normalizedHeight);
  vec3 deep=vec3(.006,.075,.135),shallow=vec3(.015,.36,.46);
@@ -119,11 +78,7 @@ void main(){
  // Espuma orgânica: filamentos deformados com a crista, sem malha hexagonal.
  vec2 warp=p*.21+gradient.yx*.17;
  float filaments=sin(warp.x+sin(warp.y*.75)*2.8)*cos(warp.y*.66+sin(warp.x*.8)*2.);
- #ifdef MOBILE_WATER
- float jitter=.14;
-#else
- float jitter=hash(floor(p*.48))*.35;
-#endif
+ float jitter=hash(floor(p*.48))*0.35;
  float crest=smoothstep(2.,5.,normalizedHeight+filaments*.65);
  float ribbons=smoothstep(.54,.87,filaments+jitter)*smoothstep(.2,4.5,normalizedHeight);
  float foam=clamp((crest*.30+ribbons*.57)*(.22+uWaveIntensity),0.,.48);
@@ -670,8 +625,7 @@ renderer.domElement.addEventListener('pointercancel',releaseOrbit);
 renderer.domElement.addEventListener('lostpointercapture',releaseOrbit);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
-requestAnimationFrame(tick);const frameSeconds=clock.getDelta(),dt=Math.min(frameSeconds,.04),t=clock.elapsedTime;
-updateMobileQuality(frameSeconds,t);
+requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;
 currentSeaIntensity=seaIntensityAt(t);
 uniforms.uTime.value=t;
 uniforms.uWaveIntensity.value=currentSeaIntensity;
@@ -1404,5 +1358,5 @@ if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=nu
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Mar '+(currentSeaIntensity<.24?'calmo':currentSeaIntensity<.37?'médio':'bravinho');
 renderer.render(scene,camera);
 }
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(renderRatio);});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));});
 document.getElementById('loading').remove();tick();
