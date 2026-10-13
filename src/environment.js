@@ -46,10 +46,42 @@ export function createWastelandHorizon(THREE,scene){
     // Evita gerar obstáculos por cima das ilhas.
     if(colliders.some(c=>Math.hypot(c.x-px,c.z-pz)<c.radius+15))continue;
     const size=2.8+rnd()*3.6;
-    const wreck=new THREE.Mesh(i%3===0?new THREE.CylinderGeometry(size*.53,size*.53,size*1.7,8):new THREE.BoxGeometry(size*2,size*.6,size),debrisMat);
+    // Cada destroço é um pequeno conjunto 3D, em vez de uma caixa isolada.
+    const wreck=new THREE.Group();
+    const hull=new THREE.Mesh(i%3===0?new THREE.CylinderGeometry(size*.53,size*.53,size*1.7,8):new THREE.BoxGeometry(size*2,size*.75,size),debrisMat);
+    if(i%3===0)hull.rotation.z=Math.PI*.5;
+    wreck.add(hull);
+    const rim=new THREE.Mesh(new THREE.BoxGeometry(size*1.55,.22,size*.3),dark);
+    rim.position.set(0,size*.43,0);rim.rotation.y=.25;wreck.add(rim);
+    const brokenMast=new THREE.Mesh(new THREE.CylinderGeometry(.16,.27,size*1.9,5),rust);
+    brokenMast.position.set(size*.32,size*.45,0);
+    brokenMast.rotation.z=.85+rnd()*.65;wreck.add(brokenMast);
+    const beam=new THREE.Mesh(new THREE.BoxGeometry(size*.23,.24,size*1.4),rust);
+    beam.position.set(-size*.25,size*.26,.3);beam.rotation.y=.5;wreck.add(beam);
     wreck.position.set(px,0,pz);wreck.rotation.y=rnd()*Math.PI*2;group.add(wreck);
     debris.push({mesh:wreck,x:px,z:pz,phase:rnd()*6});
+    // Espuma de contato ao redor de obstáculos sólidos.
+    const ring=new THREE.Mesh(new THREE.RingGeometry(size*.8,size*1.13,24),new THREE.MeshBasicMaterial({color:0xc2f4ff,transparent:true,opacity:.23,depthWrite:false,side:THREE.DoubleSide}));
+    ring.rotation.x=-Math.PI/2;ring.position.set(px,.15,pz);group.add(ring);
+    debris[debris.length-1].foam=ring;
     colliders.push({x:px,z:pz,radius:size*(i%3===0?.8:1.1),kind:'debris'});
+  }
+  // Pontes quebradas e passarelas industriais: peças 3D estáticas no mundo.
+  const girderMat=new THREE.MeshStandardMaterial({color:0x46525c,metalness:.62,roughness:.72});
+  for(let i=0;i<10;i++){
+    const angle=i*Math.PI*2/10+.14;
+    const dist=330+(i%3)*42,px=Math.sin(angle)*dist,pz=Math.cos(angle)*dist;
+    const bridge=new THREE.Group();bridge.position.set(px,0,pz);bridge.rotation.y=angle;
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(3,27,3),girderMat);
+    leg.position.set(-11,8,0);bridge.add(leg);
+    const secondLeg=leg.clone();secondLeg.position.x=11;secondLeg.scale.y=.7;bridge.add(secondLeg);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(31,2.2,3.4),rust);
+    top.position.set(0,22,0);top.rotation.z=(i%2?1:-1)*.26;bridge.add(top);
+    const cross=new THREE.Mesh(new THREE.BoxGeometry(29,.9,.9),girderMat);
+    cross.position.set(0,15,0);cross.rotation.z=.42;bridge.add(cross);
+    group.add(bridge);
+    colliders.push({x:px-11,z:pz,radius:5.4,kind:'building'});
+    colliders.push({x:px+11,z:pz,radius:5.4,kind:'building'});
   }
   // Skyline industrial persistente, ancorado no mundo, com alturas variadas.
   // Modelos simples e materiais compartilhados preservam o desempenho mobile.
@@ -96,7 +128,7 @@ export function createWastelandHorizon(THREE,scene){
   return {colliders,update(x,z,time,waterHeight){
     // Não transladar o grupo junto ao jogador: ruínas continuam no mesmo lugar.
     skyDome.position.set(x,0,z);
-    for(const item of debris){item.mesh.position.y=(waterHeight?waterHeight(item.x,item.z,time):0)+.6+Math.sin(time*1.1+item.phase)*.35;item.mesh.rotation.z=Math.sin(time*.7+item.phase)*.08;}
+    for(const item of debris){const waterY=waterHeight?waterHeight(item.x,item.z,time):0;item.mesh.position.y=waterY+.6+Math.sin(time*1.1+item.phase)*.35;item.mesh.rotation.z=Math.sin(time*.7+item.phase)*.08;if(item.foam){item.foam.position.y=waterY+.3;item.foam.material.opacity=.13+.12*(.5+.5*Math.sin(time*1.7+item.phase));}}
     for(const {mesh,baseY,seed} of smoke){mesh.position.y=baseY+Math.sin(time*.3+seed)*1.2}
     for(let i=0;i<clouds.length;i++)clouds[i].rotation.y=time*.009;
   }};
