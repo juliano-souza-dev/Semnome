@@ -17,17 +17,39 @@ renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(deviceP
 document.body.prepend(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xb8dfff,0x123e58,1.65));
 const sun=new THREE.DirectionalLight(0xffd99b,3.3);sun.position.set(165,92,-330);scene.add(sun);
-// Ondas 45% mais suaves, com o mesmo fator no shader e na física da nave.
-const WAVE_INTENSITY=.55;
+// Ciclo de mar mais suave: calmo > médio > bravinho > calmo > bravinho.
+// Intensidades ficam abaixo da anterior (.55), e toda transição é contínua.
+const SEA_CYCLE=200; // segundos; repete sem salto ao cruzar o limite
+const SEA_STAGES=[
+ {time:0,intensity:.17},{time:24,intensity:.17},
+ {time:43,intensity:.30},{time:60,intensity:.30},
+ {time:80,intensity:.44},{time:95,intensity:.44},
+ {time:124,intensity:.17},{time:144,intensity:.17},
+ {time:166,intensity:.43},{time:179,intensity:.43},
+ {time:200,intensity:.17}
+];
+function seaIntensityAt(t){
+ const phase=((t%SEA_CYCLE)+SEA_CYCLE)%SEA_CYCLE;
+ for(let i=1;i<SEA_STAGES.length;i++){
+  const next=SEA_STAGES[i],previous=SEA_STAGES[i-1];
+  if(phase<=next.time){
+   const progress=(phase-previous.time)/(next.time-previous.time);
+   const easing=progress*progress*(3-2*progress);
+   return previous.intensity+(next.intensity-previous.intensity)*easing;
+  }
+ }
+ return SEA_STAGES[0].intensity;
+}
+let currentSeaIntensity=SEA_STAGES[0].intensity;
 const waves=[
 {dx:1,dz:.25,a:2.8,k:.055,s:1.1},
 {dx:-.3,dz:1,a:1.7,k:.092,s:1.6},
 {dx:.75,dz:-.65,a:1.15,k:.17,s:2.0},
 {dx:-.65,dz:-.75,a:.65,k:.29,s:2.8}
-].map(w=>({...w,a:w.a*WAVE_INTENSITY,len:Math.hypot(w.dx,w.dz)}));
-function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y}
+].map(w=>({...w,len:Math.hypot(w.dx,w.dz)}));
+function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y*currentSeaIntensity}
 function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
-const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uWaveIntensity:{value:WAVE_INTENSITY},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
+const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uWaveIntensity:{value:currentSeaIntensity},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
 const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,190,190),new THREE.ShaderMaterial({
 uniforms,side:THREE.DoubleSide,
 vertexShader:`uniform float uTime;uniform float uWaveIntensity;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
@@ -48,7 +70,8 @@ void main(){
  float fresnel=pow(1.-max(dot(n,viewDir),0.),3.);
  float spec=pow(max(dot(reflect(-lightDir,n),viewDir),0.),85.)*1.4;
  float glint=pow(max(dot(reflect(-lightDir,n),viewDir),0.),240.)*2.;
- float trough=smoothstep(-2.8,2.0,vHeight);
+ float normalizedHeight=vHeight/max(uWaveIntensity,.08);
+ float trough=smoothstep(-5.,3.5,normalizedHeight);
  vec3 deep=vec3(.006,.075,.135),shallow=vec3(.015,.36,.46);
  vec3 sea=mix(deep,shallow,trough*.7+lit*.18);
  sea=mix(sea,vec3(.13,.39,.53),fresnel*.33);
@@ -56,9 +79,9 @@ void main(){
  vec2 warp=p*.21+gradient.yx*.17;
  float filaments=sin(warp.x+sin(warp.y*.75)*2.8)*cos(warp.y*.66+sin(warp.x*.8)*2.);
  float jitter=hash(floor(p*.48))*0.35;
- float crest=smoothstep(1.1,2.8,vHeight+filaments*.60);
- float ribbons=smoothstep(.54,.87,filaments+jitter)*smoothstep(.1,2.5,vHeight);
- float foam=clamp(crest*.30+ribbons*.57,0.,.72);
+ float crest=smoothstep(2.,5.,normalizedHeight+filaments*.65);
+ float ribbons=smoothstep(.54,.87,filaments+jitter)*smoothstep(.2,4.5,normalizedHeight);
+ float foam=clamp((crest*.30+ribbons*.57)*(.22+uWaveIntensity),0.,.48);
  sea=mix(sea,vec3(.79,.96,1.),foam);
  sea+=vec3(1.,.77,.46)*(spec*.38+glint*.22);
  float mist=smoothstep(180.,690.,length(p-uOffset));
@@ -584,7 +607,10 @@ renderer.domElement.addEventListener('pointercancel',releaseOrbit);
 renderer.domElement.addEventListener('lostpointercapture',releaseOrbit);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
-requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
+requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;
+currentSeaIntensity=seaIntensityAt(t);
+uniforms.uTime.value=t;
+uniforms.uWaveIntensity.value=currentSeaIntensity;
 // Pilotagem direta e previsível: eixo Y regula motor, eixo X gira casco.
 // Nenhuma referência de ângulo capturada no primeiro toque; nem a câmera altera os comandos.
 const keyboardForward=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
@@ -1085,7 +1111,7 @@ attackCamera.shake=0;
 areaAim.viewBlend=0;
 refreshPlayerHealth();
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
-document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Ondas ativas';
+document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Mar '+(currentSeaIntensity<.24?'calmo':currentSeaIntensity<.37?'médio':'bravinho');
 renderer.render(scene,camera);
 }
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));});
