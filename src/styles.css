@@ -104,3 +104,16 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #soundToggle{position:absolute;left:16px;top:155px;z-index:39;pointer-events:auto;touch-action:manipulation;width:43px;height:38px;border:1px solid #9ee8f5;border-radius:11px;background:#0d3a52dc;color:white;font:22px system-ui;cursor:pointer}
 @media(max-height:500px){#soundToggle{top:11px;left:240px;width:37px;height:33px;font-size:19px}}
 @media(max-width:650px){#soundToggle{top:6px;left:auto;right:65px}}
+
+/* Indicador de integridade acompanha a nave, sem girar nem ocupar o HUD superior. */
+#playerHealthBar{
+ position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+ z-index:34;width:clamp(96px,14vw,145px);height:21px;
+ display:flex;align-items:center;justify-content:center;
+ overflow:hidden;border-radius:5px;border:2px solid #13272a;
+ background:#26352c;box-shadow:0 2px 5px #0019;
+ pointer-events:none;white-space:nowrap
+}
+#playerHealthFill{position:absolute;inset:0 auto 0 0;width:100%;background:linear-gradient(180deg,#aaff56,#52ce18);transition:width 160ms ease-out,background 160ms ease-out}
+#playerHealthValue{position:relative;z-index:1;color:white;font:900 11px system-ui;text-shadow:0 1px 3px #13221d,0 0 2px #000;letter-spacing:.2px}
+@media(max-height:450px){#playerHealthBar{height:18px;width:108px}#playerHealthValue{font-size:10px}}
