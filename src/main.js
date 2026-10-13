@@ -806,6 +806,7 @@ for(const enemy of enemies){
  const yawDelta=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
  enemy.heading+=THREE.MathUtils.clamp(yawDelta,-(tactic.active?3.1:1.1)*dt,(tactic.active?3.1:1.1)*dt);
  const oldEnemyX=enemy.x,oldEnemyZ=enemy.z;
+ enemy.previousX=oldEnemyX;enemy.previousZ=oldEnemyZ;
  let dx=-Math.sin(enemy.heading)*tactic.speed*dt+(dodging?ai.dashX*80*dt:0);
  let dz=-Math.cos(enemy.heading)*tactic.speed*dt+(dodging?ai.dashZ*80*dt:0);
  // Paredes/ruínas também são sólidas para os NPCs em movimento e em dash.
@@ -1035,22 +1036,33 @@ for(let i=projectiles.length-1;i>=0;i--){
   }else{
    ballisticPoint(p.origin,p.destination,p.travel,p.age,p.arcHeight,p.mesh.position);
   }
-  // Colisão varrida: verifica todo o deslocamento entre frames, não só o destino.
-  // Assim o torpedo não atravessa NPCs quando o FPS cai ou o inimigo se move.
-  let torpedoImpact=null;
-  if(p.ammo==='torpedo'){
-   const ax=previousPosition.x,az=previousPosition.z;
-   const bx=p.mesh.position.x,bz=p.mesh.position.z;
-   const vx=bx-ax,vz=bz-az,lengthSq=vx*vx+vz*vz;
-   let nearestFraction=Infinity;
+  // Tiros diretos só atingem se a bala cruzar fisicamente o casco do NPC.
+  // A varredura é RELATIVA: o alvo também pode se mover ou usar dash.
+  const directShot=p.ammo==='torpedo'||p.ammo==='plasma'||p.ammo==='iron';
+  let physicalImpact=null,physicalFraction=Infinity;
+  if(directShot){
    for(const enemy of enemies){
     if(enemy.hp<=0)continue;
-    const fraction=lengthSq>1e-6?THREE.MathUtils.clamp(((enemy.x-ax)*vx+(enemy.z-az)*vz)/lengthSq,0,1):0;
-    const cx=ax+vx*fraction,cz=az+vz*fraction;
-    if(Math.hypot(enemy.x-cx,enemy.z-cz)<=6.8 && fraction<nearestFraction){
-     nearestFraction=fraction;torpedoImpact=enemy;
-     p.mesh.position.set(cx,height(cx,cz,t)+.65,cz);
+    const contact=sweptMovingContact(previousPosition,p.mesh.position,
+     {x:enemy.previousX??enemy.x,z:enemy.previousZ??enemy.z},
+     {x:enemy.x,z:enemy.z},p.ammo==='torpedo'?6.8:6.3);
+    if(!contact.hit||contact.fraction>=physicalFraction)continue;
+    const shotY=previousPosition.y+(p.mesh.position.y-previousPosition.y)*contact.fraction;
+    if(p.ammo!=='torpedo'&&Math.abs(shotY-(enemy.y+2.5))>5.5)continue;
+    physicalImpact=enemy;physicalFraction=contact.fraction;
+   }
+   if(p.ammo==='torpedo'){
+    for(const obstacle of horizon.colliders){
+     const contact=sweptMovingContact(previousPosition,p.mesh.position,
+      {x:obstacle.x,z:obstacle.z},{x:obstacle.x,z:obstacle.z},obstacle.radius+1.3);
+     if(contact.hit&&contact.fraction<physicalFraction){
+      physicalImpact=obstacle;physicalFraction=contact.fraction;
+     }
     }
+   }
+   if(physicalImpact){
+    p.mesh.position.lerpVectors(previousPosition,p.mesh.position,physicalFraction);
+    if(p.ammo==='torpedo')p.mesh.position.y=height(p.mesh.position.x,p.mesh.position.z,t)+.65;
    }
   }
   p.glow.quaternion.copy(camera.quaternion);p.outerGlow.quaternion.copy(camera.quaternion);
@@ -1061,12 +1073,11 @@ for(let i=projectiles.length-1;i>=0;i--){
     const v=p.trailPoints[j];arr[j*3]=v.x;arr[j*3+1]=v.y;arr[j*3+2]=v.z;
   }
   p.trail.geometry.attributes.position.needsUpdate=true;
-  // Torpedo só detona depois de colisão física varrida. Chegar ao alcance
-  // máximo sem atingir um objeto encerra o projétil sem explosão ou dano.
-  const torpedoHit=p.ammo==='torpedo'&&torpedoImpact!==null;
-  const torpedoExpired=p.ammo==='torpedo'&&u>=1&&!torpedoHit;
-  if(u>=1||torpedoImpact){
-    if(torpedoExpired){
+  // Tiro direto que erra não causa dano. Apenas munições especiais
+  // de impacto em área (meteor/scatter/siege) explodem ao chegar ao destino.
+  const directExpired=directShot&&u>=1&&!physicalImpact;
+  if(u>=1||physicalImpact){
+    if(directExpired){
       scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();p.trail.material.dispose();
       for(const part of p.mesh.children){
         if(part.material!==energyCoreMaterial&&part.material!==energyGlowMaterial&&part.material!==plasmaMaterial)part.material.dispose();
@@ -1074,7 +1085,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       projectiles.splice(i,1);
       continue;
     }
-    if(torpedoHit)p.destination.copy(p.mesh.position);
+    if(physicalImpact)p.destination.copy(p.mesh.position);
     energyFlash(p.mesh.position);
     if(p.ammo==='torpedo'){
      // Anel de choque mostra o alcance real do torpedo no plano do oceano.
@@ -1084,11 +1095,11 @@ for(let i=projectiles.length-1;i>=0;i--){
     }
     // Confirmação de acerto pelo ponto real de impacto (sem dano apenas por travar alvo).
     for(const enemy of enemies){
-      const epicenter=torpedoHit?p.mesh.position:p.destination;
+      const epicenter=physicalImpact?p.mesh.position:p.destination;
       const distance=Math.hypot(enemy.x-epicenter.x,enemy.z-epicenter.z);
       const radius=WEAPON_STATS[p.ammo].impact;
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
-      if(enemy.hp>0&&distance<=radius){
+      if(enemy.hp>0&&distance<=radius&&(!directShot||p.ammo==='torpedo'||physicalImpact===enemy)){
         const damage=Math.min(enemy.hp,p.damage??COMBAT.damage);
         audio.play('impact',Math.max(-1,Math.min(1,(enemy.x-x)/140)),Math.hypot(enemy.x-x,enemy.z-z));
         enemy.hp=Math.max(0,enemy.hp-damage);
