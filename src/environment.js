@@ -108,6 +108,16 @@ export function createWastelandHorizon(THREE,scene){
       distantRuins.add(plume);smoke.push({mesh:plume,baseY:plume.position.y,seed:rnd()*6});
     }
   }
+  // Pó de ferrugem e cinzas em suspensão, partículas leves reaproveitadas.
+  const ashGeo=new THREE.BufferGeometry();
+  const ashPositions=new Float32Array(120*3);
+  const ashSeeds=[];
+  for(let i=0;i<120;i++){
+    ashSeeds.push({x:(rnd()-.5)*170,y:5+rnd()*67,z:(rnd()-.5)*170,phase:rnd()*6});
+  }
+  ashGeo.setAttribute('position',new THREE.BufferAttribute(ashPositions,3));
+  const ash=new THREE.Points(ashGeo,new THREE.PointsMaterial({color:0xa2abb2,size:1.6,transparent:true,opacity:.36,depthWrite:false,sizeAttenuation:true}));
+  ash.frustumCulled=false;group.add(ash);
   // Tonalidade quente do horizonte ao longo de toda a volta da cena.
   const horizonMat=new THREE.ShaderMaterial({
    side:THREE.BackSide,depthWrite:false,fog:false,
@@ -128,6 +138,14 @@ export function createWastelandHorizon(THREE,scene){
   return {colliders,update(x,z,time,waterHeight){
     // Não transladar o grupo junto ao jogador: ruínas continuam no mesmo lugar.
     skyDome.position.set(x,0,z);
+    // Partículas orbitam o jogador sem transportar os edifícios.
+    for(let i=0;i<ashSeeds.length;i++){
+      const seed=ashSeeds[i],k=i*3;
+      ashPositions[k]=x+seed.x+Math.sin(time*.13+seed.phase)*6;
+      ashPositions[k+1]=seed.y+Math.sin(time*.33+seed.phase)*2;
+      ashPositions[k+2]=z+seed.z+Math.cos(time*.12+seed.phase)*6;
+    }
+    ashGeo.attributes.position.needsUpdate=true;
     for(const item of debris){const waterY=waterHeight?waterHeight(item.x,item.z,time):0;item.mesh.position.y=waterY+.6+Math.sin(time*1.1+item.phase)*.35;item.mesh.rotation.z=Math.sin(time*.7+item.phase)*.08;if(item.foam){item.foam.position.y=waterY+.3;item.foam.material.opacity=.13+.12*(.5+.5*Math.sin(time*1.7+item.phase));}}
     for(const {mesh,baseY,seed} of smoke){mesh.position.y=baseY+Math.sin(time*.3+seed)*1.2}
     for(let i=0;i<clouds.length;i++)clouds[i].rotation.y=time*.009;
