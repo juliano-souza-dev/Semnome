@@ -175,9 +175,12 @@ for(let i=1;i<9;i++){
 for(const enemy of enemies){
  enemy.model=createWarMachine3D(THREE,{enemy:true});
  enemy.vx=0;enemy.vz=0;
+ enemy.maxHp=COMBAT.npcMaxHp;
+ enemy.lastDamageAt=-9999;
  // Cada NPC mantém memória curta da velocidade vista, tempo de reação e dash.
  enemy.ai={estimateVx:0,estimateVz:0,nextDash:0,dashUntil:0,dashX:0,dashZ:0,
-  trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0,nextWake:0,weaponReadyAt:{},choice:null,lastChoiceAt:-100,currentWeapon:null};
+  trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0,nextWake:0,weaponReadyAt:{},choice:null,lastChoiceAt:-100,currentWeapon:null,
+ intent:'patrol',nextPlanTime:0,plan:null,body:{x:enemy.x,z:enemy.z,vx:0,vz:0}};
  scene.add(enemy.model);
 }
 npc.visible=false;
@@ -776,7 +779,11 @@ for(const enemy of enemies){
  const blend=1-Math.exp(-sense*dt);
  ai.estimateVx+=(hullPhysics.vx-ai.estimateVx)*blend;
  ai.estimateVz+=(hullPhysics.vz-ai.estimateVz)*blend;
- const tactic=planEnemy(enemy,{x,z,heading,speed,alive:playerCombat.hp>0},enemies,t);
+ if(t>=ai.nextPlanTime||!ai.plan){
+  ai.plan=planEnemy(enemy,{x,z,heading,speed,vx:hullPhysics.vx,vz:hullPhysics.vz,alive:playerCombat.hp>0},enemies,t,horizon.colliders);
+  ai.intent=ai.plan.intent;ai.nextPlanTime=t+.32+(enemy.id%3)*.055;
+ }
+ const tactic=ai.plan;
  enemy.state=tactic.state;
  // Olha a trajetória de projéteis já disparados, sem telepatia.
  const threat=tactic.active&&t>=ai.nextDash?assessProjectileThreat(enemy,projectiles,1.4):null;
@@ -1220,6 +1227,7 @@ for(let i=projectiles.length-1;i>=0;i--){
         const damage=Math.min(enemy.hp,p.damage??COMBAT.damage);
         audio.play('impact',Math.max(-1,Math.min(1,(enemy.x-x)/140)),Math.hypot(enemy.x-x,enemy.z-z));
         enemy.hp=Math.max(0,enemy.hp-damage);
+        enemy.lastDamageAt=t;
         showDamage(enemy,damage);
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
         if(enemy.hp===0){
