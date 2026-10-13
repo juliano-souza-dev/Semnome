@@ -557,7 +557,7 @@ addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
 // Teste: câmera fixa atrás da nave; nenhum arrasto altera a orientação.
 // Arrastar o oceano gira apenas a câmera; ao soltar, ela retorna atrás da nave.
-let dragId=null,lastDragX=0,lastDragY=0,cameraWorldYaw=heading,cameraPitchOffset=0;
+let dragId=null,lastDragX=0,lastDragY=0,cameraWorldYaw=0,cameraPitchOffset=0;
 renderer.domElement.style.touchAction='none';
 renderer.domElement.addEventListener('pointerdown',e=>{
  if(dragId!==null || (e.pointerType==='mouse'&&e.button!==0))return;
@@ -581,10 +581,12 @@ const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vec
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
 // A câmera guarda seu próprio yaw em coordenadas globais.
-// Solta: retorna por arco curto à traseira da nave; durante arrasto, rumo
-// do casco nunca é somado ao gesto nem provoca inversão de controle.
+// Solta: retorna ao ângulo global de observação, não à traseira.
+// A nave pode exibir proa, popa e laterais durante a rotação completa.
 if(dragId===null){
- const cameraDelta=Math.atan2(Math.sin(heading-cameraWorldYaw),Math.cos(heading-cameraWorldYaw));
+ // Retorno para a orientação de observação global, nunca para a popa.
+ // Assim o casco gira 360 graus livremente diante da câmera.
+ const cameraDelta=Math.atan2(Math.sin(-cameraWorldYaw),Math.cos(-cameraWorldYaw));
  cameraWorldYaw+=cameraDelta*(1-Math.exp(-1.55*dt));
  cameraPitchOffset=THREE.MathUtils.damp(cameraPitchOffset,0,2.1,dt);
  if(Math.abs(cameraPitchOffset)<.003)cameraPitchOffset=0;
