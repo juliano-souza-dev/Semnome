@@ -466,15 +466,23 @@ function startAreaAim(e){
 function finishAreaAim(e,cancel=false){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  let destination=!cancel&&areaAim.valid?areaAim.point.clone():null;
- // Assistência leve: aproxima o impacto do casco se a mira já estiver perto.
- // Fora dessa tolerância, respeita exatamente a escolha manual.
+ // Correção leve de mira em alvo móvel: prevê o ponto de encontro,
+ // mas o projétil segue sua trajetória e pode errar se o alvo manobrar.
  if(destination){
-  let best=null,bestDist=selectedAmmo.id==='torpedo'?15:selectedAmmo.id==='siege'?10:11;
+  const direct=selectedAmmo.id==='torpedo'||selectedAmmo.id==='plasma'||selectedAmmo.id==='iron';
+  let best=null,bestDist=selectedAmmo.id==='torpedo'?24:direct?20:11;
   for(const enemy of enemies){
    const dist=Math.hypot(enemy.x-destination.x,enemy.z-destination.z);
-   if(enemy.hp>0&&dist<bestDist){best=enemy;bestDist=dist}
+   if(enemy.hp>0&&dist<bestDist){best=enemy;bestDist=dist;}
   }
-  if(best)destination.set(best.x,best.y+.3,best.z);
+  if(best){
+   if(direct){
+    const projectileSpeed=selectedAmmo.id==='torpedo'?115:selectedAmmo.id==='iron'?COMBAT.projectileSpeed*2.65/1.8:COMBAT.projectileSpeed*1.6/1.8;
+    const lead=predictIntercept({x,z},{x:best.x,z:best.z},{x:best.vx||0,z:best.vz||0},projectileSpeed,Math.max(1,weaponRange()/projectileSpeed*1.5));
+    if(Math.hypot(lead.x-x,lead.z-z)<=weaponRange())destination.set(lead.x,best.y+2.5,lead.z);
+    else destination.set(best.x,best.y+2.5,best.z);
+   }else destination.set(best.x,best.y+.3,best.z);
+  }
  }
  cancelAreaAim();
  if(destination){
@@ -1199,10 +1207,10 @@ for(let i=projectiles.length-1;i>=0;i--){
     if(enemy.hp<=0)continue;
     const contact=sweptMovingContact(previousPosition,p.mesh.position,
      {x:enemy.previousX??enemy.x,z:enemy.previousZ??enemy.z},
-     {x:enemy.x,z:enemy.z},p.ammo==='torpedo'?6.8:6.3);
+     {x:enemy.x,z:enemy.z},p.ammo==='torpedo'?9.2:8.5);
     if(!contact.hit||contact.fraction>=physicalFraction)continue;
     const shotY=previousPosition.y+(p.mesh.position.y-previousPosition.y)*contact.fraction;
-    if(p.ammo!=='torpedo'&&Math.abs(shotY-(enemy.y+2.5))>5.5)continue;
+    if(p.ammo!=='torpedo'&&Math.abs(shotY-(enemy.y+2.5))>8)continue;
     physicalImpact=enemy;physicalFraction=contact.fraction;
    }
    if(p.ammo==='torpedo'){
