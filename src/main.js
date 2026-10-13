@@ -926,7 +926,7 @@ npcShadow.visible=false;
 ship.position.x=x;ship.position.z=z;
 // Projéteis inimigos independentes da câmera. Só há dano se acertarem a nave.
 for(let i=enemyShots.length-1;i>=0;i--){
- const shot=enemyShots[i];shot.age+=dt;
+ const shot=enemyShots[i];const oldShot=shot.mesh.position.clone();shot.age+=dt;
  const progress=Math.min(1,shot.age/shot.duration);
  ballisticPoint(shot.origin,shot.destination,shot.duration,shot.age,shot.arcHeight,shot.mesh.position);
  shot.glow.quaternion.copy(camera.quaternion);shot.outerGlow.quaternion.copy(camera.quaternion);
@@ -935,9 +935,14 @@ for(let i=enemyShots.length-1;i>=0;i--){
  const arr=shot.trail.geometry.attributes.position.array;
  for(let j=0;j<shot.trailPoints.length;j++){const v=shot.trailPoints[j];arr[j*3]=v.x;arr[j*3+1]=v.y;arr[j*3+2]=v.z}
  shot.trail.geometry.attributes.position.needsUpdate=true;
- const contact=Math.hypot(shot.mesh.position.x-x,shot.mesh.position.z-z);
- let remove=false;
- if(contact<5.7&&Math.abs(shot.mesh.position.y-(bob+2.3))<5.5 && t>=playerCombat.invulnerableUntil && playerCombat.hp>0){
+ // A bala e a nave se movem juntas entre quadros: usar trajetória relativa
+ // impede acertos fantasmas e evita atravessar a nave em FPS baixo.
+ const contact=sweptMovingContact(oldShot,shot.mesh.position,
+  {x:collisionStartX,z:collisionStartZ},{x,z},5.7);
+ const crossingY=oldShot.y+(shot.mesh.position.y-oldShot.y)*contact.fraction;
+ const hit=contact.hit&&Math.abs(crossingY-(bob+2.3))<5.5&&playerCombat.hp>0;
+ let remove=hit;
+ if(hit&&t>=playerCombat.invulnerableUntil){
   playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);playerCombat.lastDamageAt=t;
   hitFeedback=1;attackCamera.shake=Math.max(attackCamera.shake,.55);
   if(playerCombat.hp<=0){
@@ -952,7 +957,7 @@ for(let i=enemyShots.length-1;i>=0;i--){
   playerCombat.invulnerableUntil=t+.45;
   energyFlash(new THREE.Vector3(x,bob+2.5,z));remove=true;
  }
- if(progress>=1){energyFlash(shot.mesh.position);remove=true;}
+ if(progress>=1)remove=true; // Errou: o tiro se dissipa, sem explosão de impacto.
  if(remove){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();enemyShots.splice(i,1);}
 }
 if(playerCombat.hp<=0){
