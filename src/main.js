@@ -535,7 +535,7 @@ boostButton.addEventListener('pointerdown',event=>{
  boostButton.classList.add('active');
 });
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
-let padPointer=null;let stickReferenceYaw=0;
+let padPointer=null;
 function movePad(e){
   const r=pad.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
   const dx=e.clientX-cx,dy=e.clientY-cy,radius=42;
@@ -546,7 +546,7 @@ function movePad(e){
 pad.addEventListener('pointerdown',e=>{
   if(padPointer!==null)return;
   e.preventDefault();e.stopPropagation();
-  stickReferenceYaw=heading;padPointer=e.pointerId;input.active=true;pad.setPointerCapture(e.pointerId);movePad(e);
+  padPointer=e.pointerId;input.active=true;pad.setPointerCapture(e.pointerId);movePad(e);
 });
 pad.addEventListener('pointermove',e=>{if(e.pointerId===padPointer){e.preventDefault();movePad(e)}});
 function releasePad(e){
@@ -582,39 +582,27 @@ renderer.domElement.addEventListener('lostpointercapture',releaseOrbit);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
-const keyboardGo=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
-const keyboardReverse=keys.has('KeyS')||keys.has('ArrowDown');
-const stickAmount=input.active&&input.magnitude>.13?(input.magnitude-.13)/.87:0;
-// Joystick para baixo dá ré, sem girar a proa 180 graus.
-const reversing=!keyboardGo&&(keyboardReverse||(stickAmount>0&&input.y>.35));
-const go=keyboardGo||keyboardReverse||stickAmount>0;
-const turn=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
-let target=reversing?-15*(keyboardReverse?1:stickAmount):42*(keyboardGo?1:stickAmount); // ritmo tático: ré e cruzeiro reduzidos
-const dirx=-Math.sin(heading),dirz=-Math.cos(heading);
-const slope=(height(x+dirx*1.6,z+dirz*1.6,t)-height(x-dirx*1.6,z-dirz*1.6,t))/3.2;
-target=go?(reversing?target:Math.max(0,target-Math.max(0,slope)*12+Math.max(0,-slope)*3)):0;
-// Velocidade agora é resolvida após o giro pela integração física do casco.
+// Pilotagem direta e previsível: eixo Y regula motor, eixo X gira casco.
+// Nenhuma referência de ângulo capturada no primeiro toque; nem a câmera altera os comandos.
+const keyboardForward=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
+const keyboardBack=keys.has('KeyS')||keys.has('ArrowDown');
+const keySteer=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
+const deadZone=.12;
+const padX=input.active&&Math.abs(input.x)>deadZone?Math.sign(input.x)*(Math.abs(input.x)-deadZone)/(1-deadZone):0;
+const padY=input.active&&Math.abs(input.y)>deadZone?Math.sign(input.y)*(Math.abs(input.y)-deadZone)/(1-deadZone):0;
+const throttle=THREE.MathUtils.clamp((keyboardForward?1:0)-(keyboardBack?1:0)-padY,-1,1);
+const steering=THREE.MathUtils.clamp(keySteer+padX,-1,1);
+const target=throttle>0?42*throttle:throttle<0?19*throttle:0;
 const boostRemaining=Math.max(0,boostUntil-t);
-// Durante o impulso, o jogador continua podendo virar e desviar.
 boostButton.classList.toggle('active',boostRemaining>0);
 const boostCooldown=Math.max(0,boostReadyAt-t);
 boostButton.textContent=boostRemaining>0?'🚀 ESQUIVA':boostCooldown>0?'🚀 '+boostCooldown.toFixed(1)+'s':'🚀 PROPULSOR';
 boostButton.disabled=boostCooldown>0||playerCombat.hp<=0;
-// O arrasto controla apenas a câmera; a direção de navegação é independente.
-if(Math.abs(speed)>.35||boostRemaining>0){
-  if(reversing&&boostRemaining<=0){
-    // Pequenas correções laterais durante a ré, mantendo a orientação.
-    heading+=(-input.x*1.65+turn*1.2)*dt;
-  }else if(stickAmount>0){
-    // Ângulo absoluto desejado no plano: analógico pode apontar para qualquer 360°.
-    // Giro pelo caminho mais curto, sem rotação contínua por manter o dedo na lateral.
-    const desired=stickReferenceYaw-Math.atan2(input.x,-input.y);
-    const delta=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
-    const maxStep=(boostRemaining>0?6.5:3.6)*Math.min(1,Math.abs(speed)/9)*dt;
-    heading+=THREE.MathUtils.clamp(delta,-maxStep,maxStep);
-  }else{
-    heading+=turn*(boostRemaining>0?5.8:2.15)*Math.min(1,Math.abs(speed)/7)*dt;
-  }
+// Corrige direção: arrastar o dedo para a direita gira a proa à direita.
+// Giro possível parado, mais responsivo em velocidade e durante o BOOST.
+if(playerCombat.hp>0){
+ const rate=boostRemaining>0?3.1:THREE.MathUtils.lerp(1.65,2.35,Math.min(1,Math.abs(speed)/24));
+ heading-=steering*rate*dt;
 }
 const collisionStartX=x,collisionStartZ=z;
 hullPhysics.x=x;hullPhysics.z=z;
