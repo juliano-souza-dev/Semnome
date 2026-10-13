@@ -69,33 +69,70 @@ water.rotation.x=-Math.PI/2;scene.add(water);
 const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
 const ship=createWarMachine3D(THREE);scene.add(ship);
-// Modelo temporário do jogador. Mantém pivô da torreta, disparos, física e
-// fallback original intactos. Somente a aparência do casco é substituída.
-const TEST_SHIP_GLB='./assets/ships/player/Meshy_AI_Blazing_Wave_Runner_1013184138_texture.glb';
-import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js').then(({GLTFLoader})=>{
- new GLTFLoader().load(TEST_SHIP_GLB,gltf=>{
-  const model=gltf.scene;
+// Montagem experimental em dois GLBs. O original continua como fallback.
+// Casco e torreta são arquivos independentes, mas filhos da mesma nave.
+// A torreta usa o pivô do sistema existente: a câmera e a mira ficam intactas.
+const HULL_GLB='./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193154_generate.glb';
+const TURRET_GLB='./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193302_generate.glb';
+const LEGACY_GLB='./assets/ships/player/Meshy_AI_Blazing_Wave_Runner_1013184138_texture.glb';
+import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js').then(async({GLTFLoader})=>{
+ const loader=new GLTFLoader();
+ const load=url=>new Promise((resolve,reject)=>loader.load(url,gltf=>resolve(gltf.scene),undefined,reject));
+ function normalize(model,footprint){
+  model.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(model);
   const size=bounds.getSize(new THREE.Vector3());
-  if(Math.max(size.x,size.y,size.z)<.001)throw new Error('GLB sem dimensões válidas');
-  const scale=8.8/Math.max(size.x,size.z);
+  if(Math.max(size.x,size.y,size.z)<.001)throw Error('Modelo 3D vazio');
+  const scale=footprint/Math.max(size.x,size.z);
   model.scale.setScalar(scale);
-  const center=bounds.getCenter(new THREE.Vector3());
-  model.position.set(-center.x*scale,-bounds.min.y*scale-.65,-center.z*scale);
-  // A frente do Semnome aponta para -Z. Teste temporário sem alterar a física.
-  model.name='Blazing Wave Runner · casco temporário';
-  ship.add(model);
-  // O GLB já possui o armamento integrado na malha única.
-  // Oculta todo o modelo antigo, inclusive a torreta visual duplicada.
-  // Os pivôs continuam na memória para preservar mira e disparos.
+  model.position.set(-(bounds.min.x+bounds.max.x)*.5*scale,-bounds.min.y*scale,-(bounds.min.z+bounds.max.z)*.5*scale);
+  return {width:size.x*scale,height:size.y*scale,depth:size.z*scale};
+ }
+ function giveFinish(model){
+  // Modelos Meshy "generate" normalmente vêm sem as texturas baked.
+  // Preserve qualquer textura existente e complemente apenas materiais sem mapa.
+  model.traverse(obj=>{
+   if(!obj.isMesh)return;
+   const surfaces=Array.isArray(obj.material)?obj.material:[obj.material];
+   for(const mat of surfaces){
+    if(!mat||!mat.isMeshStandardMaterial)continue;
+    mat.metalness=mat.map?Math.max(mat.metalness,.18):.55;
+    mat.roughness=mat.map?mat.roughness:.48;
+    mat.needsUpdate=true;
+   }
+  });
+ }
+ try{
+  // Carregar ambos antes de esconder a nave antiga evita casco invisível.
+  const [hull,turretModel]=await Promise.all([load(HULL_GLB),load(TURRET_GLB)]);
+  const hullDims=normalize(hull,9.5);
+  normalize(turretModel,Math.min(5,hullDims.width*.58));
+  hull.name='Casco Blazing Wave Runner (teste)';
+  turretModel.name='Torreta independente (teste)';
+  hull.position.y=-.55;
+  giveFinish(hull);giveFinish(turretModel);
+  const originalTurret=ship.userData.turretPivot;
+  // Usa o centro de rotação e o algoritmo de acompanhamento já existentes.
+  const gunMount=new THREE.Group();
+  gunMount.name='Pivô da nova torreta';
+  gunMount.position.set(0,2.3,-.6);
+  // Malha posicionada com sua base sobre o suporte giratório.
+  gunMount.add(turretModel);
+  ship.add(hull);
+  originalTurret.add(gunMount);
   for(const part of ship.children){
-   if(part!==model)part.visible=false;
+   if(part===hull||part===originalTurret)continue;
+   part.visible=false;
   }
-  ship.userData.temporaryHull=model;
-  ship.userData.turretVisualIntegrated=true;
-  console.info('[Semnome] Modelo GLB temporário carregado',TEST_SHIP_GLB);
- },undefined,error=>console.warn('[Semnome] GLB indisponível; mantendo casco original',error));
-}).catch(error=>console.warn('[Semnome] Loader GLB indisponível; mantendo casco original',error));
+  // Oculta apenas a geometria da torreta antiga; mantém o pivô girando.
+  for(const part of originalTurret.children)if(part!==gunMount)part.visible=false;
+  ship.userData.testHull=hull;ship.userData.testTurret=turretModel;
+  console.info('[Semnome] Casco e torreta independentes carregados',HULL_GLB,TURRET_GLB);
+ }catch(error){
+  console.warn('[Semnome] Falha na montagem dos dois GLBs; mantendo nave original',error);
+  // Conserva a nave original enquanto a montagem experimental não carrega.
+ }
+}).catch(error=>console.warn('[Semnome] GLTFLoader indisponível',error));
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
 const wakeMaterial=new THREE.MeshBasicMaterial({color:0xdafaff,transparent:true,opacity:.44,depthWrite:false,side:THREE.DoubleSide});
