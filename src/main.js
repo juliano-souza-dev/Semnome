@@ -557,7 +557,7 @@ addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
 // Teste: câmera fixa atrás da nave; nenhum arrasto altera a orientação.
 // Arrastar o oceano gira apenas a câmera; ao soltar, ela retorna atrás da nave.
-let dragId=null,lastDragX=0,lastDragY=0,cameraYawOffset=0,cameraPitchOffset=0;
+let dragId=null,lastDragX=0,lastDragY=0,cameraWorldYaw=heading,cameraPitchOffset=0;
 renderer.domElement.style.touchAction='none';
 renderer.domElement.addEventListener('pointerdown',e=>{
  if(dragId!==null || (e.pointerType==='mouse'&&e.button!==0))return;
@@ -570,7 +570,7 @@ renderer.domElement.addEventListener('pointermove',e=>{
  const dx=e.clientX-lastDragX,dy=e.clientY-lastDragY;
  lastDragX=e.clientX;lastDragY=e.clientY;
  // Direções relativas à tela, independentes do rumo do casco.
- cameraYawOffset+=dx*.006;
+ cameraWorldYaw+=dx*.006;
  cameraPitchOffset=THREE.MathUtils.clamp(cameraPitchOffset-dy*.085,-6,26);
 });
 function releaseDrag(e){if(e.pointerId===dragId)dragId=null}
@@ -580,12 +580,13 @@ renderer.domElement.addEventListener('lostpointercapture',releaseDrag);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
-// Ao soltar o arrasto, regressa suavemente ao enquadramento de perseguição.
-// Decaimento exponencial independente do FPS e sem inverter o sentido do gesto.
+// A câmera guarda seu próprio yaw em coordenadas globais.
+// Solta: retorna por arco curto à traseira da nave; durante arrasto, rumo
+// do casco nunca é somado ao gesto nem provoca inversão de controle.
 if(dragId===null){
- cameraYawOffset=THREE.MathUtils.damp(cameraYawOffset,0,2.35,dt);
- cameraPitchOffset=THREE.MathUtils.damp(cameraPitchOffset,0,2.35,dt);
- if(Math.abs(cameraYawOffset)<.0003)cameraYawOffset=0;
+ const cameraDelta=Math.atan2(Math.sin(heading-cameraWorldYaw),Math.cos(heading-cameraWorldYaw));
+ cameraWorldYaw+=cameraDelta*(1-Math.exp(-1.55*dt));
+ cameraPitchOffset=THREE.MathUtils.damp(cameraPitchOffset,0,2.1,dt);
  if(Math.abs(cameraPitchOffset)<.003)cameraPitchOffset=0;
 }
 const keyboardGo=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
@@ -1066,7 +1067,7 @@ const cameraHeight=THREE.MathUtils.lerp(9.5,12.8,velocityFactor);
 const desiredFov=62+velocityFactor*5+(boostRemaining>0?3:0);
 const newFov=THREE.MathUtils.damp(camera.fov,desiredFov,2.1,dt);
 if(Math.abs(newFov-camera.fov)>.015){camera.fov=newFov;camera.updateProjectionMatrix();}
-const cameraYaw=heading+cameraYawOffset;
+const cameraYaw=cameraWorldYaw;
 normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight+cameraPitchOffset,z+Math.cos(cameraYaw)*distance);
 // Mantém o modelo 3D no enquadramento, inclusive os detalhes do canhão e das turbinas.
 normalLook.set(x-Math.sin(cameraYaw)*9,bob+2.0,z-Math.cos(cameraYaw)*9);
