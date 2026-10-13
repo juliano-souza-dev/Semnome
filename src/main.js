@@ -614,6 +614,37 @@ if(Math.abs(speed)>.35||boostRemaining>0){
 hullPhysics.x=x;hullPhysics.z=z;
 const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED:0,dt});
 x=movement.x;z=movement.z;speed=movement.speed;
+// Colisões de cenário em XZ: obstáculos sólidos travam o casco e causam dano.
+// O casco não acompanha fisicamente o balanço dos resíduos na água.
+if(playerCombat.hp>0){
+ for(const obstacle of horizon.colliders){
+  const dx=x-obstacle.x,dz=z-obstacle.z,minimum=obstacle.radius+5.8;
+  const distance=Math.hypot(dx,dz);
+  if(distance>=minimum)continue;
+  const nx=distance>.0001?dx/distance:Math.cos(heading),nz=distance>.0001?dz/distance:Math.sin(heading);
+  const impactSpeed=Math.hypot(hullPhysics.vx,hullPhysics.vz);
+  x=obstacle.x+nx*minimum;z=obstacle.z+nz*minimum;
+  // Descarta velocidade na direção da barreira; evita atravessar e tremular.
+  const into=hullPhysics.vx*nx+hullPhysics.vz*nz;
+  if(into<0){hullPhysics.vx-=into*nx;hullPhysics.vz-=into*nz}
+  hullPhysics.vx*=.24;hullPhysics.vz*=.24;speed=0;
+  if(t>=playerCombat.invulnerableUntil&&impactSpeed>2){
+   const damage=obstacle.kind==='building'?18:10;
+   playerCombat.hp=Math.max(0,playerCombat.hp-damage);
+   playerCombat.invulnerableUntil=t+1.1;hitFeedback=1;
+   attackCamera.shake=Math.max(attackCamera.shake,.3);
+   energyFlash(new THREE.Vector3(x,bob+1.5,z));audio.play('impact');
+   notifyCombat((obstacle.kind==='building'?'COLISÃO COM ESTRUTURA':'COLISÃO COM DESTROÇOS')+' · -'+damage,1);
+   if(playerCombat.hp===0){
+    playerCombat.deathX=x;playerCombat.deathZ=z;playerCombat.deathHeading=heading;
+    playerCombat.respawnAt=t+3;speed=0;boostUntil=0;
+    hullPhysics.vx=0;hullPhysics.vz=0;ship.visible=false;cancelAreaAim();
+    for(let burst=0;burst<6;burst++)energyFlash(new THREE.Vector3(x+(Math.random()-.5)*7,bob+2+Math.random()*5,z+(Math.random()-.5)*7));
+    notifyCombat('NAVE DESTRUÍDA · RETORNO EM 3s',3);
+   }
+  }
+ }
+}
 if(playerCombat.hp<=0){
  x=playerCombat.deathX;z=playerCombat.deathZ;heading=playerCombat.deathHeading;speed=0;
  hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
@@ -980,7 +1011,7 @@ for(let i=impactEffects.length-1;i>=0;i--){
 
 // A malha acompanha o jogador com fases de onda em coordenadas globais. 
 water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
-horizon.update(x,z,t);
+horizon.update(x,z,t,height);
 // Câmera de ação: afastada, baixa, horizonte aparente e horizonte estável.
 // Inclinação de observação menor do que a do protótipo anterior para evitar vista quase vertical.
 // Não copiar bob/pitch/roll do casco para câmera (previne enjoo visual).
