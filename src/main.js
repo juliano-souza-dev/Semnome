@@ -154,9 +154,23 @@ const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
 const enemyShots=[];
 let threatShotCount=0;
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
-const hpHud=document.createElement('div');
-hpHud.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:35;background:rgba(7,20,32,.82);border:1px solid #7fb4c3;border-radius:10px;padding:6px 14px;color:white;font:700 13px system-ui;pointer-events:none;white-space:nowrap';
-document.body.appendChild(hpHud);
+// Barra de integridade acompanha a nave no espaço da tela, sempre horizontal.
+const hpHud=document.createElement('div');hpHud.id='playerHealthBar';hpHud.setAttribute('role','progressbar');hpHud.setAttribute('aria-label','Integridade da nave');hpHud.setAttribute('aria-valuemin','0');hpHud.setAttribute('aria-valuemax',String(ENEMY_AI.maxHp));
+const hpFill=document.createElement('div');hpFill.id='playerHealthFill';
+const hpValue=document.createElement('span');hpValue.id='playerHealthValue';
+hpHud.append(hpFill,hpValue);document.body.appendChild(hpHud);
+const hpScreenPoint=new THREE.Vector3();
+function refreshPlayerHealth(){
+ const percent=THREE.MathUtils.clamp(playerCombat.hp/ENEMY_AI.maxHp,0,1);
+ hpFill.style.width=(percent*100).toFixed(1)+'%';
+ hpFill.style.background=percent>.6?'linear-gradient(180deg,#aaff56,#52ce18)':percent>.3?'linear-gradient(180deg,#ffe76b,#e7a528)':'linear-gradient(180deg,#ff8380,#d72832)';
+ hpValue.textContent=playerCombat.hp+' / '+ENEMY_AI.maxHp;
+ hpHud.setAttribute('aria-valuenow',String(playerCombat.hp));
+ hpScreenPoint.set(x,ship.position.y-3.9,z).project(camera);
+ const visible=hpScreenPoint.z>=-1&&hpScreenPoint.z<=1&&playerCombat.hp>0;
+ hpHud.style.display=visible?'flex':'none';
+ if(visible){hpHud.style.left=((hpScreenPoint.x*.5+.5)*innerWidth).toFixed(1)+'px';hpHud.style.top=((-hpScreenPoint.y*.5+.5)*innerHeight).toFixed(1)+'px';}
+}
  // Bússola de combate: pings persistentes para toda a frota, inclusive fora do campo de visão.
  const compass=document.createElement('div');compass.id='combatCompass';
  compass.innerHTML='<div class="compassTrack"><span class="compassCenter">▼</span></div><div class="compassReadout">LOCALIZANDO HOSTIS</div>';
@@ -812,8 +826,7 @@ fireButton.setAttribute('aria-label',selectedAmmo.name+' · '+(remaining>0?'reca
 fireButton.style.setProperty('--ready',String(1-remaining/currentWeapon().cooldown));
 fireButton.dataset.ready=remaining<=0?'true':'false';
 fireButton.disabled=remaining>0||playerCombat.hp<=0;
-hpHud.textContent=wonBattle?'🏆 VITÓRIA · Frota inimiga eliminada':playerCombat.hp>0?'❤️ Integridade: '+playerCombat.hp+'/'+ENEMY_AI.maxHp+'  ·  Hostis: '+enemies.filter(e=>e.hp>0).length+'/'+enemies.length:'💥 NAVE DESTRUÍDA · Reiniciando...';
-hpHud.style.borderColor=playerCombat.hp<=30?'#ff5555':'#7fb4c3';
+// Atualização da barra ocorre após o posicionamento final da câmera.
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
   const p=projectiles[i];
@@ -1028,6 +1041,7 @@ if(attackCamera.shake>0){
  camera.position.y+=Math.cos(t*119)*k*.65;
 }
 camTarget.copy(follow);cameraReady=true;camera.lookAt(camTarget);
+refreshPlayerHealth();
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Ondas ativas';
 renderer.render(scene,camera);
