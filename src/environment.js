@@ -16,17 +16,18 @@ export function createWastelandHorizon(THREE,scene){
     const radius=195+rnd()*245;
     const root=new THREE.Group();root.position.set(Math.sin(angle)*radius,0,Math.cos(angle)*radius);
     root.rotation.y=angle;group.add(root);
-    // Disco sólido da ruína: impede atravessar sua fundação.
-    colliders.push({x:root.position.x,z:root.position.z,radius:13,kind:'building'});
     const baseHeight=13+rnd()*20;
-    const island=new THREE.Mesh(new THREE.ConeGeometry(10+rnd()*15,baseHeight,5),stone);
+    const islandRadius=10+rnd()*15;
+    // Collider com o raio real da fundação, incluindo o corpo inteiro da ilha.
+    colliders.push({x:root.position.x,z:root.position.z,radius:islandRadius,kind:'building'});
+    const island=new THREE.Mesh(new THREE.ConeGeometry(islandRadius,baseHeight,5),stone);
     island.position.y=baseHeight*.32-4;root.add(island);
     for(let j=0;j<2+Math.floor(rnd()*3);j++){
       const tall=10+rnd()*36;
       const tower=new THREE.Mesh(new THREE.CylinderGeometry(1+rnd()*2,3+rnd()*3,tall,5),j%2?rust:dark);
       tower.position.set((rnd()-.5)*23,tall*.5-2,(rnd()-.5)*12);tower.rotation.z=(rnd()-.5)*.22;root.add(tower);
       const towerWorld=new THREE.Vector3(tower.position.x,0,tower.position.z).applyAxisAngle(new THREE.Vector3(0,1,0),angle).add(root.position);
-      colliders.push({x:towerWorld.x,z:towerWorld.z,radius:5,kind:'building'});
+      colliders.push({x:towerWorld.x,z:towerWorld.z,radius:6,kind:'building'});
       if(rnd()>.56){
         const cloud=new THREE.Mesh(new THREE.SphereGeometry(5+rnd()*5,7,5),smokeMat);
         cloud.position.set(tower.position.x,tall+6,tower.position.z);cloud.scale.set(1.5,.8,1);root.add(cloud);smoke.push({mesh:cloud,baseY:cloud.position.y,seed:rnd()*6});
