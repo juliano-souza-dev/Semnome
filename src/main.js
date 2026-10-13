@@ -158,7 +158,7 @@ const playerSprite={visible:false};
 // Alcance do jogador ampliado cerca de 20% para manter a perseguição aos NPCs viável.
 // IA inimiga, recargas, danos e velocidades de projétil permanecem iguais.
 const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
-const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:4.2,damage:55,impact:55},meteor:{range:320,cooldown:3.4,damage:32,impact:11},scatter:{range:260,cooldown:3.3,damage:22,impact:10},siege:{range:430,cooldown:5.0,damage:45,impact:22}});
+const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:55,impact:55},meteor:{range:320,cooldown:3.4,damage:32,impact:11},scatter:{range:260,cooldown:3.3,damage:22,impact:10},siege:{range:430,cooldown:5.0,damage:45,impact:22}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
 const enemies=[npcData];
@@ -498,7 +498,7 @@ function launchShot(manualPoint=null){
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='torpedo'?Math.max(.65,Math.hypot(origin.x-destination.x,origin.z-destination.z)/72):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
+ const travel=ammo.id==='torpedo'?Math.max(.65,Math.hypot(origin.x-destination.x,origin.z-destination.z)/115):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
@@ -969,8 +969,7 @@ for(const enemy of enemies){
     ai.weaponReadyAt[choice.id]=t+weapon.cooldown;
     ai.currentWeapon=choice.id;
     ai.choice=null;ai.lastChoiceAt=-100;
-    // Intervalo geral entre decisões de fogo; recarga individual por arma.
-    enemy.nextShot=t+Math.max(.9,Math.min(2.3,weapon.cooldown*.55))+(enemy.id%3)*.18;
+    // Nenhum cooldown global: cada arma controla sua própria disponibilidade.
    }
   }
  }
