@@ -4,31 +4,112 @@ export const TACTICS=Object.freeze({
  detect:335,disengage:410,idealRange:165,minRange:65,
  maxActiveShooters:5,shotCadence:1.8,pressureWindow:1.1
 });
-export function planEnemy(enemy,player,all,time){
+// Tomada de decisão baseada em utilidade contínua. Vida, velocidade relativa,
+// cobertura, posição dos aliados e histórico de danos influenciam cada escolha.
+// Não existe um "se chegou a 200 metros, empurre a nave para trás".
+const clamp01=v=>Math.max(0,Math.min(1,v));
+function selectEscapeRoute(enemy,player,all,obstacles,goalLength=135){
+ const futurePlayerX=player.x+(player.vx||0)*1.1;
+ const futurePlayerZ=player.z+(player.vz||0)*1.1;
+ const away=Math.atan2(enemy.z-futurePlayerZ,enemy.x-futurePlayerX);
+ const headings=[-.95,-.55,-.24,0,.24,.55,.95,1.35,-1.35];
+ let result=null;
+ for(const offset of headings){
+  const dir=away+offset,px=enemy.x+Math.cos(dir)*goalLength,pz=enemy.z+Math.sin(dir)*goalLength;
+  const separation=Math.hypot(px-futurePlayerX,pz-futurePlayerZ);
+  const allyDistance=all.reduce((best,other)=>other!==enemy&&other.hp>0?
+    Math.min(best,Math.hypot(px-other.x,pz-other.z)):best,Infinity);
+  // Barcos não procuram refúgio DENTRO de uma construção.
+  let obstruction=0,cover=0;
+  for(const o of obstacles){
+   const dist=Math.hypot(px-o.x,pz-o.z);
+   obstruction+=Math.max(0,o.radius+23-dist)*3;
+   // Uma ruína entre NPC e jogador pode servir de cobertura real.
+   const ux=px-futurePlayerX,uz=pz-futurePlayerZ,lengthSq=ux*ux+uz*uz;
+   if(lengthSq<1)continue;
+   const t=clamp01(((o.x-futurePlayerX)*ux+(o.z-futurePlayerZ)*uz)/lengthSq);
+   const cx=futurePlayerX+t*ux,cz=futurePlayerZ+t*uz;
+   if(t>.18&&t<.84&&Math.hypot(o.x-cx,o.z-cz)<o.radius+8)cover+=.13;
+  }
+  const turnHeading=-Math.atan2(px-enemy.x,-(pz-enemy.z));
+  const yaw=Math.abs(Math.atan2(Math.sin(turnHeading-enemy.heading),Math.cos(turnHeading-enemy.heading)));
+  const coverBonus=Math.min(.34,cover);
+  const support=Number.isFinite(allyDistance)?Math.max(0,1-allyDistance/175)*14:0;
+  const score=separation*.52+coverBonus*75+support-obstruction-yaw*13;
+  if(!result||score>result.score)result={x:px,z:pz,score};
+ }
+ return result||{x:enemy.x+Math.cos(away)*goalLength,z:enemy.z+Math.sin(away)*goalLength};
+}
+export function planEnemy(enemy,player,all,time,obstacles=[]){
  const dx=player.x-enemy.x,dz=player.z-enemy.z;
  const distance=Math.hypot(dx,dz),role=(enemy.id-1)%3;
- const active=player.alive&&(distance<TACTICS.detect || (enemy.state!=='patrol'&&distance<TACTICS.disengage));
- if(!active)return {active:false,goalX:enemy.anchorX+Math.sin(time*.19+enemy.phase)*enemy.radius,goalZ:enemy.anchorZ+Math.cos(time*.19+enemy.phase)*enemy.radius,distance,role,state:'patrol',speed:enemy.speed};
+ const active=player.alive&&(distance<TACTICS.detect||
+  (enemy.state!=='patrol'&&distance<TACTICS.disengage));
+ if(!active)return {active:false,
+  goalX:enemy.anchorX+Math.sin(time*.19+enemy.phase)*enemy.radius,
+  goalZ:enemy.anchorZ+Math.cos(time*.19+enemy.phase)*enemy.radius,
+  distance,role,state:'patrol',intent:'patrol',speed:enemy.speed||8};
+ const hp=clamp01(enemy.hp/(enemy.maxHp||100));
+ const radial=(dx*((player.vx||0)-(enemy.vx||0))+dz*((player.vz||0)-(enemy.vz||0)))/Math.max(1,distance);
+ const closing=clamp01(-radial/48);
+ const nearness=1/(1+distance/105);
+ const recentDamage=Math.exp(-Math.max(0,time-(enemy.lastDamageAt??-9999))/4.5);
+ const nearbyAllies=all.filter(e=>e!==enemy&&e.hp>0&&Math.hypot(e.x-enemy.x,e.z-enemy.z)<190).length;
+ const support=clamp01(nearbyAllies/3);
+ const bestHit=enemy.ai?.choice?.probability||.3;
+ // A utilidade de sobreviver cresce com vulnerabilidade e perseguição real.
+ const flee=(1-hp)*(.85+nearness*1.25)+closing*.31+recentDamage*.37-support*.26;
+ const regroup=(1-hp)*.56+support*.38+recentDamage*.12+(.4-nearness)*.20;
+ const fight=.63+hp*.48+bestHit*.32+support*.2-nearness*(1-hp)*.35-recentDamage*.15;
+ // Histerese: pilotos não trocam de plano freneticamente por pequenas flutuações.
+ const previous=enemy.ai?.intent;
+ const utilities={
+  fight:fight+(previous==='fight'?.15:0),
+  withdraw:flee+(previous==='withdraw'?.15:0),
+  regroup:regroup+(previous==='regroup'?.15:0)
+ };
+ let intent='fight';
+ if(utilities.withdraw>utilities[intent])intent='withdraw';
+ if(utilities.regroup>utilities[intent])intent='regroup';
  const phase=time*(role===0?.46:role===1?-.54:.42)+enemy.phase;
  const radius=(role===0?175:role===1?215:145)+(enemy.id%3)*23;
  let goalX=player.x+Math.sin(phase)*radius;
  let goalZ=player.z+Math.cos(phase)*radius;
- // Duelistas flanqueiam, interceptadores buscam a proa, escaramuçadores alternam distância.
- if(role===2){goalX+=-Math.sin(player.heading)*Math.min(70,player.speed*.9);goalZ+=-Math.cos(player.heading)*Math.min(70,player.speed*.9);}
- // Ataques de pinça: pares assumem lados contrários do rumo da proa.
+ if(role===2){goalX+=-Math.sin(player.heading)*Math.min(70,Math.abs(player.speed)*.9);goalZ+=-Math.cos(player.heading)*Math.min(70,Math.abs(player.speed)*.9);}
  if(role===0){const flank=(enemy.id%2===0?1:-1)*65;goalX+=Math.cos(player.heading)*flank;goalZ-=Math.sin(player.heading)*flank;}
- if(distance<TACTICS.minRange){const len=Math.max(1,distance);goalX=enemy.x-dx/len*70;goalZ=enemy.z-dz/len*70;}
- // Separação suave: navios não se empilham durante a perseguição.
+ if(intent==='withdraw'){
+  const route=selectEscapeRoute(enemy,player,all,obstacles,140);
+  goalX=route.x;goalZ=route.z;
+ }else if(intent==='regroup'){
+  const allies=all.filter(e=>e!==enemy&&e.hp>40);
+  if(allies.length){
+   let best=allies[0],bestDistance=Infinity;
+   for(const ally of allies){const d=Math.hypot(ally.x-enemy.x,ally.z-enemy.z);
+    if(d<bestDistance){best=ally;bestDistance=d;}}
+   // Apoio da frota sem se jogar em cima do colega.
+   const vx=best.x-player.x,vz=best.z-player.z,len=Math.hypot(vx,vz)||1;
+   goalX=best.x+vx/len*42;goalZ=best.z+vz/len*42;
+  }else{
+   const route=selectEscapeRoute(enemy,player,all,obstacles,105);
+   goalX=route.x;goalZ=route.z;
+  }
+ }else{
+  // O objetivo é manter distância tática enquanto ganha ângulo para atirar.
+  const ideal=Math.max(70,Math.min(215,radius));
+  const approach=(ideal-distance)/Math.max(1,distance);
+  goalX-=dx*approach*.75;goalZ-=dz*approach*.75;
+ }
+ // Separação preventiva entre NPCs, aplicada no OBJETIVO, nunca nas posições.
  for(const other of all){
   if(other===enemy||other.hp<=0)continue;
   const sx=enemy.x-other.x,sz=enemy.z-other.z,sep=Math.hypot(sx,sz);
-  if(sep<115&&sep>.01){const force=(115-sep)/115*160;goalX+=sx/sep*force;goalZ+=sz/sep*force;}
+  if(sep<90&&sep>.01){const force=(90-sep)/90*48;goalX+=sx/sep*force;goalZ+=sz/sep*force;}
  }
- const lowHp=enemy.hp<=22;
- if(lowHp){goalX-=dx/Math.max(1,distance)*75;goalZ-=dz/Math.max(1,distance)*75;}
- const state=lowHp?'retreat':role===0?'flank':role===1?'orbit':'intercept';
- const chase=distance>305?1.06:1;
- return {active,goalX,goalZ,distance,role,state,speed:(lowHp?17:role===2?26:role===0?23:21)*chase};
+ const state=intent==='withdraw'?'withdraw':intent==='regroup'?'regroup':
+  role===0?'flank':role===1?'orbit':'intercept';
+ return {active,goalX,goalZ,distance,role,state,intent,
+  speed:intent==='withdraw'?38:intent==='regroup'?25:role===2?27:role===0?24:22,
+  utilities,pressure:{closing,nearness,recentDamage,support}};
 }
 export function canEnemyFire(enemy,all,shots,now,playerHp){
  if(playerHp<=0||now<enemy.nextShot||enemy.hp<=0)return false;
