@@ -71,8 +71,10 @@ const waves=[
 function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y*currentSeaIntensity}
 function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
 const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uWaveIntensity:{value:currentSeaIntensity},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
-const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,190,190),new THREE.ShaderMaterial({
-uniforms,side:THREE.DoubleSide,
+// Menos triângulos no mar para aparelhos de toque, mantendo formato global.
+const waterSegments=MOBILE_RENDER?110:190;
+const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,waterSegments,waterSegments),new THREE.ShaderMaterial({
+uniforms,side:THREE.DoubleSide,defines:MOBILE_RENDER?{MOBILE_WATER:1}:{},
 vertexShader:`uniform float uTime;uniform float uWaveIntensity;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
 void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ)*uWaveIntensity;vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
@@ -83,14 +85,31 @@ float wave(vec2 p){return uWaveIntensity*(2.8*sin(dot(p,normalize(vec2(1.,.25)))
 void main(){
  vec2 p=vPos.xy;
  float h=.75;
+#ifdef MOBILE_WATER
+ // Gradiente analítico: 4 cossenos em vez de 16 senos por pixel.
+ vec2 d1=normalize(vec2(1.,.25));
+ vec2 d2=normalize(vec2(-.3,1.));
+ vec2 d3=normalize(vec2(.75,-.65));
+ vec2 d4=normalize(vec2(-.65,-.75));
+ vec2 gradient=2.*h*uWaveIntensity*(
+  2.8*.055*cos(dot(p,d1)*.055-uTime*1.1)*d1+
+  1.7*.092*cos(dot(p,d2)*.092-uTime*1.6)*d2+
+  1.15*.17*cos(dot(p,d3)*.17-uTime*2.)*d3+
+  .65*.29*cos(dot(p,d4)*.29-uTime*2.8)*d4);
+#else
  vec2 gradient=vec2(wave(p+vec2(h,0.))-wave(p-vec2(h,0.)),wave(p+vec2(0.,h))-wave(p-vec2(0.,h)));
+#endif
  vec3 n=normalize(vec3(-gradient.x,2.*h,-gradient.y));
  vec3 viewDir=normalize(cameraPosition-vec3(p.x,vHeight,p.y));
  vec3 lightDir=normalize(uSunDirection);
  float lit=.3+.7*max(dot(n,lightDir),0.);
  float fresnel=pow(1.-max(dot(n,viewDir),0.),3.);
  float spec=pow(max(dot(reflect(-lightDir,n),viewDir),0.),85.)*1.4;
+ #ifdef MOBILE_WATER
+ float glint=0.;
+#else
  float glint=pow(max(dot(reflect(-lightDir,n),viewDir),0.),240.)*2.;
+#endif
  float normalizedHeight=vHeight/max(uWaveIntensity,.08);
  float trough=smoothstep(-5.,3.5,normalizedHeight);
  vec3 deep=vec3(.006,.075,.135),shallow=vec3(.015,.36,.46);
@@ -99,7 +118,11 @@ void main(){
  // Espuma orgânica: filamentos deformados com a crista, sem malha hexagonal.
  vec2 warp=p*.21+gradient.yx*.17;
  float filaments=sin(warp.x+sin(warp.y*.75)*2.8)*cos(warp.y*.66+sin(warp.x*.8)*2.);
- float jitter=hash(floor(p*.48))*0.35;
+ #ifdef MOBILE_WATER
+ float jitter=.14;
+#else
+ float jitter=hash(floor(p*.48))*.35;
+#endif
  float crest=smoothstep(2.,5.,normalizedHeight+filaments*.65);
  float ribbons=smoothstep(.54,.87,filaments+jitter)*smoothstep(.2,4.5,normalizedHeight);
  float foam=clamp((crest*.30+ribbons*.57)*(.22+uWaveIntensity),0.,.48);
