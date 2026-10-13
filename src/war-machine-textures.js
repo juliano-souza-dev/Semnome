@@ -1,8 +1,6 @@
 // Pintura técnica e micro-relevo leves, gerados localmente para o casco 3D.
 // Os mapas são neutros para preservar as cores e não exigir downloads externos.
-let cachedHullTextures=null;
 export function createHullTextures(THREE){
- if(cachedHullTextures)return cachedHullTextures;
  const size=512;
  const canvas=document.createElement('canvas');canvas.width=canvas.height=size;
  const ctx=canvas.getContext('2d');
@@ -51,6 +49,5 @@ export function createHullTextures(THREE){
   bumpCtx.fillStyle='#bbbbbb';bumpCtx.fillRect(x+2,0,2,512);
  }
  const bump=new THREE.CanvasTexture(bumpCanvas);bump.wrapS=bump.wrapT=THREE.RepeatWrapping;
- cachedHullTextures={paint,bump};
- return cachedHullTextures;
+ return {paint,bump};
 }
