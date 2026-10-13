@@ -150,8 +150,11 @@ for(const enemy of enemies){
 npc.visible=false;
 npcShadow.visible=false;
 const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:180,shotDamage:7,shotCooldown:1.95,maxHp:100};
-const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0};
+const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
+const repairButton=document.createElement('button');repairButton.id='repairButton';repairButton.textContent='REPARAR +20';repairButton.type='button';document.getElementById('ui').appendChild(repairButton);
+const outOfCombat=()=>playerCombat.hp>0&&clock.elapsedTime-playerCombat.lastDamageAt>=5&&enemyShots.length===0&&!enemies.some(e=>e.hp>0&&e.state!=='patrol');
+repairButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();if(!outOfCombat()||playerCombat.hp>=ENEMY_AI.maxHp)return;playerCombat.hp=Math.min(ENEMY_AI.maxHp,playerCombat.hp+20)});
 let threatShotCount=0;
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
 // Barra de integridade acompanha a nave no espaço da tela, sempre horizontal.
@@ -654,7 +657,7 @@ if(playerCombat.hp>0){
   hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostUntil=0;
   if(t>=playerCombat.invulnerableUntil&&impactSpeed>2){
    const damage=first.kind==='building'?18:10;
-   playerCombat.hp=Math.max(0,playerCombat.hp-damage);
+   playerCombat.hp=Math.max(0,playerCombat.hp-damage);playerCombat.lastDamageAt=t;
    playerCombat.invulnerableUntil=t+1.1;hitFeedback=1;
    attackCamera.shake=Math.max(attackCamera.shake,.3);
    energyFlash(new THREE.Vector3(x,bob+1.5,z));audio.play('impact');
@@ -838,7 +841,7 @@ for(let i=enemyShots.length-1;i>=0;i--){
  const contact=Math.hypot(shot.mesh.position.x-x,shot.mesh.position.z-z);
  let remove=false;
  if(contact<5.7&&Math.abs(shot.mesh.position.y-(bob+2.3))<5.5 && t>=playerCombat.invulnerableUntil && playerCombat.hp>0){
-  playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);
+  playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);playerCombat.lastDamageAt=t;
   hitFeedback=1;attackCamera.shake=Math.max(attackCamera.shake,.55);
   if(playerCombat.hp<=0){
    // Explode imediatamente, paralisa a nave e inicia 3 segundos exatos até respawn.
@@ -893,6 +896,8 @@ fireButton.setAttribute('aria-label',selectedAmmo.name+' · '+(remaining>0?'reca
 fireButton.style.setProperty('--ready',String(1-remaining/currentWeapon().cooldown));
 fireButton.dataset.ready=remaining<=0?'true':'false';
 fireButton.disabled=remaining>0||playerCombat.hp<=0;
+repairButton.disabled=!outOfCombat()||playerCombat.hp>=ENEMY_AI.maxHp;
+repairButton.textContent=playerCombat.hp>=ENEMY_AI.maxHp?'VIDA CHEIA':outOfCombat()?'REPARAR +20':'EM COMBATE';
 // Atualização da barra ocorre após o posicionamento final da câmera.
 energyGlowMaterial.uniforms.uTime.value=t;plasmaMaterial.uniforms.uTime.value=t;
 for(let i=projectiles.length-1;i>=0;i--){
