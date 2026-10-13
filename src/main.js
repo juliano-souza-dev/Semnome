@@ -85,13 +85,14 @@ import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoad
   // A frente do Semnome aponta para -Z. Teste temporário sem alterar a física.
   model.name='Blazing Wave Runner · casco temporário';
   ship.add(model);
-  const turret=ship.userData.turretPivot;
-  const muzzle=ship.userData.muzzleFlash;
-  const firePoint=ship.userData.firePoint;
+  // O GLB já possui o armamento integrado na malha única.
+  // Oculta todo o modelo antigo, inclusive a torreta visual duplicada.
+  // Os pivôs continuam na memória para preservar mira e disparos.
   for(const part of ship.children){
-   if(part===model||part===turret||part===muzzle||part===firePoint)continue;
-   part.visible=false;
+   if(part!==model)part.visible=false;
   }
+  ship.userData.temporaryHull=model;
+  ship.userData.turretVisualIntegrated=true;
   console.info('[Semnome] Modelo GLB temporário carregado',TEST_SHIP_GLB);
  },undefined,error=>console.warn('[Semnome] GLB indisponível; mantendo casco original',error));
 }).catch(error=>console.warn('[Semnome] Loader GLB indisponível; mantendo casco original',error));
