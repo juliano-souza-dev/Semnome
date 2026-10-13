@@ -69,6 +69,32 @@ water.rotation.x=-Math.PI/2;scene.add(water);
 const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
 const ship=createWarMachine3D(THREE);scene.add(ship);
+// Modelo temporário do jogador. Mantém pivô da torreta, disparos, física e
+// fallback original intactos. Somente a aparência do casco é substituída.
+const TEST_SHIP_GLB='./assets/ships/player/Meshy_AI_Blazing_Wave_Runner_1013184138_texture.glb';
+import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js').then(({GLTFLoader})=>{
+ new GLTFLoader().load(TEST_SHIP_GLB,gltf=>{
+  const model=gltf.scene;
+  const bounds=new THREE.Box3().setFromObject(model);
+  const size=bounds.getSize(new THREE.Vector3());
+  if(Math.max(size.x,size.y,size.z)<.001)throw new Error('GLB sem dimensões válidas');
+  const scale=8.8/Math.max(size.x,size.z);
+  model.scale.setScalar(scale);
+  const center=bounds.getCenter(new THREE.Vector3());
+  model.position.set(-center.x*scale,-bounds.min.y*scale-.65,-center.z*scale);
+  // A frente do Semnome aponta para -Z. Teste temporário sem alterar a física.
+  model.name='Blazing Wave Runner · casco temporário';
+  ship.add(model);
+  const turret=ship.userData.turretPivot;
+  const muzzle=ship.userData.muzzleFlash;
+  const firePoint=ship.userData.firePoint;
+  for(const part of ship.children){
+   if(part===model||part===turret||part===muzzle||part===firePoint)continue;
+   part.visible=false;
+  }
+  console.info('[Semnome] Modelo GLB temporário carregado',TEST_SHIP_GLB);
+ },undefined,error=>console.warn('[Semnome] GLB indisponível; mantendo casco original',error));
+}).catch(error=>console.warn('[Semnome] Loader GLB indisponível; mantendo casco original',error));
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
 const wakeMaterial=new THREE.MeshBasicMaterial({color:0xdafaff,transparent:true,opacity:.44,depthWrite:false,side:THREE.DoubleSide});
