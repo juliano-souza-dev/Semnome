@@ -185,6 +185,15 @@ npcShadow.visible=false;
 const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:140,shotDamage:7,shotCooldown:1.95,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
+function discardEnemyShot(shot){
+ scene.remove(shot.mesh,shot.trail);
+ shot.trail.geometry.dispose();
+ shot.trailMat?.dispose();
+ shot.coreMat?.dispose();
+ shot.glowMat?.dispose();
+ shot.plasma?.geometry.dispose();
+ if(shot.warning){scene.remove(shot.warning);shot.warning.geometry.dispose();shot.warning.material.dispose();}
+}
 const repairButton=document.createElement('button');repairButton.id='repairButton';repairButton.textContent='REPARAR +20';repairButton.type='button';document.getElementById('ui').appendChild(repairButton);
 const outOfCombat=()=>playerCombat.hp>0&&clock.elapsedTime-playerCombat.lastDamageAt>=5&&enemyShots.length===0&&!enemies.some(e=>e.hp>0&&e.state!=='patrol');
 repairButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();if(!outOfCombat()||playerCombat.hp>=ENEMY_AI.maxHp)return;playerCombat.hp=Math.min(ENEMY_AI.maxHp,playerCombat.hp+20)});
@@ -992,41 +1001,82 @@ lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedN
 npc.visible=false;
 npcShadow.visible=false;
 ship.position.x=x;ship.position.z=z;
-// Projéteis inimigos independentes da câmera. Só há dano se acertarem a nave.
+// NPCs atacam com seis armamentos de trajetórias e riscos diferentes.
+// Nenhum projétil recalcula o alvo depois de disparado: é possível desviar.
 for(let i=enemyShots.length-1;i>=0;i--){
- const shot=enemyShots[i];const oldShot=shot.mesh.position.clone();shot.age+=dt;
+ const shot=enemyShots[i],weapon=shot.weapon;
+ const oldShot=shot.mesh.position.clone();
+ shot.age+=dt;
  const progress=Math.min(1,shot.age/shot.duration);
- ballisticPoint(shot.origin,shot.destination,shot.duration,shot.age,shot.arcHeight,shot.mesh.position);
- shot.glow.quaternion.copy(camera.quaternion);shot.outerGlow.quaternion.copy(camera.quaternion);
+ const previousTime=(shot.age-dt);
+ const mode=weapon.mode;
+ shot.mesh.position.lerpVectors(shot.origin,shot.destination,progress);
+ if(mode==='torpedo'){
+  shot.mesh.position.y=height(shot.mesh.position.x,shot.mesh.position.z,t)+.65;
+ }else if(mode==='area'){
+  const apex=shot.weaponId==='siege'?48:shot.weaponId==='meteor'?38:17;
+  shot.mesh.position.y+=Math.sin(progress*Math.PI)*apex;
+ }
+ shot.glow.quaternion.copy(camera.quaternion);
+ shot.outerGlow.quaternion.copy(camera.quaternion);
  shot.plasma.rotation.set(t*6,t*9,t*5);
+ if(shot.warning){
+  const remaining=1-progress;
+  shot.warning.position.y=height(shot.destination.x,shot.destination.z,t)+.3;
+  shot.warning.material.opacity=.18+.25*(.5+.5*Math.sin(t*9+shot.source))*Math.min(1,remaining*5);
+ }
  shot.trailPoints.pop();shot.trailPoints.unshift(shot.mesh.position.clone());
  const arr=shot.trail.geometry.attributes.position.array;
- for(let j=0;j<shot.trailPoints.length;j++){const v=shot.trailPoints[j];arr[j*3]=v.x;arr[j*3+1]=v.y;arr[j*3+2]=v.z}
+ for(let j=0;j<shot.trailPoints.length;j++){const v=shot.trailPoints[j];arr[j*3]=v.x;arr[j*3+1]=v.y;arr[j*3+2]=v.z;}
  shot.trail.geometry.attributes.position.needsUpdate=true;
- // A bala e a nave se movem juntas entre quadros: usar trajetória relativa
- // impede acertos fantasmas e evita atravessar a nave em FPS baixo.
- const contact=sweptMovingContact(oldShot,shot.mesh.position,
-  {x:collisionStartX,z:collisionStartZ},{x,z},5.7);
- const crossingY=oldShot.y+(shot.mesh.position.y-oldShot.y)*contact.fraction;
- const hit=contact.hit&&Math.abs(crossingY-(bob+2.3))<5.5&&playerCombat.hp>0;
- let remove=hit;
- if(hit&&t>=playerCombat.invulnerableUntil){
-  playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);playerCombat.lastDamageAt=t;
-  hitFeedback=1;attackCamera.shake=Math.max(attackCamera.shake,.55);
+ const direct=mode!=='area';
+ const swept=direct?sweptMovingContact(oldShot,shot.mesh.position,
+  {x:collisionStartX,z:collisionStartZ},{x,z},mode==='torpedo'?6.8:5.7):null;
+ const crossingY=swept?oldShot.y+(shot.mesh.position.y-oldShot.y)*swept.fraction:0;
+ const playerHit=direct&&playerCombat.hp>0&&swept.hit&&
+  Math.abs(crossingY-(bob+2.3))<(mode==='torpedo'?6:5.5);
+ let obstacleHit=false,obstacleFraction=Infinity;
+ // Um torpedo só detona contra um objeto físico (nave ou estrutura).
+ if(direct){
+  for(const obstacle of horizon.colliders){
+   const test=sweptMovingContact(oldShot,shot.mesh.position,
+    {x:obstacle.x,z:obstacle.z},{x:obstacle.x,z:obstacle.z},
+    obstacle.radius+(mode==='torpedo'?1.3:.7));
+   if(test.hit&&test.fraction<obstacleFraction){
+    obstacleHit=true;obstacleFraction=test.fraction;
+   }
+  }
+ }
+ const playerFirst=playerHit&&(!obstacleHit||swept.fraction<=obstacleFraction);
+ if(playerFirst)shot.mesh.position.lerpVectors(oldShot,shot.mesh.position,swept.fraction);
+ else if(obstacleHit)shot.mesh.position.lerpVectors(oldShot,shot.mesh.position,obstacleFraction);
+ const collided=playerFirst||obstacleHit;
+ const areaBlast=mode==='area'&&progress>=1;
+ const torpedoBlast=mode==='torpedo'&&collided;
+ const blast=areaBlast||torpedoBlast;
+ const blastRadius=weapon.blast||weapon.radius;
+ const playerDistance=Math.hypot(x-shot.mesh.position.x,z-shot.mesh.position.z);
+ const damageHit=mode==='torpedo'?torpedoBlast&&playerDistance<=blastRadius:
+   mode==='area'?areaBlast&&playerDistance<=blastRadius:playerFirst;
+ if(damageHit&&t>=playerCombat.invulnerableUntil&&playerCombat.hp>0){
+  playerCombat.hp=Math.max(0,playerCombat.hp-shot.hitDamage);
+  playerCombat.lastDamageAt=t;hitFeedback=1;
+  attackCamera.shake=Math.max(attackCamera.shake,.44);
+  playerCombat.invulnerableUntil=t+.45;
+  audio.play('impact');
   if(playerCombat.hp<=0){
-   // Explode imediatamente, paralisa a nave e inicia 3 segundos exatos até respawn.
    playerCombat.deathX=x;playerCombat.deathZ=z;playerCombat.deathHeading=heading;
    playerCombat.respawnAt=t+3;speed=0;boostUntil=0;
    hullPhysics.vx=0;hullPhysics.vz=0;
    ship.visible=false;cancelAreaAim();
    for(let burst=0;burst<6;burst++)energyFlash(new THREE.Vector3(x+(Math.random()-.5)*7,bob+2+Math.random()*5,z+(Math.random()-.5)*7));
-   audio.play('impact');notifyCombat('NAVE DESTRUÍDA · RETORNO EM 3s',3);
+   notifyCombat('NAVE DESTRUÍDA · RETORNO EM 3s',3);
   }
-  playerCombat.invulnerableUntil=t+.45;
-  energyFlash(new THREE.Vector3(x,bob+2.5,z));remove=true;
  }
- if(progress>=1)remove=true; // Errou: o tiro se dissipa, sem explosão de impacto.
- if(remove){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();enemyShots.splice(i,1);}
+ if(blast||collided){energyFlash(shot.mesh.position);}
+ if(blast||collided||progress>=1){
+  discardEnemyShot(shot);enemyShots.splice(i,1);
+ }
 }
 if(playerCombat.hp<=0){
  if(playerCombat.respawnAt===0)playerCombat.respawnAt=t+3;
@@ -1040,7 +1090,7 @@ if(playerCombat.hp<=0){
   speed=0;boostUntil=0;boostReadyAt=0;
   hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
   cancelAreaAim();
-  for(const shot of enemyShots){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();}
+  for(const shot of enemyShots)discardEnemyShot(shot);
   enemyShots.length=0;
  }
 }
