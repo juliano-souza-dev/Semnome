@@ -555,8 +555,26 @@ pad.addEventListener('lostpointercapture',releasePad);
 const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code)});
 addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
-// Câmera de filmagem aérea: o arrasto no mar não gira a câmera.
+// Órbita manual 360°: a câmera conserva sua inclinação e distância,
+// mas pode circular livremente ao redor da nave sem alterar o casco.
+let orbitYaw=0,orbitPointer=null,orbitLastX=0;
 renderer.domElement.style.touchAction='none';
+renderer.domElement.addEventListener('pointerdown',e=>{
+ if(orbitPointer!==null||areaAim.active||(e.pointerType==='mouse'&&e.button!==0))return;
+ orbitPointer=e.pointerId;orbitLastX=e.clientX;
+ renderer.domElement.setPointerCapture(e.pointerId);
+ e.preventDefault();
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+ if(e.pointerId!==orbitPointer)return;
+ const dx=e.clientX-orbitLastX;orbitLastX=e.clientX;
+ orbitYaw+=dx*.0075;
+ e.preventDefault();
+});
+function releaseOrbit(e){if(e.pointerId===orbitPointer)orbitPointer=null}
+renderer.domElement.addEventListener('pointerup',releaseOrbit);
+renderer.domElement.addEventListener('pointercancel',releaseOrbit);
+renderer.domElement.addEventListener('lostpointercapture',releaseOrbit);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
@@ -692,7 +710,8 @@ animateGun(ship,dt);
 const tower=ship.userData.turretPivot;
 if(tower){
  const target=areaAim.active?areaAim.point:(lockedNpc&&lockedNpc.hp>0?lockedNpc:null);
- let desired=0;
+ // Sem alvo selecionado, a torre observa a direção apontada pela câmera.
+ let desired=orbitYaw-heading;
  if(target){
   const dx=target.x-x,dz=target.z-z;
   if(Math.hypot(dx,dz)>2)desired=Math.atan2(-dx,-dz)-heading;
@@ -1036,8 +1055,8 @@ horizon.update(x,z,t,height);
 // Enquadramento inspirado na referência: perspectiva baixa, horizonte visível
 // e bastante mar à frente. A nave ocupa o terço inferior da imagem.
 // Orientação permanece fixa no mundo, sem seguir a rotação do casco.
-camera.position.set(x,16,z+29);
-camTarget.set(x,4,z-44);
+camera.position.set(x+Math.sin(orbitYaw)*29,16,z+Math.cos(orbitYaw)*29);
+camTarget.set(x-Math.sin(orbitYaw)*44,4,z-Math.cos(orbitYaw)*44);
 camera.lookAt(camTarget);
 cameraReady=true;
 attackCamera.blend=0;
