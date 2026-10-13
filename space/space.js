@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+import {createWarMachine3D} from '../src/war-machine-3d.js';
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x020712);
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,3000);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
@@ -28,8 +29,8 @@ function shipModel(enemy=false){const group=new THREE.Group();
  const engine=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.8,4.5,10),darkMat);engine.rotation.x=Math.PI/2;engine.position.set(side*4.4,-.4,8);group.add(engine);
  const flare=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),enemy?enemyGlow:glassMat);flare.position.set(side*4.4,-.4,10.4);flare.userData.flare=true;group.add(flare);}
  const turret=new THREE.Group();turret.position.set(0,2,-2);const gun=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,7),darkMat);gun.position.z=-3;turret.add(gun);group.add(turret);group.userData.turret=turret;return group;}
-const ship=shipModel(false);scene.add(ship);
-const enemies=[];for(let i=0;i<9;i++){const angle=2*Math.PI*i/9,dist=110+(i%3)*80;const model=shipModel(true);model.position.set(Math.sin(angle)*dist,(i%3-1)*14,-110+Math.cos(angle)*dist);scene.add(model);enemies.push({model,x:model.position.x,z:model.position.z,y:model.position.y,hp:100,angle:angle,state:'patrol',cooldown:i*.34,seed:i+1})}
+const ship=createWarMachine3D(THREE);ship.scale.setScalar(1.75);scene.add(ship);
+const enemies=[];for(let i=0;i<9;i++){const angle=2*Math.PI*i/9,dist=110+(i%3)*80;const model=createWarMachine3D(THREE,{enemy:true});model.scale.setScalar(1.55);model.position.set(Math.sin(angle)*dist,(i%3-1)*14,-110+Math.cos(angle)*dist);scene.add(model);enemies.push({model,x:model.position.x,z:model.position.z,y:model.position.y,hp:100,angle:angle,state:'patrol',cooldown:i*.34,seed:i+1})}
 let x=0,z=0,heading=0,speed=0,hp=100,boost=0,boostReady=0,last=performance.now(),noticeTimeout=0,sound=true;
 const input={x:0,y:0,pointer:null},pad=document.getElementById('pad'),stick=document.getElementById('stick');
 function updatePad(e){const box=pad.getBoundingClientRect(),dx=e.clientX-(box.left+box.width/2),dy=e.clientY-(box.top+box.height/2),radius=box.width*.34,len=Math.hypot(dx,dy)||1;input.x=THREE.MathUtils.clamp(dx/radius,-1,1);input.y=THREE.MathUtils.clamp(-dy/radius,-1,1);if(len>radius){input.x=dx/len;input.y=-dy/len;}stick.style.transform='translate('+Math.round(input.x*radius)+'px,'+Math.round(-input.y*radius)+'px)'}
@@ -51,7 +52,7 @@ function endAim(e){if(!aim.active||e.pointerId!==aim.pointer)return;aim.active=f
 fire.addEventListener('pointerup',endAim);fire.addEventListener('pointercancel',endAim);
 const bullets=[],flashes=[];const sphere=new THREE.SphereGeometry(1,10,8);
 function nearest(angle,max=310){let best=null,bd=max;for(const e of enemies){if(e.hp<=0)continue;let d=Math.hypot(e.x-x,e.z-z),bearing=Math.atan2(-(e.x-x),-(e.z-z));let delta=Math.abs(Math.atan2(Math.sin(bearing-angle),Math.cos(bearing-angle)));if(d<bd&&delta<.32){best=e;bd=d}}return best}
-function fireWeapon(){const now=performance.now()/1000;const w=selected;if(now<ready[w.id])return;ready[w.id]=now+w.cooldown;playSound(w.id);const count=w.id==='scatter'?3:1;
+function fireWeapon(){const now=performance.now()/1000;const w=selected;if(now<ready[w.id])return;ready[w.id]=now+w.cooldown;playSound(w.id);ship.userData.recoil=.4;ship.userData.flashTime=.16;const count=w.id==='scatter'?3:1;
  for(let i=0;i<count;i++){const angle=aim.angle+(i-(count-1)/2)*.095,target=nearest(angle,w.id==='missile'?270:310);
  const dir=new THREE.Vector3(-Math.sin(angle),0,-Math.cos(angle));
  const start=new THREE.Vector3(x+dir.x*12,ship.position.y+1,z+dir.z*12);
@@ -78,12 +79,21 @@ function tick(){requestAnimationFrame(tick);const now=performance.now(),dt=Math.
  speed=THREE.MathUtils.damp(speed,desired,t<boost?5:1.8,dt);
  x-=Math.sin(heading)*speed*dt;z-=Math.cos(heading)*speed*dt;
  ship.position.set(x,Math.sin(t*1.6)*.35,z);ship.rotation.y=heading;ship.rotation.z=THREE.MathUtils.damp(ship.rotation.z,-steer*.18,5,dt);
- ship.userData.turret.rotation.y=THREE.MathUtils.damp(ship.userData.turret.rotation.y,aim.active?aim.angle-heading:0,7,dt);
- for(const flare of ship.children.filter(c=>c.userData.flare))flare.scale.z=1+Math.min(2,Math.abs(speed)/48)*.6;
+ if(ship.userData.turretPivot)ship.userData.turretPivot.rotation.y=THREE.MathUtils.damp(ship.userData.turretPivot.rotation.y,aim.active?aim.angle-heading:0,7,dt);
+ ship.userData.recoil=Math.max(0,(ship.userData.recoil||0)-dt*1.5);
+ if(ship.userData.turretPivot)ship.userData.turretPivot.position.z=-1.35+ship.userData.recoil;
+ ship.userData.flashTime=Math.max(0,(ship.userData.flashTime||0)-dt);
+ if(ship.userData.muzzleFlash){ship.userData.muzzleFlash.visible=ship.userData.flashTime>0;ship.userData.muzzleFlash.scale.setScalar(.65+ship.userData.flashTime*8)}
+ for(const rotor of ship.userData.rotors||[])rotor.rotation.z=t*(3+Math.abs(speed)*.24);
+ for(const jet of ship.userData.engineFlames||[]){jet.material.uniforms.uTime.value=t;jet.material.uniforms.uPower.value=Math.min(1.35,.2+Math.abs(speed)/52+(t<boost?.7:0));const length=t<boost?1.7:.75+Math.abs(speed)/100;jet.flame.scale.y=length;jet.flameCross.scale.y=length;}
+ // Utiliza os efeitos de propulsão originais da nave do Semnome.
  for(const e of enemies){if(e.hp<=0){e.model.visible=false;continue}const dx=x-e.x,dz=z-e.z,dist=Math.hypot(dx,dz);let vx=dx,vz=dz;
  if(dist>75&&dist<310){const step=(dist>135?13:-9)*dt;vx=dx/Math.max(dist,1)*step;vz=dz/Math.max(dist,1)*step;e.x+=vx;e.z+=vz}
  else if(dist>=310){e.x+=Math.sin(t*.31+e.seed)*dt*4;e.z+=Math.cos(t*.31+e.seed)*dt*4}
- e.model.position.set(e.x,e.y+Math.sin(t*1.3+e.seed)*1.6,e.z);e.model.rotation.y=Math.atan2(-(x-e.x),-(z-e.z));e.cooldown-=dt;
+ e.model.position.set(e.x,e.y+Math.sin(t*1.3+e.seed)*.5,e.z);e.model.rotation.y=Math.atan2(-(x-e.x),-(z-e.z));
+ for(const rotor of e.model.userData.rotors||[])rotor.rotation.z=t*5;
+ for(const jet of e.model.userData.engineFlames||[]){jet.material.uniforms.uTime.value=t;jet.material.uniforms.uPower.value=.65;jet.flame.scale.y=.9;jet.flameCross.scale.y=.9}
+ e.cooldown-=dt;
  if(dist<165&&e.cooldown<=0){e.cooldown=2.3+e.seed*.12;const firePos=e.model.position.clone();const dir=new THREE.Vector3(x-e.x,0,z-e.z).normalize();
  const w={id:'enemy',damage:7,speed:115,color:0xff5c54};const mesh=new THREE.Mesh(sphere,new THREE.MeshBasicMaterial({color:w.color}));mesh.scale.setScalar(1.6);mesh.position.copy(firePos);scene.add(mesh);const trail=new THREE.Mesh(sphere,new THREE.MeshBasicMaterial({color:w.color,transparent:true,opacity:.5}));scene.add(trail);bullets.push({mesh,trail,dir,weapon:w,dist:0,age:0,range:185,velocity:115})}
  }
