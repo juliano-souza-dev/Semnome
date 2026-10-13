@@ -69,75 +69,7 @@ water.rotation.x=-Math.PI/2;scene.add(water);
 const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
 const ship=createWarMachine3D(THREE);scene.add(ship);
-// Montagem experimental em dois GLBs. O original continua como fallback.
-// Casco e torreta são arquivos independentes, mas filhos da mesma nave.
-// A torreta usa o pivô do sistema existente: a câmera e a mira ficam intactas.
-// Mapeamento explícito de peças por inspeção da montagem em jogo:
-// 3302 = casco; 3154 = conjunto de arma. Nunca inferir apenas pela ordem de upload.
-const SHIP_PARTS={
- hull:{url:'./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193302_generate.glb',length:10.5,waterline:-.55,rotationY:0},
- turret:{url:'./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193154_generate.glb',maxFootprint:2.15,deckHeightFactor:.58,deckZ:-.35,rotationY:0}
-};
-import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js').then(async({GLTFLoader})=>{
- const loader=new GLTFLoader();
- const load=url=>new Promise((resolve,reject)=>loader.load(url,gltf=>resolve(gltf.scene),undefined,reject));
- function mapPart(model,sizeLimit){
-  model.updateMatrixWorld(true);
-  const bounds=new THREE.Box3().setFromObject(model);
-  const raw=bounds.getSize(new THREE.Vector3());
-  if(!Number.isFinite(raw.length())||raw.length()<.001)throw Error('Malha inválida');
-  const footprint=Math.max(raw.x,raw.z);
-  if(footprint<.001)throw Error('Modelo sem dimensões horizontais');
-  const scale=sizeLimit/footprint;
-  const center=bounds.getCenter(new THREE.Vector3());
-  model.scale.setScalar(scale);
-  // Alinhamento pelos limites REAIS do arquivo: base ao nível zero, centro no pivô.
-  model.position.set(-center.x*scale,-bounds.min.y*scale,-center.z*scale);
-  return {raw:raw.toArray().map(n=>+n.toFixed(3)),scale:+scale.toFixed(4),
-          width:raw.x*scale,height:raw.y*scale,depth:raw.z*scale};
- }
- function giveFinish(model){
-  model.traverse(obj=>{
-   if(!obj.isMesh)return;
-   for(const mat of (Array.isArray(obj.material)?obj.material:[obj.material])){
-    if(!mat||!mat.isMeshStandardMaterial)continue;
-    mat.metalness=mat.map?Math.max(mat.metalness,.18):.5;
-    mat.roughness=mat.map?mat.roughness:.55;
-    mat.needsUpdate=true;
-   }
-  });
- }
- try{
-  const [hull,turret]=await Promise.all([load(SHIP_PARTS.hull.url),load(SHIP_PARTS.turret.url)]);
-  const hullMap=mapPart(hull,SHIP_PARTS.hull.length);
-  const turretMap=mapPart(turret,Math.min(SHIP_PARTS.turret.maxFootprint,Math.max(hullMap.width,hullMap.depth)*.20));
-  hull.rotation.y=SHIP_PARTS.hull.rotationY;
-  turret.rotation.y=SHIP_PARTS.turret.rotationY;
-  hull.position.y+=SHIP_PARTS.hull.waterline;
-  giveFinish(hull);giveFinish(turret);
-  hull.name='Casco (mapeado)';
-  turret.name='Canhão (mapeado)';
-  const originalPivot=ship.userData.turretPivot;
-  const mount=new THREE.Group();
-  mount.name='Ponto de montagem calibrado';
-  // Pivot existente fica em y=1.93,z=-1.35. Corrigir coordenadas locais
-  // para o encaixe no convés, sem somar duas alturas inadvertidamente.
-  const deckHeight=SHIP_PARTS.hull.waterline+hullMap.height*SHIP_PARTS.turret.deckHeightFactor;
-  mount.position.set(0,deckHeight-originalPivot.position.y,
-       SHIP_PARTS.turret.deckZ-originalPivot.position.z);
-  mount.add(turret);
-  ship.add(hull);
-  originalPivot.add(mount);
-  for(const part of ship.children)if(part!==hull&&part!==originalPivot)part.visible=false;
-  for(const part of originalPivot.children)if(part!==mount)part.visible=false;
-  ship.userData.testHull=hull;
-  ship.userData.testTurret=turret;
-  ship.userData.modelMapping={hullMap,turretMap,deckHeight};
-  console.info('[Semnome] Mapeamento de casco/arma aplicado',ship.userData.modelMapping);
- }catch(error){
-  console.error('[Semnome] Mapeamento GLB falhou: nave original mantida',error);
- }
-}).catch(error=>console.warn('[Semnome] GLTFLoader indisponível',error));
+// Nave original do Semnome restaurada. GLBs experimentais preservados em assets, mas não carregados.
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
 const wakeMaterial=new THREE.MeshBasicMaterial({color:0xdafaff,transparent:true,opacity:.44,depthWrite:false,side:THREE.DoubleSide});
