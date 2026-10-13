@@ -555,42 +555,11 @@ pad.addEventListener('lostpointercapture',releasePad);
 const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code)});
 addEventListener('keyup',e=>keys.delete(e.code));
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
-// Teste: câmera fixa atrás da nave; nenhum arrasto altera a orientação.
-// Arrastar o oceano gira apenas a câmera; ao soltar, ela retorna atrás da nave.
-let dragId=null,lastDragX=0,lastDragY=0,cameraWorldYaw=0,cameraPitchOffset=0;
+// Câmera de filmagem aérea: o arrasto no mar não gira a câmera.
 renderer.domElement.style.touchAction='none';
-renderer.domElement.addEventListener('pointerdown',e=>{
- if(dragId!==null || (e.pointerType==='mouse'&&e.button!==0))return;
- e.preventDefault();dragId=e.pointerId;lastDragX=e.clientX;lastDragY=e.clientY;
- renderer.domElement.setPointerCapture(e.pointerId);
-});
-renderer.domElement.addEventListener('pointermove',e=>{
- if(e.pointerId!==dragId)return;
- e.preventDefault();
- const dx=e.clientX-lastDragX,dy=e.clientY-lastDragY;
- lastDragX=e.clientX;lastDragY=e.clientY;
- // Direções relativas à tela, independentes do rumo do casco.
- cameraWorldYaw+=dx*.006;
- cameraPitchOffset=THREE.MathUtils.clamp(cameraPitchOffset-dy*.085,-6,26);
-});
-function releaseDrag(e){if(e.pointerId===dragId)dragId=null}
-renderer.domElement.addEventListener('pointerup',releaseDrag);
-renderer.domElement.addEventListener('pointercancel',releaseDrag);
-renderer.domElement.addEventListener('lostpointercapture',releaseDrag);
 const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vector3(),follow=new THREE.Vector3(),aimView=new THREE.Vector3(),aimLook=new THREE.Vector3();let cameraReady=false;
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;uniforms.uTime.value=t;
-// A câmera guarda seu próprio yaw em coordenadas globais.
-// Solta: retorna ao ângulo global de observação, não à traseira.
-// A nave pode exibir proa, popa e laterais durante a rotação completa.
-if(dragId===null){
- // Retorno para a orientação de observação global, nunca para a popa.
- // Assim o casco gira 360 graus livremente diante da câmera.
- const cameraDelta=Math.atan2(Math.sin(-cameraWorldYaw),Math.cos(-cameraWorldYaw));
- cameraWorldYaw+=cameraDelta*(1-Math.exp(-1.55*dt));
- cameraPitchOffset=THREE.MathUtils.damp(cameraPitchOffset,0,2.1,dt);
- if(Math.abs(cameraPitchOffset)<.003)cameraPitchOffset=0;
-}
 const keyboardGo=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
 const keyboardReverse=keys.has('KeyS')||keys.has('ArrowDown');
 const stickAmount=input.active&&input.magnitude>.13?(input.magnitude-.13)/.87:0;
@@ -1062,68 +1031,15 @@ horizon.update(x,z,t,height);
 // Câmera de ação baixa: preserva o horizonte sem diminuir muito a nave.
 // Câmera normal: traseira fixa, horizonte visível e arrasto preservado.
 // Câmera arcade: modelo maior na tela e abertura gradual conforme acelera.
-const velocityFactor=THREE.MathUtils.clamp(Math.abs(speed)/42,0,1);
-const distance=THREE.MathUtils.lerp(18.7,24.8,velocityFactor);
-const cameraHeight=THREE.MathUtils.lerp(9.5,12.8,velocityFactor);
-// FOV progressivo suave reforça velocidade sem distorção excessiva.
-const desiredFov=62+velocityFactor*5+(boostRemaining>0?3:0);
-const newFov=THREE.MathUtils.damp(camera.fov,desiredFov,2.1,dt);
-if(Math.abs(newFov-camera.fov)>.015){camera.fov=newFov;camera.updateProjectionMatrix();}
-const cameraYaw=cameraWorldYaw;
-normalView.set(x+Math.sin(cameraYaw)*distance,cameraHeight+cameraPitchOffset,z+Math.cos(cameraYaw)*distance);
-// Mantém o modelo 3D no enquadramento, inclusive os detalhes do canhão e das turbinas.
-normalLook.set(x-Math.sin(cameraYaw)*9,bob+2.0,z-Math.cos(cameraYaw)*9);
-// Modo ataque: distancia-se o suficiente para mostrar embarcação, alvo e arco 3D.
-let desiredBlend=0;
-if(attackCamera.phase==='flight' && attackCamera.shot)desiredBlend=attackCamera.shot.ammo==='torpedo'?0:1;
-else if(attackCamera.phase==='impact'){
-  desiredBlend=t-attackCamera.impactAt<.26?1:0;
-  if(t-attackCamera.impactAt>.85)attackCamera.phase='idle';
-}
-const blendRate=desiredBlend>attackCamera.blend?5.5:3.8;
-attackCamera.blend=THREE.MathUtils.damp(attackCamera.blend,desiredBlend,blendRate,dt);
-if(attackCamera.phase==='idle' && attackCamera.blend<.005)attackCamera.blend=0;
-wanted.copy(normalView);follow.copy(normalLook);
-if(attackCamera.target && attackCamera.blend>.001){
-  // Travado nas coordenadas do disparo, não na posição/rotação atual da nave.
-  const launchPos=attackCamera.launchOrigin;
-  const targetPos=attackCamera.target;
-  const gap=launchPos.distanceTo(targetPos);
-  const midpoint=launchPos.clone().lerp(targetPos,.55);
-  const shot=attackCamera.shot;
-  const focus=shot?midpoint.clone().lerp(shot.mesh.position,.24):midpoint;
-  // Amplia progressivamente conforme a separação, sem afastar demais.
-  const attackDistance=THREE.MathUtils.clamp(gap*.65+20,34,83);
-  const attackHeight=THREE.MathUtils.clamp(gap*.26+11,17,39);
-  shotView.set(focus.x+Math.sin(attackCamera.launchYaw)*attackDistance,focus.y+attackHeight,focus.z+Math.cos(attackCamera.launchYaw)*attackDistance);
-  shotLook.copy(focus);
-  wanted.lerp(shotView,attackCamera.blend);
-  follow.lerp(shotLook,attackCamera.blend);
-}
-// Armas especiais recebem visão superior imediata; tiros comuns mantêm câmera normal.
-const tacticalHold=areaAim.active && TACTICAL_AMMO.has(selectedAmmo.id);
-areaAim.viewBlend=THREE.MathUtils.damp(areaAim.viewBlend,tacticalHold?1:0,tacticalHold?12:5.2,dt);
-if(areaAim.viewBlend<.001&&!tacticalHold)areaAim.viewBlend=0;
-if(areaAim.viewBlend>0){
- const p=areaAim.point;
- const dx=p.x-x,dz=p.z-z;
- const span=Math.hypot(dx,dz);
- // Eleva e afasta para que navio e alvo permaneçam legíveis na mesma tomada.
- const midX=x+dx*.51,midZ=z+dz*.51;
- const h=THREE.MathUtils.clamp(48+span*.55,65,190);
- aimView.set(midX+Math.sin(heading)*Math.min(20,span*.12),h,midZ+Math.cos(heading)*Math.min(20,span*.12));
- aimLook.set(midX,height(midX,midZ,t),midZ);
- wanted.lerp(aimView,areaAim.viewBlend);
- follow.lerp(aimLook,areaAim.viewBlend);
-}
-attackCamera.shake=Math.max(0,attackCamera.shake-dt*2.3);
-camera.position.copy(wanted);
-if(attackCamera.shake>0){
- const k=Math.min(.35,attackCamera.shake*attackCamera.blend);
- camera.position.x+=Math.sin(t*87)*k;
- camera.position.y+=Math.cos(t*119)*k*.65;
-}
-camTarget.copy(follow);cameraReady=true;camera.lookAt(camTarget);
+// Câmera aérea de filmagem com orientação imutável no mundo.
+// Translada com a posição XZ do jogador, sem copiar heading, ondas ou tiros.
+camera.position.set(x,39,z+26);
+camTarget.set(x,0,z);
+camera.lookAt(camTarget);
+cameraReady=true;
+attackCamera.blend=0;
+attackCamera.shake=0;
+areaAim.viewBlend=0;
 refreshPlayerHealth();
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Ondas ativas';
