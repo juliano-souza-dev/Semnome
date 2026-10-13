@@ -10,13 +10,13 @@ soundButton.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefa
 document.addEventListener('pointerdown',()=>audio.unlock(),{capture:true,passive:true});
 document.addEventListener('keydown',()=>audio.unlock());
 document.getElementById('landscapeFullscreen').addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.();await screen.orientation?.lock?.('landscape')}catch(e){console.info('Rotação automática indisponível; gire o dispositivo manualmente.')}});
-const scene=new THREE.Scene();scene.background=new THREE.Color('#8acdd9');scene.fog=new THREE.FogExp2('#659ead',.0011);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#8db6d5');scene.fog=new THREE.FogExp2('#759ab4',.00155);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xd9faff,0x0e607b,2.2));
-const sun=new THREE.DirectionalLight(0xfff1cf,2.5);sun.position.set(-50,100,40);scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xb8dfff,0x123e58,1.65));
+const sun=new THREE.DirectionalLight(0xffd99b,3.3);sun.position.set(165,92,-330);scene.add(sun);
 // Mesmo campo de ondas no shader e no CPU: soma de ondas direcionais.
 const waves=[
 {dx:1,dz:.25,a:2.8,k:.055,s:1.1},
@@ -26,38 +26,42 @@ const waves=[
 ].map(w=>({...w,len:Math.hypot(w.dx,w.dz)}));
 function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y}
 function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
-const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)}};
+const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
 const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,190,190),new THREE.ShaderMaterial({
 uniforms,side:THREE.DoubleSide,
 vertexShader:`uniform float uTime;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
 void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ);vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
-fragmentShader:`varying vec3 vPos;varying float vHeight;
-vec2 hash2(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}
-float border(vec2 p){
- vec2 cell=floor(p),f=fract(p);float first=10.,second=10.;
- for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
-  vec2 g=vec2(float(i),float(j));
-  vec2 r=g+hash2(cell+g)*.68+.16-f;
-  float d=dot(r,r);
-  if(d<first){second=first;first=d;}else if(d<second)second=d;
- }
- return sqrt(second)-sqrt(first);
-}
+fragmentShader:`uniform float uTime;uniform vec3 uSunDirection;
+varying vec3 vPos;varying float vHeight;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float wave(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
 void main(){
  vec2 p=vPos.xy;
- // Escala pequena e baixa cobertura: evita a antiga malha branca gigante.
- vec2 warp=vec2(sin(p.y*.037+vHeight*.20),cos(p.x*.032-vHeight*.16))*1.8;
- float edge=border((p+warp)*.125);
- float thin=1.-smoothstep(.010,.030,edge);
- // Espuma sobretudo nas cristas, com filamentos discretos nos vales.
- float crest=smoothstep(1.35,4.8,vHeight);
- float flecks=pow(max(0.,sin(p.x*.35+p.y*.21+vHeight*.8)),22.)*.07;
- float foam=clamp(thin*(.10+crest*.62)+crest*.13+flecks,0.,.75);
- float depth=smoothstep(-5.5,5.5,vHeight);
- vec3 sea=mix(vec3(.012,.22,.47),vec3(.012,.50,.75),depth);
- sea+=vec3(.015,.055,.075)*sin(p.x*.065+p.y*.045+vHeight*.28);
- sea=mix(sea,vec3(.81,.96,.99),foam);
+ float h=.75;
+ vec2 gradient=vec2(wave(p+vec2(h,0.))-wave(p-vec2(h,0.)),wave(p+vec2(0.,h))-wave(p-vec2(0.,h)));
+ vec3 n=normalize(vec3(-gradient.x,2.*h,-gradient.y));
+ vec3 viewDir=normalize(cameraPosition-vec3(p.x,vHeight,p.y));
+ vec3 lightDir=normalize(uSunDirection);
+ float lit=.3+.7*max(dot(n,lightDir),0.);
+ float fresnel=pow(1.-max(dot(n,viewDir),0.),3.);
+ float spec=pow(max(dot(reflect(-lightDir,n),viewDir),0.),85.)*1.4;
+ float glint=pow(max(dot(reflect(-lightDir,n),viewDir),0.),240.)*2.;
+ float trough=smoothstep(-5.,3.5,vHeight);
+ vec3 deep=vec3(.006,.075,.135),shallow=vec3(.015,.36,.46);
+ vec3 sea=mix(deep,shallow,trough*.7+lit*.18);
+ sea=mix(sea,vec3(.13,.39,.53),fresnel*.33);
+ // Espuma orgânica: filamentos deformados com a crista, sem malha hexagonal.
+ vec2 warp=p*.21+gradient.yx*.17;
+ float filaments=sin(warp.x+sin(warp.y*.75)*2.8)*cos(warp.y*.66+sin(warp.x*.8)*2.);
+ float jitter=hash(floor(p*.48))*0.35;
+ float crest=smoothstep(2.0,5.0,vHeight+filaments*.95);
+ float ribbons=smoothstep(.54,.87,filaments+jitter)*smoothstep(.2,4.5,vHeight);
+ float foam=clamp(crest*.30+ribbons*.57,0.,.72);
+ sea=mix(sea,vec3(.79,.96,1.),foam);
+ sea+=vec3(1.,.77,.46)*(spec*.38+glint*.22);
+ float mist=smoothstep(180.,690.,length(p-uOffset));
+ sea=mix(sea,vec3(.39,.55,.65),mist*.42);
  gl_FragColor=vec4(sea,1.);
 }`
 }));
