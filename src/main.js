@@ -14,7 +14,8 @@ const scene=new THREE.Scene();scene.background=new THREE.Color('#8db6d5');scene.
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
 // GPU móvel: mesma física e IA, mas menos pixels por quadro.
 const MOBILE_RENDER=window.matchMedia('(pointer: coarse)').matches;
-let renderRatio=MOBILE_RENDER?Math.min(devicePixelRatio,1):Math.min(devicePixelRatio,1.5);
+// Entrada mobile conservadora: evita iniciar a GPU no pico de pixels.
+let renderRatio=MOBILE_RENDER?Math.min(devicePixelRatio,.85):Math.min(devicePixelRatio,1.5);
 const renderer=new THREE.WebGLRenderer({antialias:!MOBILE_RENDER,powerPreference:'high-performance'});
 renderer.setPixelRatio(renderRatio);
 renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -23,12 +24,12 @@ function updateMobileQuality(frameSeconds,t){
  if(!MOBILE_RENDER)return;
  mobilePerf.elapsed+=Math.min(frameSeconds,.10);
  mobilePerf.frames++;
- if(mobilePerf.elapsed<4||t-mobilePerf.lastAdjust<5)return;
+ if(mobilePerf.elapsed<2.5||t-mobilePerf.lastAdjust<3)return;
  const fps=mobilePerf.frames/mobilePerf.elapsed;
  mobilePerf.elapsed=0;mobilePerf.frames=0;
  let next=renderRatio;
- if(fps<42)next=Math.max(.8,renderRatio-.1);
- else if(fps>55)next=Math.min(Math.min(devicePixelRatio,1),renderRatio+.1);
+ if(fps<44)next=Math.max(.7,renderRatio-.1);
+ else if(fps>57)next=Math.min(Math.min(devicePixelRatio,.95),renderRatio+.05);
  if(Math.abs(next-renderRatio)>.02){
   renderRatio=Math.round(next*10)/10;
   renderer.setPixelRatio(renderRatio);
