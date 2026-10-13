@@ -1,6 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 import {createWastelandHorizon} from './environment.js';
-import {planEnemy,canEnemyFire,TACTICS} from './enemy-ai.js';
+import {planEnemy,canEnemyFire,TACTICS,predictIntercept,assessProjectileThreat,evadeVector,sweptMovingContact} from './enemy-ai.js';
 import {integrateHull,ballisticPoint} from './naval-physics.js';
 import {createWarMachine3D} from './war-machine-3d.js';
 import {createGameAudio} from './game-audio.js';
@@ -174,11 +174,15 @@ for(let i=1;i<9;i++){
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
  enemy.model=createWarMachine3D(THREE,{enemy:true});
+ enemy.vx=0;enemy.vz=0;
+ // Cada NPC mantém memória curta da velocidade vista, tempo de reação e dash.
+ enemy.ai={estimateVx:0,estimateVz:0,nextDash:0,dashUntil:0,dashX:0,dashZ:0,
+  trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0};
  scene.add(enemy.model);
 }
 npc.visible=false;
 npcShadow.visible=false;
-const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:180,shotDamage:7,shotCooldown:1.95,maxHp:100};
+const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:140,shotDamage:7,shotCooldown:1.95,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 const repairButton=document.createElement('button');repairButton.id='repairButton';repairButton.textContent='REPARAR +20';repairButton.type='button';document.getElementById('ui').appendChild(repairButton);
@@ -756,36 +760,107 @@ let nearest=null,nearestDistance=COMBAT.range;
 for(const enemy of enemies){
  const distanceToPlayer=Math.hypot(x-enemy.x,z-enemy.z);
  if(enemy.hp<=0){enemy.state='destroyed';if(enemy.sprite)enemy.sprite.visible=false;if(enemy.model)enemy.model.visible=false;continue;}
+ const ai=enemy.ai;
+ // Percepção imperfeita: cada inimigo estima a velocidade do jogador com atraso.
+ const role=(enemy.id-1)%3;
+ const sense=3.1+role*1.2;
+ const blend=1-Math.exp(-sense*dt);
+ ai.estimateVx+=(hullPhysics.vx-ai.estimateVx)*blend;
+ ai.estimateVz+=(hullPhysics.vz-ai.estimateVz)*blend;
  const tactic=planEnemy(enemy,{x,z,heading,speed,alive:playerCombat.hp>0},enemies,t);
  enemy.state=tactic.state;
+ // Olha a trajetória de projéteis já disparados, sem telepatia.
+ const threat=tactic.active&&t>=ai.nextDash?assessProjectileThreat(enemy,projectiles,1.4):null;
+ if(threat){
+  if(ai.trackedShot!==threat.projectile){
+   ai.trackedShot=threat.projectile;ai.detectedAt=t;
+   // Alguns pilotos hesitam ou erram a leitura: nenhuma esquiva é garantida.
+   const instinct=.70+role*.075;
+   ai.willEvade=(Math.abs(Math.sin(t*17.3+enemy.id*4.91))<instinct);
+  }
+  const reaction=role===2?.20:role===1?.28:.38;
+  if(ai.willEvade&&t-ai.detectedAt>=reaction&&threat.time>.13){
+   let direction=evadeVector(enemy,threat,enemy.id%2?1:-1);
+   if(threat.projectile.ammo==='meteor'||threat.projectile.ammo==='siege'||threat.projectile.ammo==='scatter'){
+    const ax=enemy.x-threat.hitX,az=enemy.z-threat.hitZ;
+    const len=Math.hypot(ax,az)||1;direction={x:ax/len,z:az/len};
+   }
+   // Entre duas laterais, escolhe uma que não acabe dentro de uma ruína.
+   const evaluate=(dir)=>horizon.colliders.reduce((cost,obstacle)=>{
+    const px=enemy.x+dir.x*31,pz=enemy.z+dir.z*31;
+    const clearance=Math.hypot(px-obstacle.x,pz-obstacle.z)-obstacle.radius-7;
+    return cost+Math.max(0,20-clearance);
+   },0);
+   const opposite={x:-direction.x,z:-direction.z};
+   if(evaluate(opposite)+3<evaluate(direction))direction=opposite;
+   ai.dashX=direction.x;ai.dashZ=direction.z;ai.dashUntil=t+.6;
+   ai.nextDash=t+5.5+(enemy.id%3)*.8;
+   ai.trackedShot=null;
+   enemy.nextShot=Math.max(enemy.nextShot,t+.55);
+   enemy.state='evade';
+  }
+ }else if(t>=ai.dashUntil){ai.trackedShot=null;}
+ const dodging=t<ai.dashUntil;
+ if(dodging)enemy.state='evade';
  const desiredYaw=-Math.atan2(tactic.goalX-enemy.x,-(tactic.goalZ-enemy.z));
  const yawDelta=Math.atan2(Math.sin(desiredYaw-enemy.heading),Math.cos(desiredYaw-enemy.heading));
  enemy.heading+=THREE.MathUtils.clamp(yawDelta,-(tactic.active?3.1:1.1)*dt,(tactic.active?3.1:1.1)*dt);
- enemy.x-=Math.sin(enemy.heading)*tactic.speed*dt;
- enemy.z-=Math.cos(enemy.heading)*tactic.speed*dt;
- if(tactic.active&&distanceToPlayer<=ENEMY_AI.fireRange&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
-  // Mira calculada no lançamento e não vinculada à câmera nem ao movimento posterior.
-  enemy.model.updateMatrixWorld(true);
-  const origin=enemy.model.userData.firePoint.getWorldPosition(new THREE.Vector3());
-  const flight=Math.max(.48,distanceToPlayer/ENEMY_AI.shotSpeed*1.5);
-  // Antecipação moderada e dispersão por papel: pode errar navios em movimento.
-  const accuracy=tactic.role===2?.79:tactic.role===1?.67:.6;
-  const spread=Math.sin(t*2.7+enemy.id*3.1)*(enemy.hp<=35?12:7);
-  const predicted=new THREE.Vector3(x-Math.sin(heading)*speed*flight*accuracy+Math.cos(heading)*spread,bob+2.3,z-Math.cos(heading)*speed*flight*accuracy-Math.sin(heading)*spread);
-  const mesh=new THREE.Group();
-  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
-  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
-  const glow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
-  const outerGlow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
-  outerGlow.scale.setScalar(1.9);
-  mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(origin);scene.add(mesh);
-  const trailPoints=Array.from({length:12},()=>origin.clone());
-  const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),energyTrailMaterial);scene.add(trail);
-  // Disparo direto dos NPCs, partindo da boca da torreta 3D.
-  const arcHeight=0;
-  enemyShots.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination:predicted,arcHeight,age:0,duration:flight,source:enemy.id});
-  enemy.model.userData.recoil=.34;enemy.model.userData.flashTime=.13;
-  enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%3)*.16+(enemy.hp<22?.5:0);
+ const oldEnemyX=enemy.x,oldEnemyZ=enemy.z;
+ let dx=-Math.sin(enemy.heading)*tactic.speed*dt+(dodging?ai.dashX*80*dt:0);
+ let dz=-Math.cos(enemy.heading)*tactic.speed*dt+(dodging?ai.dashZ*80*dt:0);
+ // Paredes/ruínas também são sólidas para os NPCs em movimento e em dash.
+ let nextX=enemy.x+dx,nextZ=enemy.z+dz;
+ for(const obstacle of horizon.colliders){
+  const radius=obstacle.radius+6;
+  const rx=nextX-obstacle.x,rz=nextZ-obstacle.z;
+  const separation=Math.hypot(rx,rz);
+  if(separation<radius){
+   const startX=enemy.x-obstacle.x,startZ=enemy.z-obstacle.z;
+   const startDist=Math.hypot(startX,startZ);
+   const nx=separation>.001?rx/separation:startDist>.001?startX/startDist:1;
+   const nz=separation>.001?rz/separation:startDist>.001?startZ/startDist:0;
+   nextX=obstacle.x+nx*radius;nextZ=obstacle.z+nz*radius;
+  }
+ }
+ enemy.x=nextX;enemy.z=nextZ;
+ enemy.vx=(enemy.x-oldEnemyX)/Math.max(dt,.001);
+ enemy.vz=(enemy.z-oldEnemyZ)/Math.max(dt,.001);
+ // Solução de interceptação por velocidade REAL observada e tempo de voo.
+ const approxOrigin={x:enemy.x,z:enemy.z};
+ const skill=role===2?.92:role===1?.84:.77;
+ const estimate={x:ai.estimateVx*skill,z:ai.estimateVz*skill};
+ const lead=predictIntercept(approxOrigin,{x,z},estimate,ENEMY_AI.shotSpeed,2.2);
+ ai.aimX=lead.x;ai.aimZ=lead.z;
+ if(tactic.active&&distanceToPlayer<=ENEMY_AI.fireRange&&!dodging&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
+  const turret=enemy.model.userData.turretPivot;
+  const desiredGun=Math.atan2(-(lead.x-enemy.x),-(lead.z-enemy.z))-enemy.heading;
+  const gunError=turret?Math.abs(Math.atan2(Math.sin(desiredGun-turret.rotation.y),Math.cos(desiredGun-turret.rotation.y))):0;
+  // Só dispara quando sua torreta conseguiu acompanhar a solução de tiro.
+  if(gunError<.32){
+   const gunAngle=enemy.heading+(turret?.rotation.y||0);
+   const origin=new THREE.Vector3(enemy.x-Math.sin(gunAngle)*5.4,enemy.y+3.3,enemy.z-Math.cos(gunAngle)*5.4);
+   const flightLead=predictIntercept(origin,{x,z},estimate,ENEMY_AI.shotSpeed,2.2);
+   // Dispersão física: disparos de pilotos diferentes podem errar.
+   const aimError=(1-skill)*13+(enemy.hp<=25?3:0);
+   const spreadX=Math.sin(t*3.7+enemy.id*9.1)*aimError;
+   const spreadZ=Math.cos(t*2.9+enemy.id*7.3)*aimError;
+   const predicted=new THREE.Vector3(flightLead.x+spreadX,bob+2.3,flightLead.z+spreadZ);
+   const distance=Math.hypot(predicted.x-origin.x,predicted.z-origin.z);
+   const flight=Math.max(.16,distance/ENEMY_AI.shotSpeed);
+   const mesh=new THREE.Group();
+   const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
+   const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
+   const glow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
+   const outerGlow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
+   outerGlow.scale.setScalar(1.9);
+   mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(origin);scene.add(mesh);
+   const trailPoints=Array.from({length:12},()=>origin.clone());
+   const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),energyTrailMaterial);scene.add(trail);
+   enemyShots.push({mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination:predicted,arcHeight:0,
+    age:0,duration:flight,source:enemy.id});
+   enemy.model.userData.recoil=.34;enemy.model.userData.flashTime=.13;
+   enemy.nextShot=t+ENEMY_AI.shotCooldown+(enemy.id%3)*.16+(enemy.hp<22?.5:0);
+  }
  }
  // Colisão jogador × inimigo; nenhum dano durante esta fase de testes.
  let dx=x-enemy.x,dz=z-enemy.z,dist=Math.hypot(dx,dz);
@@ -811,10 +886,10 @@ for(const enemy of enemies){
  animateGun(enemy.model,dt);
  const npcTurret=enemy.model.userData.turretPivot;
  if(npcTurret){
-  const dx=x-enemy.x,dz=z-enemy.z;
+  const dx=ai.aimX-enemy.x,dz=ai.aimZ-enemy.z;
   const desired=tactic.active?Math.atan2(-dx,-dz)-enemy.heading:0;
   const diff=Math.atan2(Math.sin(desired-npcTurret.rotation.y),Math.cos(desired-npcTurret.rotation.y));
-  npcTurret.rotation.y+=THREE.MathUtils.clamp(diff,-.85*dt,.85*dt);
+  npcTurret.rotation.y+=THREE.MathUtils.clamp(diff,-1.65*dt,1.65*dt);
  }
  for(const rotor of enemy.model.userData.rotors||[])rotor.rotation.z=t*(3+tactic.speed*.24)+enemy.phase;
  for(const jet of enemy.model.userData.engineFlames||[]){
