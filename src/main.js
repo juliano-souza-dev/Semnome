@@ -1028,7 +1028,7 @@ lockedNpc=nearest;
 refreshCompass(t);
 targetRing.visible=!!lockedNpc;
 if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
-lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP'+(lockedNpc.state==='evade'?' · ESQUIVA 🚀':'')+(lockedNpc.ai.currentWeapon?' · '+NPC_WEAPONS[lockedNpc.ai.currentWeapon].name:''):'Procurando alvo...';
+lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP'+(lockedNpc.state==='evade'?' · ESQUIVA 🚀':lockedNpc.state==='withdraw'?' · RECUANDO':lockedNpc.state==='regroup'?' · BUSCANDO APOIO':'')+(lockedNpc.ai.currentWeapon?' · '+NPC_WEAPONS[lockedNpc.ai.currentWeapon].name:''):'Procurando alvo...';
 // Estado de recarga do botão é atualizado no fechamento do frame.
 // Antigo protótipo oculto: somente a máquina 3D deve aparecer.
 npc.visible=false;
