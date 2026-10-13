@@ -72,69 +72,70 @@ const ship=createWarMachine3D(THREE);scene.add(ship);
 // Montagem experimental em dois GLBs. O original continua como fallback.
 // Casco e torreta são arquivos independentes, mas filhos da mesma nave.
 // A torreta usa o pivô do sistema existente: a câmera e a mira ficam intactas.
-const HULL_GLB='./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193154_generate.glb';
-const TURRET_GLB='./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193302_generate.glb';
-const LEGACY_GLB='./assets/ships/player/Meshy_AI_Blazing_Wave_Runner_1013184138_texture.glb';
+// Mapeamento explícito de peças por inspeção da montagem em jogo:
+// 3302 = casco; 3154 = conjunto de arma. Nunca inferir apenas pela ordem de upload.
+const SHIP_PARTS={
+ hull:{url:'./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193302_generate.glb',length:10.5,waterline:-.55,rotationY:0},
+ turret:{url:'./assets/ships/player/Meshy_AI_Create_a_high_quality_1013193154_generate.glb',maxFootprint:2.15,deckHeightFactor:.58,deckZ:-.35,rotationY:0}
+};
 import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js').then(async({GLTFLoader})=>{
  const loader=new GLTFLoader();
  const load=url=>new Promise((resolve,reject)=>loader.load(url,gltf=>resolve(gltf.scene),undefined,reject));
- function normalize(model,footprint){
+ function mapPart(model,sizeLimit){
   model.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(model);
-  const size=bounds.getSize(new THREE.Vector3());
-  if(Math.max(size.x,size.y,size.z)<.001)throw Error('Modelo 3D vazio');
-  const scale=footprint/Math.max(size.x,size.z);
-  model.scale.setScalar(scale);
+  const raw=bounds.getSize(new THREE.Vector3());
+  if(!Number.isFinite(raw.length())||raw.length()<.001)throw Error('Malha inválida');
+  const footprint=Math.max(raw.x,raw.z);
+  if(footprint<.001)throw Error('Modelo sem dimensões horizontais');
+  const scale=sizeLimit/footprint;
   const center=bounds.getCenter(new THREE.Vector3());
+  model.scale.setScalar(scale);
+  // Alinhamento pelos limites REAIS do arquivo: base ao nível zero, centro no pivô.
   model.position.set(-center.x*scale,-bounds.min.y*scale,-center.z*scale);
-  return {width:size.x*scale,height:size.y*scale,depth:size.z*scale};
+  return {raw:raw.toArray().map(n=>+n.toFixed(3)),scale:+scale.toFixed(4),
+          width:raw.x*scale,height:raw.y*scale,depth:raw.z*scale};
  }
  function giveFinish(model){
-  // Modelos Meshy "generate" normalmente vêm sem as texturas baked.
-  // Preserve qualquer textura existente e complemente apenas materiais sem mapa.
   model.traverse(obj=>{
    if(!obj.isMesh)return;
-   const surfaces=Array.isArray(obj.material)?obj.material:[obj.material];
-   for(const mat of surfaces){
+   for(const mat of (Array.isArray(obj.material)?obj.material:[obj.material])){
     if(!mat||!mat.isMeshStandardMaterial)continue;
-    mat.metalness=mat.map?Math.max(mat.metalness,.18):.55;
-    mat.roughness=mat.map?mat.roughness:.48;
+    mat.metalness=mat.map?Math.max(mat.metalness,.18):.5;
+    mat.roughness=mat.map?mat.roughness:.55;
     mat.needsUpdate=true;
    }
   });
  }
  try{
-  // Carregar ambos antes de esconder a nave antiga evita casco invisível.
-  const [hull,turretModel]=await Promise.all([load(HULL_GLB),load(TURRET_GLB)]);
-  const hullDims=normalize(hull,11.0);
-  // A torreta deve ser um acessório do casco, não outro navio.
-  // Largura limitada a 24% do comprimento/largura maior do casco.
-  const turretFootprint=Math.min(2.8,Math.max(1.3,Math.max(hullDims.width,hullDims.depth)*.24));
-  const turretDims=normalize(turretModel,turretFootprint);
-  hull.name='Casco Blazing Wave Runner (teste)';
-  turretModel.name='Torreta independente (teste)';
-  hull.position.y=-.8;
-  giveFinish(hull);giveFinish(turretModel);
-  const originalTurret=ship.userData.turretPivot;
-  // Usa o centro de rotação e o algoritmo de acompanhamento já existentes.
-  const gunMount=new THREE.Group();
-  gunMount.name='Pivô da nova torreta';
-  gunMount.position.set(0,Math.min(3.0,Math.max(1.1,hullDims.height*.57)),-.25);
-  // Malha posicionada com sua base sobre o suporte giratório.
-  gunMount.add(turretModel);
+  const [hull,turret]=await Promise.all([load(SHIP_PARTS.hull.url),load(SHIP_PARTS.turret.url)]);
+  const hullMap=mapPart(hull,SHIP_PARTS.hull.length);
+  const turretMap=mapPart(turret,Math.min(SHIP_PARTS.turret.maxFootprint,Math.max(hullMap.width,hullMap.depth)*.20));
+  hull.rotation.y=SHIP_PARTS.hull.rotationY;
+  turret.rotation.y=SHIP_PARTS.turret.rotationY;
+  hull.position.y+=SHIP_PARTS.hull.waterline;
+  giveFinish(hull);giveFinish(turret);
+  hull.name='Casco (mapeado)';
+  turret.name='Canhão (mapeado)';
+  const originalPivot=ship.userData.turretPivot;
+  const mount=new THREE.Group();
+  mount.name='Ponto de montagem calibrado';
+  // Pivot existente fica em y=1.93,z=-1.35. Corrigir coordenadas locais
+  // para o encaixe no convés, sem somar duas alturas inadvertidamente.
+  const deckHeight=SHIP_PARTS.hull.waterline+hullMap.height*SHIP_PARTS.turret.deckHeightFactor;
+  mount.position.set(0,deckHeight-originalPivot.position.y,
+       SHIP_PARTS.turret.deckZ-originalPivot.position.z);
+  mount.add(turret);
   ship.add(hull);
-  originalTurret.add(gunMount);
-  for(const part of ship.children){
-   if(part===hull||part===originalTurret)continue;
-   part.visible=false;
-  }
-  // Oculta apenas a geometria da torreta antiga; mantém o pivô girando.
-  for(const part of originalTurret.children)if(part!==gunMount)part.visible=false;
-  ship.userData.testHull=hull;ship.userData.testTurret=turretModel;
-  console.info('[Semnome] Casco e torreta independentes carregados',{hullDims,turretDims,turretFootprint,HULL_GLB,TURRET_GLB});
+  originalPivot.add(mount);
+  for(const part of ship.children)if(part!==hull&&part!==originalPivot)part.visible=false;
+  for(const part of originalPivot.children)if(part!==mount)part.visible=false;
+  ship.userData.testHull=hull;
+  ship.userData.testTurret=turret;
+  ship.userData.modelMapping={hullMap,turretMap,deckHeight};
+  console.info('[Semnome] Mapeamento de casco/arma aplicado',ship.userData.modelMapping);
  }catch(error){
-  console.warn('[Semnome] Falha na montagem dos dois GLBs; mantendo nave original',error);
-  // Conserva a nave original enquanto a montagem experimental não carrega.
+  console.error('[Semnome] Mapeamento GLB falhou: nave original mantida',error);
  }
 }).catch(error=>console.warn('[Semnome] GLTFLoader indisponível',error));
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
