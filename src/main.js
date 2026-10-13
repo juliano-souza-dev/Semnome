@@ -160,15 +160,18 @@ const playerSprite={visible:false};
 const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
 const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:55,impact:55},meteor:{range:320,cooldown:3.4,damage:32,impact:11},scatter:{range:260,cooldown:3.3,damage:22,impact:10},siege:{range:430,cooldown:5.0,damage:45,impact:22}});
 npcData.hp=COMBAT.npcMaxHp;
-// Frota de teste: usa exatamente a mesma sprite sheet 4x4 do jogador.
+// Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
+// Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
+const FLEET_SIZE=13;
 const enemies=[npcData];
 npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';npcData.hostile=true;
-for(let i=1;i<9;i++){
- const angle=i*Math.PI*2/8;
- const radius=260+(i%4)*135;
+for(let i=1;i<FLEET_SIZE;i++){
+ const sector=i-1,angle=(sector+.32*(sector%2))*Math.PI*2/(FLEET_SIZE-1);
+ const radius=300+(sector%4)*130;
+ const spawnX=Math.sin(angle)*radius,spawnZ=-150+Math.cos(angle)*radius;
  enemies.push({id:i+1,name:'Patrulheiro '+String(i+1).padStart(2,'0'),
-  x:Math.sin(angle)*radius,z:-150+Math.cos(angle)*radius,y:0,
-  anchorX:Math.sin(angle)*radius,anchorZ:-150+Math.cos(angle)*radius,
+  x:spawnX,z:spawnZ,y:0,
+  anchorX:spawnX,anchorZ:spawnZ,
   heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null,nextShot:2+i*.45,state:'patrol',hostile:true});
 }
 
