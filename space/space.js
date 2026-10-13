@@ -89,10 +89,10 @@ function tick(){requestAnimationFrame(tick);const now=performance.now(),dt=Math.
  }
  for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.age+=dt;b.dist+=b.velocity*dt;
  if(b.weapon.id==='missile'){b.velocity=Math.min(93,b.velocity+dt*29);if(b.target&&b.target.hp>0){const desired=new THREE.Vector3(b.target.x-b.mesh.position.x,0,b.target.z-b.mesh.position.z).normalize();b.dir.lerp(desired,Math.min(1,dt*1.3)).normalize()}}
- b.mesh.position.addScaledVector(b.dir,b.velocity*dt);b.trail.position.copy(b.mesh.position).addScaledVector(b.dir,-3);b.trail.scale.setScalar(b.weapon.id==='missile'?1.3:1);b.trail.material.opacity=.35+.2*Math.sin(t*22);if(b.weapon.id==='missile')b.mesh.rotation.y=Math.atan2(-b.dir.x,-b.dir.z);
+ b.mesh.position.addScaledVector(b.dir,b.velocity*dt);if(b.weapon.id==='missile')b.mesh.position.y=THREE.MathUtils.lerp(b.mesh.position.y,b.target?.model?.position.y??0,Math.min(1,dt*.65));b.trail.position.copy(b.mesh.position).addScaledVector(b.dir,-3);b.trail.scale.setScalar(b.weapon.id==='missile'?1.3:1);b.trail.material.opacity=.35+.2*Math.sin(t*22);if(b.weapon.id==='missile')b.mesh.rotation.y=Math.atan2(-b.dir.x,-b.dir.z);
  let hit=false;if(b.weapon.id==='enemy'){if(hp>0&&Math.hypot(b.mesh.position.x-x,b.mesh.position.z-z)<7){hp=Math.max(0,hp-b.weapon.damage);hit=true;explosion(b.mesh.position,0xff5d5d,5);if(hp<=0){showNotice('NAVE DESTRUÍDA · REINICIANDO');setTimeout(()=>{hp=100;x=0;z=0;speed=0},1500)}}}
  else for(const e of enemies){if(e.hp>0&&Math.hypot(b.mesh.position.x-e.x,b.mesh.position.z-e.z)<(b.weapon.id==='missile'?9:6)){e.hp=Math.max(0,e.hp-b.weapon.damage);hit=true;explosion(b.mesh.position,b.weapon.color,b.weapon.id==='missile'?13:7);if(e.hp===0)showNotice('INIMIGO ELIMINADO');break}}
- if(hit||b.dist>b.range){scene.remove(b.mesh,b.trail);b.mesh.geometry.dispose();b.mesh.material.dispose();b.trail.material.dispose();bullets.splice(i,1)}
+ if(hit||b.dist>b.range){scene.remove(b.mesh,b.trail);if(b.mesh.geometry!==sphere)b.mesh.geometry.dispose();b.mesh.material.dispose();b.trail.material.dispose();bullets.splice(i,1)}
  }
  for(let i=flashes.length-1;i>=0;i--){const f=flashes[i];f.age+=dt;f.mesh.scale.setScalar(1+f.age*f.size*3);f.mesh.material.opacity=Math.max(0,.7-f.age*2);if(f.age>.36){scene.remove(f.mesh);f.mesh.material.dispose();flashes.splice(i,1)}}
  // A camera permanece na nave enquanto os projeteis viajam.
