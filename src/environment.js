@@ -10,7 +10,7 @@ export function createWastelandHorizon(THREE,scene){
   let seed=18539;function rnd(){seed=(1664525*seed+1013904223)>>>0;return seed/4294967296}
   const smoke=[];
   const colliders=[];
-  const count=24;
+  const count=14;
   for(let i=0;i<count;i++){
     const angle=i*Math.PI*2/count+(rnd()-.5)*.13;
     const radius=195+rnd()*245;
@@ -40,11 +40,11 @@ export function createWastelandHorizon(THREE,scene){
   // Fragmentos metálicos e barris flutuantes. A física da água altera apenas a altura visual.
   const debris=[];
   const debrisMat=new THREE.MeshStandardMaterial({color:0x8c6251,metalness:.43,roughness:.7});
-  for(let i=0;i<32;i++){
+  for(let i=0;i<18;i++){
     const angle=rnd()*Math.PI*2,dist=55+rnd()*390;
     const px=Math.sin(angle)*dist,pz=Math.cos(angle)*dist;
     // Evita gerar obstáculos por cima das ilhas.
-    if(colliders.some(c=>Math.hypot(c.x-px,c.z-pz)<c.radius+15))continue;
+    if(colliders.some(c=>Math.hypot(c.x-px,c.z-pz)<c.radius+27))continue;
     const size=2.8+rnd()*3.6;
     // Cada destroço é um pequeno conjunto 3D, em vez de uma caixa isolada.
     const wreck=new THREE.Group();
@@ -68,8 +68,8 @@ export function createWastelandHorizon(THREE,scene){
   }
   // Pontes quebradas e passarelas industriais: peças 3D estáticas no mundo.
   const girderMat=new THREE.MeshStandardMaterial({color:0x46525c,metalness:.62,roughness:.72});
-  for(let i=0;i<10;i++){
-    const angle=i*Math.PI*2/10+.14;
+  for(let i=0;i<5;i++){
+    const angle=i*Math.PI*2/5+.14;
     const dist=330+(i%3)*42,px=Math.sin(angle)*dist,pz=Math.cos(angle)*dist;
     const bridge=new THREE.Group();bridge.position.set(px,0,pz);bridge.rotation.y=angle;
     const leg=new THREE.Mesh(new THREE.BoxGeometry(3,27,3),girderMat);
@@ -87,8 +87,8 @@ export function createWastelandHorizon(THREE,scene){
   // Modelos simples e materiais compartilhados preservam o desempenho mobile.
   const distantRuins=new THREE.Group();group.add(distantRuins);
   const skylineRadius=535;
-  for(let i=0;i<90;i++){
-    const angle=2*Math.PI*i/90+(rnd()-.5)*.045;
+  for(let i=0;i<65;i++){
+    const angle=2*Math.PI*i/65+(rnd()-.5)*.045;
     const radial=skylineRadius+(rnd()-.5)*65;
     const px=Math.sin(angle)*radial,pz=Math.cos(angle)*radial;
     const height=20+rnd()*95,side=4+rnd()*11;
