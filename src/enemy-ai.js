@@ -38,3 +38,97 @@ export function canEnemyFire(enemy,all,shots,now,playerHp){
  const group=Math.floor(now/TACTICS.pressureWindow)%3;
  return contenders.length<=3 || (enemy.id-1)%3===group || (enemy.id%3===group&&shots.length<2);
 }
+
+
+// Interceptação balística horizontal com projétil de velocidade constante.
+// Resolve |posiçãoRelativa + velocidadeAlvo*t| = velocidadeProjetil*t.
+// Não presume que o alvo continuará seguindo a proa; usa a velocidade observada.
+// Pureza da função permite testar casos de perseguição, cruzamento e fuga.
+export function predictIntercept(origin,target,velocity,projectileSpeed,maxTime=2.5){
+ const rx=target.x-origin.x,rz=target.z-origin.z;
+ const vx=velocity.x||0,vz=velocity.z||0,speed=Math.max(1,projectileSpeed);
+ const a=vx*vx+vz*vz-speed*speed;
+ const b=2*(rx*vx+rz*vz);
+ const c=rx*rx+rz*rz;
+ let t=Infinity;
+ if(Math.abs(a)<1e-7){
+  if(Math.abs(b)>1e-7){const candidate=-c/b;if(candidate>0)t=candidate;}
+ }else{
+  const disc=b*b-4*a*c;
+  if(disc>=0){
+   const root=Math.sqrt(disc);
+   const t1=(-b-root)/(2*a),t2=(-b+root)/(2*a);
+   if(t1>0)t=Math.min(t,t1);
+   if(t2>0)t=Math.min(t,t2);
+  }
+ }
+ const reachable=Number.isFinite(t)&&t<=maxTime;
+ if(!reachable)t=Math.min(maxTime,Math.hypot(rx,rz)/speed);
+ return {x:target.x+vx*t,z:target.z+vz*t,time:t,reachable};
+}
+
+// Varredura relativa: dois corpos móveis podem colidir ENTRE quadros.
+// Retorna o instante normalizado de aproximação e distância mínima.
+export function sweptMovingContact(a0,a1,b0,b1,radius){
+ const rx=a0.x-b0.x,rz=a0.z-b0.z;
+ const vx=(a1.x-a0.x)-(b1.x-b0.x);
+ const vz=(a1.z-a0.z)-(b1.z-b0.z);
+ const lenSq=vx*vx+vz*vz;
+ const fraction=lenSq>1e-9?Math.max(0,Math.min(1,-(rx*vx+rz*vz)/lenSq)):0;
+ const distance=Math.hypot(rx+vx*fraction,rz+vz*fraction);
+ return {hit:distance<=radius,fraction,distance};
+}
+
+// Detecta risco real com antecedência curta. O projétil precisa cruzar
+// a rota futura do NPC; estar dentro de um "raio de detecção" não basta.
+export function assessProjectileThreat(enemy,projectiles,horizon=1.45){
+ let best=null;
+ for(const p of projectiles){
+  if(!p||p.age<0||p.travel<=0)continue;
+  const remaining=p.travel-p.age;
+  if(remaining<=.05)continue;
+  const px=p.mesh?.position?.x??p.origin.x,pz=p.mesh?.position?.z??p.origin.z;
+  const vx=(p.destination.x-p.origin.x)/p.travel;
+  const vz=(p.destination.z-p.origin.z)/p.travel;
+  let time=0,distance=Infinity,hitX=px,hitZ=pz;
+  const prediction=Math.min(horizon,remaining);
+  const activeDirect=p.ammo==='torpedo'||p.ammo==='plasma'||p.ammo==='iron';
+  if(activeDirect){
+   const rx=px-enemy.x,rz=pz-enemy.z;
+   const rvx=vx-(enemy.vx||0),rvz=vz-(enemy.vz||0);
+   const norm=rvx*rvx+rvz*rvz;
+   time=norm>1e-7?Math.max(0,Math.min(prediction,-(rx*rvx+rz*rvz)/norm)):0;
+   hitX=px+vx*time;hitZ=pz+vz*time;
+   distance=Math.hypot(hitX-(enemy.x+(enemy.vx||0)*time),hitZ-(enemy.z+(enemy.vz||0)*time));
+   // Não confundir um projétil aéreo muito acima da nave com colisão iminente.
+   if(p.ammo!=='torpedo'){
+    const py=(p.origin.y||0)+((p.destination.y||0)-(p.origin.y||0))*Math.min(1,(p.age+time)/p.travel);
+    if(Math.abs(py-(enemy.y+2.3))>8)continue;
+   }
+  }else if(p.ammo==='meteor'||p.ammo==='siege'||p.ammo==='scatter'){
+   // Armas de queda/área: reação ao ponto onde vão cair.
+   time=remaining;
+   if(time>horizon)continue;
+   hitX=p.destination.x;hitZ=p.destination.z;
+   distance=Math.hypot(hitX-(enemy.x+(enemy.vx||0)*time),hitZ-(enemy.z+(enemy.vz||0)*time));
+  }else continue;
+  const blast=p.ammo==='torpedo'?12:p.ammo==='siege'?26:p.ammo==='meteor'?14:p.ammo==='scatter'?12:10;
+  const danger=blast+Math.min(8,time*4);
+  if(distance>danger||time<.09)continue;
+  const score=(danger-distance)/danger+(horizon-time)/horizon*.4;
+  if(!best||score>best.score)best={projectile:p,time,distance,hitX,hitZ,vx,vz,score,blast};
+ }
+ return best;
+}
+
+// Define o impulso transversal que mais afasta a nave do corredor da bala.
+// A segunda opção pode ser utilizada para contornar objetos no mapa.
+export function evadeVector(enemy,threat,side=1){
+ const norm=Math.hypot(threat.vx,threat.vz)||1;
+ const lateralX=-threat.vz/norm,lateralZ=threat.vx/norm;
+ const futureX=enemy.x+(enemy.vx||0)*threat.time;
+ const futureZ=enemy.z+(enemy.vz||0)*threat.time;
+ const sideDot=(futureX-threat.hitX)*lateralX+(futureZ-threat.hitZ)*lateralZ;
+ const sign=Math.abs(sideDot)<.5?(side>=0?1:-1):Math.sign(sideDot);
+ return {x:lateralX*sign,z:lateralZ*sign};
+}
