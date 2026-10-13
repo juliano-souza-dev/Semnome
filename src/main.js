@@ -150,7 +150,7 @@ for(const enemy of enemies){
 npc.visible=false;
 npcShadow.visible=false;
 const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:180,shotDamage:7,shotCooldown:1.95,maxHp:100};
-const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0};
+const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0};
 const enemyShots=[];
 let threatShotCount=0;
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
@@ -614,6 +614,10 @@ if(Math.abs(speed)>.35||boostRemaining>0){
 hullPhysics.x=x;hullPhysics.z=z;
 const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED:0,dt});
 x=movement.x;z=movement.z;speed=movement.speed;
+if(playerCombat.hp<=0){
+ x=playerCombat.deathX;z=playerCombat.deathZ;heading=playerCombat.deathHeading;speed=0;
+ hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
+}
 audio.update(speed,boostRemaining>0);
 const bow=new THREE.Vector2(-Math.sin(heading),-Math.cos(heading)),side=new THREE.Vector2(Math.cos(heading),-Math.sin(heading));
 const front=height(x+bow.x*1.5,z+bow.y*1.5,t),back=height(x-bow.x*1.5,z-bow.y*1.5,t);
@@ -781,7 +785,15 @@ for(let i=enemyShots.length-1;i>=0;i--){
  if(contact<5.7&&Math.abs(shot.mesh.position.y-(bob+2.3))<5.5 && t>=playerCombat.invulnerableUntil && playerCombat.hp>0){
   playerCombat.hp=Math.max(0,playerCombat.hp-ENEMY_AI.shotDamage);
   hitFeedback=1;attackCamera.shake=Math.max(attackCamera.shake,.55);
-  if(playerCombat.hp<=0){cancelAreaAim();notifyCombat('NAVE ABATIDA · REPAROS EM CURSO',3);}
+  if(playerCombat.hp<=0){
+   // Explode imediatamente, paralisa a nave e inicia 3 segundos exatos até respawn.
+   playerCombat.deathX=x;playerCombat.deathZ=z;playerCombat.deathHeading=heading;
+   playerCombat.respawnAt=t+3;speed=0;boostUntil=0;
+   hullPhysics.vx=0;hullPhysics.vz=0;
+   ship.visible=false;cancelAreaAim();
+   for(let burst=0;burst<6;burst++)energyFlash(new THREE.Vector3(x+(Math.random()-.5)*7,bob+2+Math.random()*5,z+(Math.random()-.5)*7));
+   audio.play('impact');notifyCombat('NAVE DESTRUÍDA · RETORNO EM 3s',3);
+  }
   playerCombat.invulnerableUntil=t+.45;
   energyFlash(new THREE.Vector3(x,bob+2.5,z));remove=true;
  }
@@ -789,9 +801,10 @@ for(let i=enemyShots.length-1;i>=0;i--){
  if(remove){scene.remove(shot.mesh,shot.trail);shot.trail.geometry.dispose();enemyShots.splice(i,1);}
 }
 if(playerCombat.hp<=0){
- if(playerCombat.respawnAt===0)playerCombat.respawnAt=t+4;
+ if(playerCombat.respawnAt===0)playerCombat.respawnAt=t+3;
  if(t>=playerCombat.respawnAt){
   playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
+  ship.visible=true;
   playerCombat.invulnerableUntil=t+3;
   notifyCombat('NAVE REPARADA · RETORNO AO COMBATE',1.8);
   // Renascimento local: não teletransportar o jogador para a origem do mapa.
