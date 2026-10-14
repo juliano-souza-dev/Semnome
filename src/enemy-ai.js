@@ -219,10 +219,10 @@ export function evadeVector(enemy,threat,side=1){
 // de escolha; dano, aparência e cadência são consequências, não pesos ocultos.
 // Perfis próprios dos NPCs para equilibrar o combate sem alterar o jogador.
 export const NPC_WEAPONS=Object.freeze({
- plasma: Object.freeze({name:'Plasma',range:112,speed:330,mode:'direct',radius:5.7,spread:2.2,damage:6,cooldown:1.55,color:0x25cfff}),
- iron: Object.freeze({name:'Teste de Ferro',range:190,speed:265,mode:'direct',radius:5.7,spread:4.3,damage:9,cooldown:2.55,color:0xffd28b}),
- torpedo: Object.freeze({name:'Torpedo',range:245,speed:130,mode:'torpedo',radius:7.82,spread:2.7,damage:45,cooldown:7.5,blast:40.25,color:0x62f2ec}),
- scatter: Object.freeze({name:'Rajada de Energia',range:240,speed:230,delay:.2,mode:'area',radius:18,spread:6,damage:8,cooldown:3.5,blast:18,color:0xbc80ff}),
+ plasma: Object.freeze({name:'Plasma',range:112,speed:330,mode:'direct',radius:5.7,spread:2.2,damage:4.8,cooldown:1.55,color:0x25cfff}),
+ iron: Object.freeze({name:'Teste de Ferro',range:190,speed:265,mode:'direct',radius:5.7,spread:4.3,damage:7.2,cooldown:2.55,color:0xffd28b}),
+ torpedo: Object.freeze({name:'Torpedo',range:245,speed:130,mode:'torpedo',radius:7.82,spread:2.7,damage:36,cooldown:7.5,blast:40.25,color:0x62f2ec}),
+ scatter: Object.freeze({name:'Rajada de Energia',range:240,speed:230,delay:.2,mode:'area',radius:18,spread:6,damage:6.4,cooldown:3.5,blast:18,color:0xbc80ff}),
 });
 
 // A incerteza cresce com o TEMPO DE VOO e as manobras do alvo.
