@@ -359,13 +359,19 @@ function restartCheckpoint(){
  for(const d of damageLabels)d.label.remove();damageLabels.length=0;
  merchantAccess.style.display=mission.calmSea&&!mission.shopClosed?'block':'none';
  if(mission.stage===2)mission.transitionAt=t+30;
+ if(mission.stage===3){
+  // Restaura o INÍCIO da missão, nunca o estado parcial incompatível da IA.
+  mission.clearDestroyed=0;mission.clearWave=0;
+  for(const e of enemies){if(e.clearAreaWave===undefined)continue;e.hp=0;e.dormant=true;e.model.visible=false;}
+  launchClearWave(0,t);
+ }
  refreshPlayerHealth();notifyCombat('CHECKPOINT RESTAURADO',2);
 }
 function launchClearWave(wave,t){
  mission.clearWave=wave;
  let index=0;
  for(const enemy of enemies){
-  if(enemy.clearAreaWave!==wave||!enemy.dormant)continue;
+  if(enemy.clearAreaWave!==wave)continue;
   // Distribuição circular em até 500m, evitando obstáculos e surgimento sobre a nave.
   const count=wave===2?4:3;
   const angle=(Math.PI*2*(index+.24*(wave%2))/count)+wave*.53;
@@ -381,14 +387,17 @@ function launchClearWave(wave,t){
   enemy.x=sx;enemy.z=sz;enemy.anchorX=enemy.x;enemy.anchorZ=enemy.z;
   enemy.ai.body.x=enemy.x;enemy.ai.body.z=enemy.z;enemy.ai.body.vx=0;enemy.ai.body.vz=0;
   enemy.vx=0;enemy.vz=0;enemy.heading=Math.atan2(x-enemy.x,z-enemy.z);
-  enemy.dormant=false;enemy.hp=enemy.veteran?150:enemy.maxHp;enemy.maxHp=enemy.veteran?150:enemy.maxHp;
+  enemy.dormant=false;enemy.maxHp=enemy.veteran?150:COMBAT.npcMaxHp;enemy.hp=enemy.maxHp;
   enemy.model.visible=true;
   enemy.model.position.set(enemy.x,height(enemy.x,enemy.z,t)+1,enemy.z);
   enemy.y=enemy.model.position.y;
   enemy.state='pursuit';enemy.ai.intent='pursuit';enemy.ai.plan=null;enemy.ai.nextPlanTime=0;
+  enemy.ai.weaponReadyAt={};enemy.ai.choice=null;enemy.stunnedUntil=0;
   enemy.ai.estimateVx=0;enemy.ai.estimateVz=0;
  }
- notifyCombat('LIMPE A ÁREA · ONDA '+(wave+1)+'/3',3);
+ const active=enemies.filter(e=>e.clearAreaWave===wave&&e.hp>0&&!e.dormant).length;
+ if(active!==(wave===2?4:3))console.error('Falha ao gerar onda',wave,active);
+ notifyCombat('LIMPE A ÁREA · ONDA '+(wave+1)+'/3 · '+active+' NAVES',3);
 }
 function updateMission(dt,t){
  const {cargoX,cargoZ,deliveryX,deliveryZ}=mission;
@@ -419,16 +428,18 @@ function updateMission(dt,t){
    merchantShip.visible=true;
    notifyCombat('CARGA ENTREGUE · LOJA DISPONÍVEL',2.5);
   }else if(mission.stage===2&&t>=mission.transitionAt){
-   mission.stage=3;launchClearWave(0,t);saveCheckpoint();
+   mission.stage=3;mission.clearDestroyed=0;launchClearWave(0,t);saveCheckpoint();
   }else if(mission.stage===3){
-   // Recuperação de checkpoints antigos: se a onda não ativou, gera agora.
-   const current=enemies.filter(e=>e.clearAreaWave===mission.clearWave);
-   const alive=current.some(e=>e.hp>0);
-   const defeated=current.filter(e=>!e.dormant&&e.hp<=0).length;
-   if(!alive&&defeated===0)launchClearWave(Math.max(0,mission.clearWave),t);
-   else if(!alive&&mission.clearWave<2)launchClearWave(mission.clearWave+1,t);
-   else if(!alive&&mission.clearWave===2&&mission.clearDestroyed>=10){
-    mission.stage=4;mission.finished=true;notifyCombat('ÁREA LIMPA · MISSÃO CONCLUÍDA!',5);
+   const wave=Math.max(0,Math.min(2,mission.clearWave));
+   const current=enemies.filter(e=>e.clearAreaWave===wave);
+   const alive=current.filter(e=>e.hp>0&&!e.dormant).length;
+   const defeated=current.filter(e=>e.hp<=0&&!e.dormant).length;
+   const expected=wave===2?4:3;
+   // Checkpoints legados não podem marcar uma onda vazia como concluída.
+   if(alive===0&&defeated===0)launchClearWave(wave,t);
+   else if(alive===0&&defeated===expected&&wave<2)launchClearWave(wave+1,t);
+   else if(alive===0&&defeated===expected&&wave===2){
+    mission.clearDestroyed=10;mission.stage=4;mission.finished=true;notifyCombat('ÁREA LIMPA · MISSÃO CONCLUÍDA!',5);
    }
   }
  }
