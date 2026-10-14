@@ -225,6 +225,20 @@ for(const wave of reinforcementWaves){
    state:'dormant',hostile:true,dormant:true,waveDistance:wave.at});
  }
 }
+// Missão seguinte: 10 unidades em 3 ondas (3, 3 e 4 veteranos).
+const clearAreaPositions=[
+ [-120,-220],[240,-280],[80,-420],
+ [-330,-360],[390,-500],[-170,-590],
+ [-440,-650],[480,-700],[-320,-850],[370,-910]
+];
+for(let i=0;i<clearAreaPositions.length;i++){
+ const [sx,sz]=clearAreaPositions[i],id=reinforcementId++;
+ const wave=i<3?0:i<6?1:2;
+ enemies.push({id,name:wave===2?'Veterano '+(i-5):'Hostil '+(i+1),
+  x:sx,z:sz,y:0,anchorX:sx,anchorZ:sz,heading:0,speed:7,
+  hp:0,phase:i*.8,radius:16,sprite:null,nextShot:0,
+  state:'dormant',hostile:true,dormant:true,clearAreaWave:wave,veteran:wave===2});
+}
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
@@ -245,7 +259,7 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,transitionAt:0,clearWave:-1,clearDestroyed:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0)};
 const saveEconomy=()=>{try{localStorage.setItem(economyKey,JSON.stringify(economy))}catch{}};
@@ -255,7 +269,7 @@ merchantPanel.innerHTML='<div style="width:min(420px,95vw);background:#103349;bo
 document.body.appendChild(merchantPanel);
 const upgrades=[{id:'engine',label:'⚡ Motor (+5% velocidade)',base:45},{id:'weapons',label:'🎯 Armas (+8% dano)',base:60},{id:'armor',label:'🛡️ Blindagem (-5% dano)',base:55}];
 function openMerchant(){
- if(!mission.calmSea)return;
+ if(!mission.calmSea||mission.shopClosed||Math.hypot(x-mission.deliveryX,z-mission.deliveryZ)>200)return;
  merchantPanel.style.display='flex';
  const items=merchantPanel.querySelector('#merchantItems');items.replaceChildren();
  merchantPanel.querySelector('#merchantBalance').textContent='🔩 Sucata: '+economy.scrap;
@@ -313,6 +327,22 @@ missionHud.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(
 document.body.appendChild(missionHud);
 const missionMarker=new THREE.Mesh(new THREE.ConeGeometry(5,13,6),new THREE.MeshBasicMaterial({color:0xffe57e,transparent:true,opacity:.9}));
 missionMarker.rotation.x=Math.PI;scene.add(missionMarker);
+function launchClearWave(wave,t){
+ mission.clearWave=wave;
+ const offsets=[[-220,-180],[240,-300],[0,-390],[-390,-410],[420,-520],[-170,-640],[-520,-690],[540,-740],[-360,-940],[390,-960]];
+ let index=0;
+ for(const enemy of enemies){
+  if(enemy.clearAreaWave!==wave||!enemy.dormant)continue;
+  const [dx,dz]=offsets[index+ (wave===1?3:wave===2?6:0)];index++;
+  enemy.x=x+dx;enemy.z=z+dz;enemy.anchorX=enemy.x;enemy.anchorZ=enemy.z;
+  enemy.ai.body.x=enemy.x;enemy.ai.body.z=enemy.z;enemy.ai.body.vx=0;enemy.ai.body.vz=0;
+  enemy.vx=0;enemy.vz=0;enemy.heading=Math.atan2(x-enemy.x,z-enemy.z);
+  enemy.dormant=false;enemy.hp=enemy.veteran?150:enemy.maxHp;enemy.maxHp=enemy.veteran?150:enemy.maxHp;
+  enemy.state='pursuit';enemy.ai.plan=null;enemy.ai.nextPlanTime=0;
+  enemy.ai.estimateVx=0;enemy.ai.estimateVz=0;
+ }
+ notifyCombat('LIMPE A ÁREA · ONDA '+(wave+1)+'/3',3);
+}
 function updateMission(dt,t){
  const {cargoX,cargoZ,deliveryX,deliveryZ}=mission;
  cargo.visible=mission.stage===0;
@@ -320,34 +350,47 @@ function updateMission(dt,t){
   cargo.position.set(cargoX,height(cargoX,cargoZ,t)+4,cargoZ);
   cargo.rotation.y=Math.sin(t*.6)*.04;
  }
- receiver.visible=mission.stage===1||mission.finished;
+ receiver.visible=mission.stage>=1;
  if(receiver.visible)receiver.position.y=height(deliveryX,deliveryZ,t)+1;
- const targetX=mission.stage===0?cargoX:deliveryX;
- const targetZ=mission.stage===0?cargoZ:deliveryZ;
+ const targetX=mission.stage===0?cargoX:deliveryX,targetZ=mission.stage===0?cargoZ:deliveryZ;
  const distance=Math.hypot(x-targetX,z-targetZ);
- updateReinforcementWaves(distance);
- missionMarker.visible=!mission.finished&&!mission.failed;
+ if(mission.stage===1)updateReinforcementWaves(distance);
+ missionMarker.visible=mission.stage<2&&!mission.failed;
  missionMarker.position.set(targetX,height(targetX,targetZ,t)+24+Math.sin(t*2)*2,targetZ);
- if(!mission.finished&&!mission.failed){
-  if(playerCombat.hp<=0){
-   mission.failed=true;missionOverlay.style.display='flex';
-   notifyCombat('MISSÃO FRACASSADA · NAVE DESTRUÍDA',9);
-  }else if(mission.stage===0&&distance<18){
-   mission.stage=1;cargo.visible=false;receiver.visible=true;
-   activateInterceptors();
-   notifyCombat('CARGA RECUPERADA · ENTREGUE À NAVE ALIADA · REFORÇOS INIMIGOS!',6);
+ if(!mission.failed&&playerCombat.hp<=0){
+  mission.failed=true;missionOverlay.style.display='flex';
+  notifyCombat('MISSÃO FRACASSADA · NAVE DESTRUÍDA',4);
+ }
+ if(!mission.failed){
+  if(mission.stage===0&&distance<18){
+   mission.stage=1;cargo.visible=false;receiver.visible=true;activateInterceptors();
+   notifyCombat('CARGA RECUPERADA · ENTREGUE À NAVE ALIADA',3);
   }else if(mission.stage===1&&distance<35){
-   mission.finished=true;mission.calmSea=true;
+   mission.stage=2;mission.finished=false;mission.calmSea=true;mission.transitionAt=t+30;
    merchantShip.position.set(deliveryX+70,height(deliveryX+70,deliveryZ+60,t)+1,deliveryZ+60);
-   merchantShip.visible=true;merchantAccess.style.display='block';
-   for(const enemy of enemies){if(enemy.hp>0){enemy.hp=0;enemy.state='destroyed';enemy.model.visible=false;}}
-   openMerchant();notifyCombat('MAR CALMO · MELHORE SUA NAVE',4);
+   merchantShip.visible=true;
+   notifyCombat('CARGA ENTREGUE · LOJA DISPONÍVEL',2.5);
+  }else if(mission.stage===2&&t>=mission.transitionAt){
+   mission.stage=3;launchClearWave(0,t);
+  }else if(mission.stage===3){
+   const alive=enemies.some(e=>e.clearAreaWave===mission.clearWave&&e.hp>0);
+   if(!alive&&mission.clearWave<2)launchClearWave(mission.clearWave+1,t);
+   else if(!alive&&mission.clearWave===2&&mission.clearDestroyed>=10){
+    mission.stage=4;mission.finished=true;notifyCombat('ÁREA LIMPA · MISSÃO CONCLUÍDA!',5);
+   }
   }
  }
- missionHud.textContent=mission.finished?'✅ CARGA ENTREGUE · VITÓRIA':
-  mission.failed?'❌ MISSÃO FRACASSADA · TENTAR NOVAMENTE':
+ if(mission.calmSea&&!mission.shopClosed&&Math.hypot(x-deliveryX,z-deliveryZ)>200){
+  mission.shopClosed=true;merchantPanel.style.display='none';merchantShip.visible=false;
+ }
+ merchantAccess.style.display=mission.calmSea&&!mission.shopClosed&&!mission.failed?'block':'none';
+ if(mission.stage===2&&merchantPanel.style.display==='flex'&&t>=mission.transitionAt)merchantPanel.style.display='none';
+ missionHud.textContent=mission.failed?'❌ MISSÃO FRACASSADA':
   mission.stage===0?'📦 RECUPERE A CARGA · '+Math.round(distance)+' m':
-  '🚢 ENTREGUE A CARGA · '+Math.round(distance)+' m · 6 INTERCEPTADORES';
+  mission.stage===1?'🚢 ENTREGUE A CARGA · '+Math.round(distance)+' m':
+  mission.stage===2?'PRÓXIMA MISSÃO EM '+Math.max(0,Math.ceil(mission.transitionAt-t))+'s':
+  mission.stage===3?'⚔ LIMPE A ÁREA · '+mission.clearDestroyed+'/10 · ONDA '+(mission.clearWave+1)+'/3':
+  '✅ ÁREA LIMPA';
 }
 
 function discardEnemyShot(shot){
@@ -1182,7 +1225,7 @@ for(const enemy of enemies){
  const ai=enemy.ai;
  // Percepção imperfeita: cada inimigo estima a velocidade do jogador com atraso.
  const role=(enemy.id-1)%3;
- const sense=3.1+role*1.2;
+ const sense=(enemy.veteran?6.8:3.1+role*1.2);
  const blend=1-Math.exp(-sense*dt);
  ai.estimateVx+=(hullPhysics.vx-ai.estimateVx)*blend;
  ai.estimateVz+=(hullPhysics.vz-ai.estimateVz)*blend;
@@ -1190,15 +1233,15 @@ for(const enemy of enemies){
   ai.plan=planEnemy(enemy,{x,z,heading,speed,vx:hullPhysics.vx,vz:hullPhysics.vz,alive:playerCombat.hp>0},enemies,t,horizon.colliders);
   // Caçada ativa durante toda a missão: usam propulsão e direção físicas,
   // sem teleporte e sem acerto automático.
-  if(!mission.finished&&!mission.failed&&playerCombat.hp>0){
+  if(!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
    if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
-     speed:Math.max(ai.plan.speed,Math.min(43,29+distance*.016)),
+     speed:Math.max(ai.plan.speed,Math.min(enemy.veteran?52:43,29+distance*.016)),
      state:distance<325?'attack':'pursuit',intent:'pursuit'};
    }
   }
-  ai.intent=ai.plan.intent;ai.nextPlanTime=t+.32+(enemy.id%3)*.055;
+  ai.intent=ai.plan.intent;ai.nextPlanTime=t+(enemy.veteran?.16:.32+(enemy.id%3)*.055);
  }
  const tactic=ai.plan;
  enemy.state=tactic.state;
@@ -1673,10 +1716,11 @@ for(let i=projectiles.length-1;i>=0;i--){
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
         if(enemy.hp===0){
           enemy.state='destroyed';
+          if(enemy.clearAreaWave!==undefined&&mission.stage===3)mission.clearDestroyed++;
           economy.scrap+=20+10*(enemy.id%4);saveEconomy();
           const survivors=enemies.filter(e=>e.hp>0).length;
           notifyCombat(survivors>0?'ALVO DESTRUÍDO · '+survivors+' RESTANTES':'OCEANO LIBERADO · VITÓRIA!',survivors>0?2:6);
-          if(survivors===0)wonBattle=true;
+          if(survivors===0&&mission.stage===4)wonBattle=true;
           enemy.destroyedAt=t;
           // Explosão de destruição maior, seguida de partículas de energia.
           for(let burst=0;burst<3;burst++){
