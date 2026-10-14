@@ -383,7 +383,9 @@ function launchClearWave(wave,t){
   enemy.vx=0;enemy.vz=0;enemy.heading=Math.atan2(x-enemy.x,z-enemy.z);
   enemy.dormant=false;enemy.hp=enemy.veteran?150:enemy.maxHp;enemy.maxHp=enemy.veteran?150:enemy.maxHp;
   enemy.model.visible=true;
-  enemy.state='pursuit';enemy.ai.plan=null;enemy.ai.nextPlanTime=0;
+  enemy.model.position.set(enemy.x,height(enemy.x,enemy.z,t)+1,enemy.z);
+  enemy.y=enemy.model.position.y;
+  enemy.state='pursuit';enemy.ai.intent='pursuit';enemy.ai.plan=null;enemy.ai.nextPlanTime=0;
   enemy.ai.estimateVx=0;enemy.ai.estimateVz=0;
  }
  notifyCombat('LIMPE A ÁREA · ONDA '+(wave+1)+'/3',3);
@@ -419,8 +421,12 @@ function updateMission(dt,t){
   }else if(mission.stage===2&&t>=mission.transitionAt){
    mission.stage=3;launchClearWave(0,t);saveCheckpoint();
   }else if(mission.stage===3){
-   const alive=enemies.some(e=>e.clearAreaWave===mission.clearWave&&e.hp>0);
-   if(!alive&&mission.clearWave<2)launchClearWave(mission.clearWave+1,t);
+   // Recuperação de checkpoints antigos: se a onda não ativou, gera agora.
+   const current=enemies.filter(e=>e.clearAreaWave===mission.clearWave);
+   const alive=current.some(e=>e.hp>0);
+   const defeated=current.filter(e=>!e.dormant&&e.hp<=0).length;
+   if(!alive&&defeated===0)launchClearWave(Math.max(0,mission.clearWave),t);
+   else if(!alive&&mission.clearWave<2)launchClearWave(mission.clearWave+1,t);
    else if(!alive&&mission.clearWave===2&&mission.clearDestroyed>=10){
     mission.stage=4;mission.finished=true;notifyCombat('ÁREA LIMPA · MISSÃO CONCLUÍDA!',5);
    }
@@ -1295,7 +1301,11 @@ for(const enemy of enemies){
   // sem teleporte e sem acerto automático.
   if(!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
-   if(ai.plan.intent!=='withdraw'){
+   if(enemy.clearAreaWave!==undefined&&mission.stage===3){
+    // NPCs desta missão caçam o jogador desde o spawn; não retornam à patrulha.
+    ai.plan={...ai.plan,goalX:x,goalZ:z,active:true,
+     speed:enemy.veteran?47:39,state:distance<170?'attack':'pursuit',intent:'pursuit'};
+   }else if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
      speed:Math.max(ai.plan.speed,Math.min(enemy.veteran?52:43,29+distance*.016)),
      state:distance<325?'attack':'pursuit',intent:'pursuit'};
