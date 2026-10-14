@@ -629,6 +629,51 @@ boostButton.addEventListener('pointerdown',event=>{
  // A direção não é travada: analógico e teclado permanecem ativos.
  boostButton.classList.add('active');
 });
+// Minas aquáticas colocadas pelo jogador. NPCs não recebem percepção delas.
+const MINE={cooldown:12,stun:20,radius:13,lifetime:100,max:5};
+const mines=[];
+let mineReadyAt=0;
+const mineGeometry=new THREE.IcosahedronGeometry(2.7,0);
+const mineMaterial=new THREE.MeshStandardMaterial({color:0x293b4c,metalness:.7,roughness:.35});
+const mineButton=document.createElement('button');
+mineButton.type='button';mineButton.id='mineButton';mineButton.textContent='💣 MINA';
+mineButton.style.cssText='position:fixed;right:14px;bottom:125px;z-index:90;border:1px solid #8ef0ff;border-radius:12px;background:#132c3d;color:white;padding:11px;font-weight:700;touch-action:manipulation';
+document.body.appendChild(mineButton);
+function deployMine(){
+ const now=clock.elapsedTime;
+ if(playerCombat.hp<=0||now<mineReadyAt||mines.length>=MINE.max)return;
+ const mx=x+Math.sin(heading)*16,mz=z+Math.cos(heading)*16;
+ if(horizon.colliders.some(o=>Math.hypot(mx-o.x,mz-o.z)<o.radius+7))return;
+ const mesh=new THREE.Mesh(mineGeometry,mineMaterial);
+ scene.add(mesh);
+ mines.push({x:mx,z:mz,mesh,armedAt:now+1.2,expires:now+MINE.lifetime});
+ mineReadyAt=now+MINE.cooldown;
+}
+mineButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();deployMine();});
+function updateMines(now){
+ mineButton.disabled=playerCombat.hp<=0||now<mineReadyAt||mines.length>=MINE.max;
+ mineButton.textContent=now<mineReadyAt?'💣 '+Math.ceil(mineReadyAt-now)+'s':'💣 MINA';
+ for(let i=mines.length-1;i>=0;i--){
+  const mine=mines[i];
+  mine.mesh.position.set(mine.x,height(mine.x,mine.z,now)+.9,mine.z);
+  let victim=null;
+  if(now>=mine.armedAt)for(const enemy of enemies){
+   if(enemy.hp<=0)continue;
+   const previousX=enemy.previousX??enemy.x,previousZ=enemy.previousZ??enemy.z;
+   const dx=enemy.x-previousX,dz=enemy.z-previousZ;
+   const f=THREE.MathUtils.clamp(((mine.x-previousX)*dx+(mine.z-previousZ)*dz)/Math.max(1e-6,dx*dx+dz*dz),0,1);
+   if(Math.hypot(previousX+dx*f-mine.x,previousZ+dz*f-mine.z)<=MINE.radius){victim=enemy;break;}
+  }
+  if(victim){
+   victim.stunnedUntil=Math.max(victim.stunnedUntil||0,now+MINE.stun);
+   victim.vx=0;victim.vz=0;victim.ai.body.vx=0;victim.ai.body.vz=0;
+   victim.ai.choice=null;
+   energyFlash(new THREE.Vector3(mine.x,height(mine.x,mine.z,now)+3,mine.z));
+   notifyCombat(victim.name+' · PARALISADO POR 20s',2);
+  }
+  if(victim||now>=mine.expires){scene.remove(mine.mesh);mines.splice(i,1);}
+ }
+}
 const pad=document.getElementById('pad'),stick=document.getElementById('stick');
 let padPointer=null;
 function movePad(e){
@@ -887,7 +932,9 @@ for(const enemy of enemies){
   for(const kit of repairKits){const d=Math.hypot(kit.x-enemy.x,kit.z-enemy.z);if(d<dist){dist=d;closest=kit;}}
   if(closest&&dist<260)navigation={...tactic,goalX:closest.x,goalZ:closest.z,speed:Math.max(tactic.speed,29),intent:'repair'};
  }
- const controls=steerNpc(enemy,navigation,horizon.colliders,dodging);
+ const stunned=t<(enemy.stunnedUntil||0);
+ const controls=stunned?{angle:0,rate:0,targetSpeed:0,boostSpeed:0}:steerNpc(enemy,navigation,horizon.colliders,dodging);
+ if(stunned){ai.body.vx=0;ai.body.vz=0;enemy.vx=0;enemy.vz=0;}
  enemy.heading+=THREE.MathUtils.clamp(controls.angle,
   -controls.rate*dt,controls.rate*dt);
  const body=ai.body;
@@ -962,7 +1009,7 @@ for(const enemy of enemies){
  const choice=ai.choice;
  const aim=choice||predictIntercept({x:enemy.x,z:enemy.z},{x,z},estimate,140,2.2);
  ai.aimX=choice?.aimX??aim.x;ai.aimZ=choice?.aimZ??aim.z;
- if(choice&&tactic.active&&!dodging&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
+ if(choice&&tactic.active&&!dodging&&t>=(enemy.stunnedUntil||0)&&canEnemyFire(enemy,enemies,enemyShots,t,playerCombat.hp)){
   const turret=enemy.model.userData.turretPivot;
   const desiredGun=Math.atan2(-(choice.aimX-enemy.x),-(choice.aimZ-enemy.z))-enemy.heading;
   const gunError=turret?Math.abs(Math.atan2(Math.sin(desiredGun-turret.rotation.y),Math.cos(desiredGun-turret.rotation.y))):0;
@@ -1411,6 +1458,7 @@ attackCamera.blend=0;
 attackCamera.shake=0;
 areaAim.viewBlend=0;
 updateRepairKits(t);
+updateMines(t);
 refreshPlayerHealth();
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Mar '+(currentSeaIntensity<.24?'calmo':currentSeaIntensity<.37?'médio':'bravinho');
