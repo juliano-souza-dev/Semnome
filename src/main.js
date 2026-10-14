@@ -117,7 +117,7 @@ qualityButton.addEventListener('click',()=>{graphicsQuality=graphicsQuality==='u
 refreshQualityButton();
 const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
-const ship=createWarMachine3D(THREE);scene.add(ship);
+const ship=createWarMachine3D(THREE);ship.scale.multiplyScalar(1.05);scene.add(ship);
 // Nave original do Semnome restaurada. GLBs experimentais preservados em assets, mas não carregados.
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
@@ -228,7 +228,7 @@ for(const wave of reinforcementWaves){
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
- enemy.model=createWarMachine3D(THREE,{enemy:true});
+ enemy.model=createWarMachine3D(THREE,{enemy:true});enemy.model.scale.multiplyScalar(1.05);
  enemy.vx=0;enemy.vz=0;
  enemy.maxHp=COMBAT.npcMaxHp;
  enemy.lastDamageAt=-9999;
@@ -246,7 +246,7 @@ const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,d
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
 const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false};
-const receiver=createWarMachine3D(THREE,{enemy:false});
+const receiver=createWarMachine3D(THREE,{enemy:false});receiver.scale.multiplyScalar(1.05);
 receiver.position.set(mission.deliveryX,0,mission.deliveryZ);
 receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
