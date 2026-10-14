@@ -522,6 +522,7 @@ function restartCheckpoint(){
  const cp=checkpoint,t=clock.elapsedTime;
  Object.assign(mission,cp.mission,{failed:false,finished:false});
  missionOverlay.style.display='none';merchantPanel.style.display='none';
+ energyBlackoutUntil=0;
  x=cp.x;z=cp.z;heading=cp.heading;speed=0;boostActive=false;boostUseRemaining=0;boostEnergy=1;
  hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
  playerCombat.hp=playerMaxHp();playerCombat.respawnAt=0;playerCombat.invulnerableUntil=t+2;ship.visible=true;
@@ -1133,6 +1134,11 @@ const ENERGY_BOMB_KEY='semnome.energyBomb.readyAt.v1';
 let energyBombReadyAt=0;
 try{energyBombReadyAt=Math.max(0,Number(localStorage.getItem(ENERGY_BOMB_KEY))||0)}catch{}
 const weaponRemaining=()=>selectedAmmo.id==='energyBomb'?Math.max(0,(energyBombReadyAt-Date.now())/1000):Math.max(0,weaponReadyAt[selectedAmmo.id]-clock.elapsedTime);
+let energyBlackoutUntil=0;
+const energyBlackoutHud=document.createElement('div');
+energyBlackoutHud.style.cssText='display:none;position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:98;padding:12px 20px;border:1px solid #fc8d61;border-radius:12px;background:#2d1019e8;color:#ffdac5;font:800 15px system-ui;text-align:center;pointer-events:none';
+document.body.appendChild(energyBlackoutHud);
+const energyDisabled=()=>clock.elapsedTime<energyBlackoutUntil;
 const energyBombStatus=document.createElement('div');
 energyBombStatus.style.cssText='position:fixed;right:12px;top:265px;z-index:94;color:#a9f6ff;background:#082b42db;border:1px solid #68e6ff;border-radius:9px;padding:5px 8px;font:700 12px system-ui;pointer-events:none';
 document.body.appendChild(energyBombStatus);
@@ -1227,7 +1233,7 @@ function moveButtonAim(e){
  for(const mark of aimReticle.children){if(mark.material?.color&&mark!==aimDisc)mark.material.color.setHex(hovering?0xff3131:mark.type==='Line'?0xffff00:0x00ffff)}
 }
 function startAreaAim(e){
- if(playerCombat.hp<=0||areaAim.active||weaponRemaining()>0)return;
+ if(playerCombat.hp<=0||energyDisabled()||areaAim.active||weaponRemaining()>0)return;
  areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
  areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
  // Memoriza a direção atual da torreta antes de qualquer ajuste da mira.
@@ -1293,9 +1299,14 @@ function finishAreaAim(e,cancel=false){
  }
 }
 function launchShot(manualPoint=null){
+ if(energyDisabled())return;
  lastShotTime=clock.elapsedTime;
  weaponReadyAt[selectedAmmo.id]=clock.elapsedTime+currentWeapon().cooldown;
- if(selectedAmmo.id==='energyBomb'){energyBombReadyAt=Date.now()+300000;try{localStorage.setItem(ENERGY_BOMB_KEY,String(energyBombReadyAt))}catch{}updateEnergyBombStatus();}
+ if(selectedAmmo.id==='energyBomb'){
+  energyBombReadyAt=Date.now()+300000;energyBlackoutUntil=clock.elapsedTime+10;
+  boostActive=false;boostUseRemaining=0;speed=0;hullPhysics.vx=0;hullPhysics.vz=0;
+  cancelAreaAim();try{localStorage.setItem(ENERGY_BOMB_KEY,String(energyBombReadyAt))}catch{}updateEnergyBombStatus();
+ }
  audio.play(selectedAmmo.id);
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const destination=manualPoint?manualPoint.clone():(lockedNpc&&lockedNpc.hp>0?new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z):new THREE.Vector3(x-Math.sin(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange(),0,z-Math.cos(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange()));
@@ -1389,7 +1400,7 @@ const BOOST_DASH_SPEED=105;
 const BOOST_RECHARGE_SECONDS=30,BOOST_BURN_SECONDS=6,BOOST_COST=.5;
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
- if(playerCombat.hp<=0||boostActive||boostEnergy<BOOST_COST)return;
+ if(playerCombat.hp<=0||energyDisabled()||boostActive||boostEnergy<BOOST_COST)return;
  boostActive=true;boostUseRemaining=BOOST_BURN_SECONDS;audio.play('boost');
  boostButton.classList.add('active');
 });
@@ -1433,7 +1444,7 @@ function updateEnemyMines(t){
 }
 mineButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();deployMine();});
 function updateMines(now){
- mineButton.disabled=playerCombat.hp<=0||now<mineReadyAt||mines.length>=MINE.max;
+ mineButton.disabled=energyDisabled()||playerCombat.hp<=0||now<mineReadyAt||mines.length>=MINE.max;
  mineButton.textContent=now<mineReadyAt?'💣 '+Math.ceil(mineReadyAt-now)+'s':'💣 MINA';
  for(let i=mines.length-1;i>=0;i--){
   const mine=mines[i];
@@ -1518,8 +1529,12 @@ const deadZone=.12;
 const padX=input.active&&Math.abs(input.x)>deadZone?Math.sign(input.x)*(Math.abs(input.x)-deadZone)/(1-deadZone):0;
 const padY=input.active&&Math.abs(input.y)>deadZone?Math.sign(input.y)*(Math.abs(input.y)-deadZone)/(1-deadZone):0;
 const throttle=THREE.MathUtils.clamp((keyboardForward?1:0)-(keyboardBack?1:0)-padY,-1,1);
-const steering=THREE.MathUtils.clamp(keySteer+padX,-1,1);
-const target=throttle>0?42*(1+economy.engine*.05)*(unlockedShips.selected==='signal'?1.08:1)*throttle:throttle<0?19*throttle:0;
+const blackout=energyDisabled();
+energyBlackoutHud.style.display=blackout?'block':'none';
+if(blackout)energyBlackoutHud.textContent='⚠ SEM ENERGIA · '+Math.ceil(energyBlackoutUntil-t)+'s · MOVIMENTO E ARMAS BLOQUEADOS';
+const steering=blackout?0:THREE.MathUtils.clamp(keySteer+padX,-1,1);
+const target=blackout?0:throttle>0?42*(1+economy.engine*.05)*(unlockedShips.selected==='signal'?1.08:1)*throttle:throttle<0?19*throttle:0;
+if(blackout){boostActive=false;boostUseRemaining=0;hullPhysics.vx=0;hullPhysics.vz=0;speed=0;}
 if(boostActive){
  const spent=Math.min(dt,boostUseRemaining);
  boostEnergy=Math.max(0,boostEnergy-spent*BOOST_COST/BOOST_BURN_SECONDS);
@@ -1531,7 +1546,7 @@ if(boostActive){
 const boostRemaining=boostActive?1:0;
 boostButton.classList.toggle('active',boostActive);
 boostButton.textContent=boostActive?'🚀 PROPULSOR ATIVO':boostEnergy<1?'🚀 '+Math.round(boostEnergy*100)+'%':'🚀 PROPULSOR';
-boostButton.disabled=boostEnergy<BOOST_COST||boostActive||playerCombat.hp<=0;
+boostButton.disabled=blackout||boostEnergy<BOOST_COST||boostActive||playerCombat.hp<=0;
 // Corrige direção: arrastar o dedo para a direita gira a proa à direita.
 // Giro possível parado, mais responsivo em velocidade e durante o BOOST.
 if(playerCombat.hp>0){
