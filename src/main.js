@@ -891,6 +891,7 @@ function moveButtonAim(e){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  // Deslocamento relativo ao botão: o dedo nunca precisa sair para tocar o mar.
  const dx=e.clientX-areaAim.startX,dy=e.clientY-areaAim.startY;
+ if(Math.hypot(dx,dy)>=12)areaAim.manualDragged=true;
  const sensitivity=.62; // Controle fino do braço de mira em combate móvel
  const px=areaAim.origin.x+areaAim.right.x*dx*sensitivity-areaAim.forward.x*dy*sensitivity;
  const pz=areaAim.origin.z+areaAim.right.z*dx*sensitivity-areaAim.forward.z*dy*sensitivity;
@@ -910,6 +911,7 @@ function startAreaAim(e){
  areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
  // Memoriza a direção atual da torreta antes de qualquer ajuste da mira.
  areaAim.startTurretYaw=heading+(ship.userData.turretPivot?.rotation.y??0);
+ areaAim.manualDragged=false;
  // Especial: visão aérea desde o primeiro toque, sem temporizador.
  areaAim.viewBlend=TACTICAL_AMMO.has(selectedAmmo.id)?1:0;
  aimHint.textContent=(TACTICAL_AMMO.has(selectedAmmo.id)?'MIRA AÉREA':'MIRA DIRETA')+' · '+selectedAmmo.name.toUpperCase()+' · '+weaponRange()+' m';
@@ -932,11 +934,18 @@ function finishAreaAim(e,cancel=false){
  let destination=!cancel&&areaAim.valid?areaAim.point.clone():null;
  // Toque simples sem alvo: atira exatamente para a frente da torreta.
  // Arrastar continua utilizando a mira manual, sem assistência forçada.
- const tap= Math.hypot(e.clientX-areaAim.startX,e.clientY-areaAim.startY)<12;
+ const tap=!areaAim.manualDragged&&Math.hypot(e.clientX-areaAim.startX,e.clientY-areaAim.startY)<12;
  if(destination&&tap&&(!lockedNpc||lockedNpc.hp<=0)){
-  const yaw=areaAim.startTurretYaw;
-  const tx=x-Math.sin(yaw)*weaponRange(),tz=z-Math.cos(yaw)*weaponRange();
-  destination.set(tx,height(tx,tz,clock.elapsedTime)+.35,tz);
+  // Deriva a trajetória da boca do canhão no mundo, sem estimar pelos ângulos do casco.
+  ship.updateMatrixWorld(true);
+  const muzzle=ship.userData.firePoint;
+  const origin=muzzle.getWorldPosition(new THREE.Vector3());
+  const direction=new THREE.Vector3(0,0,-1).transformDirection(muzzle.matrixWorld);
+  const horizontal=Math.hypot(direction.x,direction.z)||1;
+  const range=weaponRange()*.94;
+  const tx=origin.x+direction.x/horizontal*range;
+  const tz=origin.z+direction.z/horizontal*range;
+  destination.set(tx,origin.y+direction.y*range/horizontal,tz);
  }
  // Correção leve de mira em alvo móvel: prevê o ponto de encontro,
  // mas o projétil segue sua trajetória e pode errar se o alvo manobrar.
@@ -1287,7 +1296,7 @@ function animateGun(model,delta){
 animateGun(ship,dt);
 const tower=ship.userData.turretPivot;
 if(tower){
- const target=areaAim.active?areaAim.point:(lockedNpc&&lockedNpc.hp>0?lockedNpc:null);
+ const target=areaAim.active&&areaAim.manualDragged?areaAim.point:(lockedNpc&&lockedNpc.hp>0?lockedNpc:null);
  // Sem alvo selecionado, a torre observa a direção apontada pela câmera.
  let desired=orbitYaw-heading;
  if(target){
