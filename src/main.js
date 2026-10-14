@@ -731,7 +731,7 @@ const BOOST_DASH_SPEED=105;
 const BOOST_RECHARGE_SECONDS=45,BOOST_BURN_SECONDS=6;
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
- if(playerCombat.hp<=0||boostActive||boostEnergy<1)return;
+ if(playerCombat.hp<=0||boostActive||boostEnergy<.25)return;
  boostActive=true;audio.play('boost');
  boostButton.classList.add('active');
 });
@@ -852,7 +852,7 @@ if(boostActive){
 const boostRemaining=boostActive?1:0;
 boostButton.classList.toggle('active',boostActive);
 boostButton.textContent=boostActive?'🚀 PROPULSOR ATIVO':boostEnergy<1?'🚀 '+Math.round(boostEnergy*100)+'%':'🚀 PROPULSOR';
-boostButton.disabled=boostEnergy<1||boostActive||playerCombat.hp<=0;
+boostButton.disabled=boostEnergy<.25||boostActive||playerCombat.hp<=0;
 // Corrige direção: arrastar o dedo para a direita gira a proa à direita.
 // Giro possível parado, mais responsivo em velocidade e durante o BOOST.
 if(playerCombat.hp>0){
