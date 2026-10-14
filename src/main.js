@@ -158,7 +158,7 @@ const playerSprite={visible:false};
 // Alcance do jogador ampliado cerca de 20% para manter a perseguição aos NPCs viável.
 // IA inimiga, recargas, danos e velocidades de projétil permanecem iguais.
 const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
-const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:55,impact:55},meteor:{range:320,cooldown:3.4,damage:32,impact:11},scatter:{range:260,cooldown:3.3,damage:22,impact:10},siege:{range:430,cooldown:5.0,damage:45,impact:22}});
+const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},meteor:{range:320,cooldown:3.4,damage:32,impact:11},scatter:{range:260,cooldown:3.3,damage:22,impact:10},siege:{range:430,cooldown:5.0,damage:45,impact:22}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
@@ -182,6 +182,7 @@ for(const enemy of enemies){
  enemy.vx=0;enemy.vz=0;
  enemy.maxHp=COMBAT.npcMaxHp;
  enemy.lastDamageAt=-9999;
+ enemy.lastCombatAt=0;enemy.nextRegenAt=75;
  // Cada NPC mantém memória curta da velocidade vista, tempo de reação e dash.
  enemy.ai={estimateVx:0,estimateVz:0,nextDash:0,dashUntil:0,dashX:0,dashZ:0,
   trackedShot:null,detectedAt:0,willEvade:false,aimX:0,aimZ:0,nextWake:0,weaponReadyAt:{},choice:null,lastChoiceAt:-100,currentWeapon:null,
@@ -234,14 +235,9 @@ function updateRepairKits(now){
    const distance=Math.hypot(x-kit.x,z-kit.z);
    if(distance<bestDistance){bestDistance=distance;collector=playerCombat;}
   }
-  for(const enemy of enemies){
-   if(enemy.hp<=0||enemy.hp>=enemy.maxHp)continue;
-   const distance=Math.hypot(enemy.x-kit.x,enemy.z-kit.z);
-   if(distance<bestDistance){bestDistance=distance;collector=enemy;}
-  }
   if(collector){
-   collector.hp=Math.min(collector===playerCombat?ENEMY_AI.maxHp:collector.maxHp,collector.hp+REPAIR.amount);
-   if(collector===playerCombat)notifyCombat('KIT DE REPARO +'+REPAIR.amount+' HP',2);
+   collector.hp=Math.min(ENEMY_AI.maxHp,collector.hp+REPAIR.amount);
+   notifyCombat('KIT DE REPARO +'+REPAIR.amount+' HP',2);
   }
   if(collector||now>=kit.expires){scene.remove(kit.mesh);repairKits.splice(i,1);}
  }
@@ -884,6 +880,12 @@ for(const enemy of enemies){
  }
  const tactic=ai.plan;
  enemy.state=tactic.state;
+ // Regeneração começa após 60 segundos sem combate; +5 HP a cada 15 s depois disso.
+ if(tactic.active){enemy.lastCombatAt=t;enemy.nextRegenAt=t+75;}
+ else if(enemy.hp<enemy.maxHp&&t-enemy.lastCombatAt>=60&&t>=enemy.nextRegenAt){
+  enemy.hp=Math.min(enemy.maxHp,enemy.hp+5);
+  enemy.nextRegenAt=t+15;
+ }
  // Olha a trajetória de projéteis já disparados, sem telepatia.
  const threat=tactic.active&&t>=ai.nextDash?assessProjectileThreat(enemy,projectiles,1.4):null;
  if(threat){
@@ -925,13 +927,8 @@ for(const enemy of enemies){
  // Fugir não muda diretamente x/z: requer aceleração e tempo de manobra.
  const oldEnemyX=enemy.x,oldEnemyZ=enemy.z;
  enemy.previousX=oldEnemyX;enemy.previousZ=oldEnemyZ;
- let navigation=tactic;
- // Danificados podem buscar kits, mantendo manobras normais e evasão.
- if(!dodging&&enemy.hp<enemy.maxHp*.7&&repairKits.length){
-  let closest=null,dist=Infinity;
-  for(const kit of repairKits){const d=Math.hypot(kit.x-enemy.x,kit.z-enemy.z);if(d<dist){dist=d;closest=kit;}}
-  if(closest&&dist<260)navigation={...tactic,goalX:closest.x,goalZ:closest.z,speed:Math.max(tactic.speed,29),intent:'repair'};
- }
+ // Kits são exclusivos do jogador.
+ const navigation=tactic;
  const stunned=t<(enemy.stunnedUntil||0);
  const controls=stunned?{angle:0,rate:0,targetSpeed:0,boostSpeed:0}:steerNpc(enemy,navigation,horizon.colliders,dodging);
  if(stunned){ai.body.vx=0;ai.body.vz=0;enemy.vx=0;enemy.vz=0;}
@@ -1360,6 +1357,7 @@ for(let i=projectiles.length-1;i>=0;i--){
         audio.play('impact',Math.max(-1,Math.min(1,(enemy.x-x)/140)),Math.hypot(enemy.x-x,enemy.z-z));
         enemy.hp=Math.max(0,enemy.hp-damage);
         enemy.lastDamageAt=t;
+        enemy.lastCombatAt=t;enemy.nextRegenAt=t+75;
         showDamage(enemy,damage);
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
         if(enemy.hp===0){
