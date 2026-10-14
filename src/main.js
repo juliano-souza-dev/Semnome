@@ -451,6 +451,35 @@ function updateHealZones(dt,t){
 // Drops especiais luminosos: coluna translúcida + item flutuante, sem luzes dinâmicas.
 const specialDrops=[],DROP_INTERVAL=26,DROP_LIFE=90,DROP_MAX=4;
 let nextSpecialDrop=14,shieldUntil=0,superBoostUntil=0;
+const pickupInventory={boost:0,shield:0};
+const pickupControls=document.createElement('div');
+pickupControls.style.cssText='position:fixed;right:12px;top:44%;z-index:95;display:flex;flex-direction:column;gap:7px';
+const pickupButtons={};
+for(const [type,label] of [['shield','🛡️ ESCUDO'],['boost','⚡ BOOST 2×']]){
+ const button=document.createElement('button');button.type='button';
+ button.style.cssText='min-width:105px;padding:9px 10px;color:#fff;background:#10334de8;border:1px solid #8fdded;border-radius:11px;font:700 12px system-ui;touch-action:manipulation';
+ button.textContent=label+' ×0';button.disabled=true;
+ button.addEventListener('pointerdown',event=>{
+  event.preventDefault();event.stopPropagation();
+  if(playerCombat.hp<=0||pickupInventory[type]<=0||mission.failed)return;
+  pickupInventory[type]--;
+  const now=clock.elapsedTime;
+  if(type==='shield'){shieldUntil=Math.max(shieldUntil,now)+7;notifyCombat('ESCUDO ATIVO · 7s',1.5);}
+  else{superBoostUntil=Math.max(superBoostUntil,now)+20;notifyCombat('BOOST 2× ATIVO · 20s',1.5);}
+  updatePickupButtons();
+ });
+ pickupButtons[type]=button;pickupControls.appendChild(button);
+}
+document.body.appendChild(pickupControls);
+function updatePickupButtons(){
+ pickupButtons.shield.textContent='🛡️ ESCUDO ×'+pickupInventory.shield;
+ pickupButtons.boost.textContent='⚡ BOOST 2× ×'+pickupInventory.boost;
+ for(const type of ['shield','boost']){
+  pickupButtons[type].disabled=pickupInventory[type]===0||playerCombat.hp<=0;
+  pickupButtons[type].style.opacity=pickupButtons[type].disabled?'.48':'1';
+ }
+}
+
 const dropCoreGeometry=new THREE.OctahedronGeometry(3.6,0);
 const dropBeamGeometry=new THREE.CylinderGeometry(3.5,5,34,12,1,true);
 const dropRingGeometry=new THREE.RingGeometry(6,8,24);
@@ -487,8 +516,9 @@ function updateSpecialDrops(dt,t){
   drop.core.rotation.y+=dt*1.7;drop.core.position.y=3+Math.sin(t*2+drop.phase)*.8;
   const collected=playerCombat.hp>0&&Math.hypot(x-drop.x,z-drop.z)<11;
   if(collected){
-   if(drop.type==='boost'){superBoostUntil=t+20;notifyCombat('BOOSTER 2× · PRÓXIMOS 20s',2);}
-   else{shieldUntil=t+7;notifyCombat('ESCUDO · 7s',2);}
+   pickupInventory[drop.type]=Math.min(9,pickupInventory[drop.type]+1);
+   updatePickupButtons();
+   notifyCombat(drop.type==='boost'?'BOOST 2× COLETADO':'ESCUDO COLETADO',1.7);
   }
   if(collected||t>=drop.expires){
    scene.remove(drop.item);
@@ -496,6 +526,7 @@ function updateSpecialDrops(dt,t){
    specialDrops.splice(i,1);
   }
  }
+ updatePickupButtons();
  shieldMesh.visible=t<shieldUntil&&playerCombat.hp>0;
  if(shieldMesh.visible){shieldMesh.position.copy(ship.position);shieldMesh.position.y+=3;shieldMaterial.uniforms.uTime.value=t;}
 }
@@ -515,10 +546,13 @@ const boostFill=document.createElement('div');
 boostFill.style.cssText='height:100%;width:100%;background:linear-gradient(90deg,#ffa700,#ffe95b);box-shadow:0 0 5px #ffca40';
 boostMeter.appendChild(boostFill);document.body.appendChild(boostMeter);
 function refreshPlayerHealth(){
+ // Garante HP finito dentro do limite real, inclusive após migração de dados.
+ if(!Number.isFinite(playerCombat.hp))playerCombat.hp=ENEMY_AI.maxHp;
+ playerCombat.hp=THREE.MathUtils.clamp(playerCombat.hp,0,ENEMY_AI.maxHp);
  const percent=THREE.MathUtils.clamp(playerCombat.hp/ENEMY_AI.maxHp,0,1);
  hpFill.style.width=(percent*100).toFixed(1)+'%';
  hpFill.style.background=percent>.6?'linear-gradient(180deg,#aaff56,#52ce18)':percent>.3?'linear-gradient(180deg,#ffe76b,#e7a528)':'linear-gradient(180deg,#ff8380,#d72832)';
- hpValue.textContent=playerCombat.hp+' / '+ENEMY_AI.maxHp;
+ hpValue.textContent=Math.ceil(playerCombat.hp)+' / '+ENEMY_AI.maxHp;
  hpHud.setAttribute('aria-valuenow',String(playerCombat.hp));
  // HUD em coordenadas da tela: não recebe altura das ondas, bob, roll nem projeção 3D.
  // A câmera de perseguição mantém o jogador centralizado; o indicador permanece
