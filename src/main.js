@@ -242,7 +242,7 @@ for(let i=0;i<clearAreaPositions.length;i++){
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
- enemy.model=createWarMachine3D(THREE,{enemy:true});enemy.model.scale.multiplyScalar(1.05);
+ enemy.model=createWarMachine3D(THREE,{enemy:true});enemy.model.scale.multiplyScalar(1.17);
  enemy.vx=0;enemy.vz=0;
  enemy.maxHp=COMBAT.npcMaxHp;
  enemy.lastDamageAt=-9999;
