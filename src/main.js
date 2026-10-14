@@ -203,11 +203,27 @@ for(let i=1;i<FLEET_SIZE;i++){
 
  // Reforços da etapa 2: pré-instanciados, mas inativos até a carga ser recolhida.
 const reinforcementPositions=[[710,-1220],[1020,-860],[1390,-1270],[1740,-870],[2160,-1200],[2640,-980]];
+// Reforços posteriores, distribuídos em pontos fixos do corredor da entrega.
+const reinforcementWaves=[
+ {at:1500,positions:[[1880,-1410],[2120,-700],[2370,-1320]]},
+ {at:1000,positions:[[2490,-1550],[2740,-750],[2850,-1370]]},
+ {at:500,positions:[[3070,-1460],[3300,-780]]}
+];
 for(let i=0;i<reinforcementPositions.length;i++){
  const [sx,sz]=reinforcementPositions[i];
  enemies.push({id:FLEET_SIZE+i+1,name:'Interceptador '+String(i+1).padStart(2,'0'),
   x:sx,z:sz,y:0,anchorX:sx,anchorZ:sz,heading:-Math.PI/2,speed:7,
   hp:0,phase:i*.65,radius:17,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true});
+}
+let reinforcementId=FLEET_SIZE+reinforcementPositions.length+1;
+for(const wave of reinforcementWaves){
+ for(const [sx,sz] of wave.positions){
+  const id=reinforcementId++;
+  enemies.push({id,name:'Caçador '+String(id).padStart(2,'0'),
+   x:sx,z:sz,y:0,anchorX:sx,anchorZ:sz,heading:Math.atan2(-sx,-sz),
+   speed:7,hp:0,phase:id*.65,radius:17,sprite:null,nextShot:0,
+   state:'dormant',hostile:true,dormant:true,waveDistance:wave.at});
+ }
 }
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
@@ -236,10 +252,25 @@ receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
 function activateInterceptors(){
  for(const enemy of enemies){
-  if(!enemy.dormant)continue;
+  if(!enemy.dormant||enemy.waveDistance)continue;
   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
   enemy.ai.lastCombatAt=clock.elapsedTime;
+ }
+}
+const activatedWaves=new Set();
+function updateReinforcementWaves(distance){
+ if(mission.stage!==1||mission.finished||mission.failed)return;
+ for(const wave of reinforcementWaves){
+  if(distance>wave.at||activatedWaves.has(wave.at))continue;
+  activatedWaves.add(wave.at);
+  for(const enemy of enemies){
+   if(enemy.waveDistance!==wave.at||!enemy.dormant)continue;
+   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
+   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
+   enemy.ai.lastCombatAt=clock.elapsedTime;
+  }
+  notifyCombat('⚠ REFORÇOS INIMIGOS · '+wave.positions.length+' NAVES!',4);
  }
 }
 const cargo=new THREE.Group();
@@ -270,6 +301,7 @@ function updateMission(dt,t){
  const targetX=mission.stage===0?cargoX:deliveryX;
  const targetZ=mission.stage===0?cargoZ:deliveryZ;
  const distance=Math.hypot(x-targetX,z-targetZ);
+ updateReinforcementWaves(distance);
  missionMarker.visible=!mission.finished&&!mission.failed;
  missionMarker.position.set(targetX,height(targetX,targetZ,t)+24+Math.sin(t*2)*2,targetZ);
  if(!mission.finished&&!mission.failed){
