@@ -355,6 +355,25 @@ const baseHealthHud=document.createElement('div');
 baseHealthHud.style.cssText='display:none;position:fixed;top:75px;left:50%;transform:translateX(-50%);z-index:87;padding:6px 14px;border-radius:9px;border:1px solid #ffae70;background:#172130dd;color:white;font:700 13px system-ui;pointer-events:none';
 document.body.appendChild(baseHealthHud);
 const baseTurrets=[];
+const baseShells=[];
+const baseShellGeometry=new THREE.SphereGeometry(1.65,8,6);
+const baseShellMaterial=new THREE.MeshBasicMaterial({color:0xff9362});
+function clearBaseShells(){for(const p of baseShells)scene.remove(p.mesh);baseShells.length=0}
+function updateBaseShells(dt,t){
+ for(let i=baseShells.length-1;i>=0;i--){
+  const p=baseShells[i];p.life-=dt;
+  p.mesh.position.addScaledVector(p.velocity,dt);
+  const hit=playerCombat.hp>0&&Math.hypot(p.mesh.position.x-x,p.mesh.position.z-z)<9&&Math.abs(p.mesh.position.y-(bob+2))<11;
+  if(hit&&t>=shieldUntil&&t>=playerCombat.invulnerableUntil){
+   playerCombat.hp=Math.max(0,playerCombat.hp-12*(1-economy.armor*.05));
+   playerCombat.lastDamageAt=t;playerCombat.invulnerableUntil=t+.5;energyFlash(p.mesh.position);
+  }
+  if(hit||p.life<=0||mission.stage<10||mission.stage>11||mission.baseDestroyed){
+   scene.remove(p.mesh);baseShells.splice(i,1);
+  }
+ }
+}
+
 const baseStructure=new THREE.Group();scene.add(baseStructure);baseStructure.visible=false;
 const baseMetal=new THREE.MeshStandardMaterial({color:0x344b65,metalness:.7,roughness:.36});
 const baseGlow=new THREE.MeshBasicMaterial({color:0x44cfff});
@@ -489,6 +508,7 @@ function restartCheckpoint(){
   e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.weaponReadyAt={};e.ai.choice=null;e.ai.trackedShot=null;
   e.model.visible=e.hp>0;
  });
+ clearBaseShells();
  for(const shot of enemyShots)discardEnemyShot(shot);enemyShots.length=0;
  for(const p of projectiles){scene.remove(p.mesh,p.trail);p.trail?.geometry?.dispose();}
  projectiles.length=0;
@@ -642,6 +662,7 @@ function updateMission(dt,t){
  basePrompt.style.display=mission.stage===9&&!mission.failed?'block':'none';
  baseStructure.visible=mission.stage>=10;
  if(baseStructure.visible)baseStructure.position.set(mission.baseX,height(mission.baseX,mission.baseZ,t),mission.baseZ);
+ updateBaseShells(dt,t);
  baseHealthHud.style.display=mission.stage===11&&!mission.failed?'block':'none';
  if(mission.stage===11)baseHealthHud.textContent='🏰 BASE · '+mission.baseHits+'/5 ACERTOS';
  for(const turret of baseTurrets){
@@ -653,13 +674,14 @@ function updateMission(dt,t){
   const distanceToBase=Math.hypot(x-mission.baseX,z-mission.baseZ);
   if(distanceToBase<420&&t>=mission.towerNextShot){
    mission.towerNextShot=t+1.55;
-   if(t>=shieldUntil&&t>=playerCombat.invulnerableUntil){
-    // Disparo da bateria defensiva com verificação de proximidade, não é dano de uma hitbox invisível.
-    playerCombat.hp=Math.max(0,playerCombat.hp-9*(1-economy.armor*.05));
-    playerCombat.lastDamageAt=t;playerCombat.invulnerableUntil=t+.4;
-    energyFlash(new THREE.Vector3(x,bob+3,z));
-    notifyCombat('⚠ TORRES DA BASE · IMPACTO!',1.2);
-   }
+   // Projétil físico: aponta para a posição atual; pode errar se o jogador manobrar.
+   const turret=baseTurrets[Math.floor(t*1.7)%baseTurrets.length];
+   const origin=new THREE.Vector3(mission.baseX+turret.position.x,height(mission.baseX,mission.baseZ,t)+turret.position.y,mission.baseZ+turret.position.z);
+   const destination=new THREE.Vector3(x,bob+2,z);
+   const direction=destination.sub(origin).normalize();
+   const mesh=new THREE.Mesh(baseShellGeometry,baseShellMaterial);mesh.position.copy(origin);scene.add(mesh);
+   baseShells.push({mesh,velocity:direction.multiplyScalar(115),life:4.5});
+   notifyCombat('⚠ TORRES DA BASE · DISPARO!',1);
   }
  }
  if(mission.stage>=5){signalShip.visible=true;signalShip.position.set(mission.signalX,height(mission.signalX,mission.signalZ,t)+1,mission.signalZ);signalData.visible=mission.stage===8;if(signalData.visible)signalData.position.set(mission.signalX+12,height(mission.signalX+12,mission.signalZ+10,t)+4,mission.signalZ+10);}
