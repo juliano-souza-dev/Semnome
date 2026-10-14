@@ -187,7 +187,7 @@ const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impac
 npcData.hp=COMBAT.npcMaxHp;
 // Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
-const FLEET_SIZE=6;
+const FLEET_SIZE=2;
 const enemies=[npcData];
 npcData.x=-360;npcData.z=-190;npcData.anchorX=npcData.x;npcData.anchorZ=npcData.z;
 npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';npcData.hostile=true;
@@ -202,7 +202,7 @@ for(let i=1;i<FLEET_SIZE;i++){
 }
 
  // Reforços da etapa 2: pré-instanciados, mas inativos até a carga ser recolhida.
-const reinforcementPositions=[[710,-1220],[1020,-860],[1390,-1270],[1740,-870],[2160,-1200],[2640,-980]];
+const reinforcementPositions=[[1020,-860],[1740,-870]];
 // Reforços posteriores, distribuídos em pontos fixos do corredor da entrega.
 const reinforcementWaves=[
  {at:1500,positions:[[1880,-1410],[2120,-700],[2370,-1320]]},
