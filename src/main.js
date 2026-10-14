@@ -116,6 +116,7 @@ function refreshQualityButton(){qualityButton.textContent='⚙ Gráficos: '+(gra
 qualityButton.addEventListener('click',()=>{graphicsQuality=graphicsQuality==='ultra'?'standard':'ultra';applyGraphicsQuality();try{localStorage.setItem(QUALITY_KEY,graphicsQuality);}catch(_){}refreshQualityButton();});
 refreshQualityButton();
 const horizon=createWastelandHorizon(THREE,scene);
+const daytimeHorizon=scene.children.find(o=>o.isGroup);
 const nightDome=new THREE.Mesh(new THREE.SphereGeometry(800,40,24),new THREE.ShaderMaterial({
  side:THREE.BackSide,depthWrite:false,fog:false,
  vertexShader:'varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
@@ -126,11 +127,24 @@ function applyOceanRegion(){
  nightDome.visible=night;uniforms.uNight.value=night?1:0;
  sun.intensity=night?.8:3.3;sun.color.setHex(night?0x85b9ff:0xffd99b);
  scene.background.setHex(night?0x030819:0x8db6d5);
- if(horizon.group)horizon.group.visible=!night;
+ if(daytimeHorizon)daytimeHorizon.visible=!night;
  scene.fog.color.setHex(night?0x071529:0x759ab4);
 }
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
 const ship=createWarMachine3D(THREE);ship.scale.multiplyScalar(1.17);scene.add(ship);
+// Modelo alternativo conquistável: carenagem e estabilizadores exclusivos.
+const signalHull=new THREE.Group();ship.add(signalHull);
+const signalMetal=new THREE.MeshStandardMaterial({color:0x203f79,metalness:.78,roughness:.22,emissive:0x11245c,emissiveIntensity:.3});
+const signalGlow=new THREE.MeshBasicMaterial({color:0x69dfff});
+for(const side of [-1,1]){
+ const fin=new THREE.Mesh(new THREE.BoxGeometry(1.1,.45,8),signalMetal);
+ fin.position.set(side*3.7,.7,1.1);fin.rotation.z=side*.19;signalHull.add(fin);
+ const light=new THREE.Mesh(new THREE.BoxGeometry(.25,.15,6.5),signalGlow);
+ light.position.set(side*3.8,1.05,1.1);signalHull.add(light);
+}
+const prow=new THREE.Mesh(new THREE.ConeGeometry(2.4,7,5),signalMetal);
+prow.rotation.x=-Math.PI/2;prow.position.set(0,1,-6.3);signalHull.add(prow);
+signalHull.visible=false;
 // Nave original do Semnome restaurada. GLBs experimentais preservados em assets, mas não carregados.
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
@@ -312,7 +326,7 @@ signalData.visible=false;scene.add(signalData);
 const rewardKey='semnome.unlockedShips.v1';
 let unlockedShips={};try{unlockedShips=JSON.parse(localStorage.getItem(rewardKey)||'{}')||{}}catch{}
 const shipSelect=document.createElement('button');shipSelect.style.cssText='display:none;position:fixed;bottom:68px;left:50%;transform:translateX(-50%);z-index:95;padding:12px;background:#103c61;color:white;border:1px solid #94e8ff;border-radius:12px;font:700 12px system-ui';document.body.appendChild(shipSelect);
-function refreshShipSelect(){shipSelect.style.display=unlockedShips.signal?'block':'none';shipSelect.textContent=unlockedShips.selected==='signal'?'🚢 Nova nave equipada · Trocar':'🚢 Equipar nave Sinal Perdido';ship.scale.setScalar(unlockedShips.selected==='signal'?1.28:1.17);}
+function refreshShipSelect(){shipSelect.style.display=unlockedShips.signal?'block':'none';shipSelect.textContent=unlockedShips.selected==='signal'?'🚢 Nova nave equipada · Trocar':'🚢 Equipar nave Sinal Perdido';ship.scale.setScalar(unlockedShips.selected==='signal'?1.28:1.17);signalHull.visible=unlockedShips.selected==='signal';}
 shipSelect.onclick=()=>{unlockedShips.selected=unlockedShips.selected==='signal'?'original':'signal';try{localStorage.setItem(rewardKey,JSON.stringify(unlockedShips))}catch{}refreshShipSelect();};
 refreshShipSelect();
 const signalPrompt=document.createElement('div');
@@ -420,6 +434,7 @@ function restartCheckpoint(){
  for(const p of projectiles){scene.remove(p.mesh,p.trail);p.trail?.geometry?.dispose();}
  projectiles.length=0;
  for(const mine of mines)scene.remove(mine.mesh);mines.length=0;
+ for(const mine of enemyMines){scene.remove(mine.mesh);mine.mesh.material.dispose()}enemyMines.length=0;nextEnemyMine=0;
  for(const d of damageLabels)d.label.remove();damageLabels.length=0;
  merchantAccess.style.display=mission.calmSea&&!mission.shopClosed?'block':'none';
  if(mission.stage===2)mission.transitionAt=t+30;
@@ -1174,6 +1189,7 @@ boostButton.addEventListener('pointerdown',event=>{
 // Minas aquáticas colocadas pelo jogador. NPCs não recebem percepção delas.
 const MINE={cooldown:12,stun:20,radius:13,lifetime:100,max:5};
 const mines=[];
+const enemyMines=[];let nextEnemyMine=0;
 let mineReadyAt=0;
 const mineGeometry=new THREE.IcosahedronGeometry(2.7,0);
 const mineMaterial=new THREE.MeshStandardMaterial({color:0x293b4c,metalness:.7,roughness:.35});
@@ -1190,6 +1206,23 @@ function deployMine(){
  scene.add(mesh);
  mines.push({x:mx,z:mz,mesh,armedAt:now+1.2,expires:now+MINE.lifetime});
  mineReadyAt=now+MINE.cooldown;
+}
+function updateEnemyMines(t){
+ if(mission.stage===7&&!mission.failed&&t>=nextEnemyMine){
+  nextEnemyMine=t+13;
+  for(const enemy of enemies.filter(e=>e.signalEnemy&&e.veteran&&e.hp>0)){
+   if(enemyMines.length>=12)break;
+   const mesh=new THREE.Mesh(mineGeometry,mineMaterial.clone());mesh.material.color.setHex(0xb93351);
+   const px=enemy.x-Math.sin(enemy.heading)*10,pz=enemy.z-Math.cos(enemy.heading)*10;
+   scene.add(mesh);enemyMines.push({x:px,z:pz,mesh,armedAt:t+2,expires:t+65});
+  }
+ }
+ for(let i=enemyMines.length-1;i>=0;i--){
+  const m=enemyMines[i];m.mesh.position.set(m.x,height(m.x,m.z,t)+1,m.z);m.mesh.rotation.y+=.025;
+  const hit=t>=m.armedAt&&Math.hypot(x-m.x,z-m.z)<13&&playerCombat.hp>0;
+  if(hit&&t>=shieldUntil&&t>=playerCombat.invulnerableUntil)playerCombat.hp=Math.max(0,playerCombat.hp-18*(1-economy.armor*.05));
+  if(hit||t>=m.expires||mission.stage!==7){scene.remove(m.mesh);m.mesh.material.dispose();enemyMines.splice(i,1);}
+ }
 }
 mineButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();deployMine();});
 function updateMines(now){
@@ -1278,7 +1311,7 @@ const padX=input.active&&Math.abs(input.x)>deadZone?Math.sign(input.x)*(Math.abs
 const padY=input.active&&Math.abs(input.y)>deadZone?Math.sign(input.y)*(Math.abs(input.y)-deadZone)/(1-deadZone):0;
 const throttle=THREE.MathUtils.clamp((keyboardForward?1:0)-(keyboardBack?1:0)-padY,-1,1);
 const steering=THREE.MathUtils.clamp(keySteer+padX,-1,1);
-const target=throttle>0?42*(1+economy.engine*.05)*throttle:throttle<0?19*throttle:0;
+const target=throttle>0?42*(1+economy.engine*.05)*(unlockedShips.selected==='signal'?1.08:1)*throttle:throttle<0?19*throttle:0;
 if(boostActive){
  const spent=Math.min(dt,boostUseRemaining);
  boostEnergy=Math.max(0,boostEnergy-spent*BOOST_COST/BOOST_BURN_SECONDS);
@@ -2035,6 +2068,7 @@ updateRepairKits(t);
 updateSpecialDrops(dt,t);
 updateHealZones(dt,t);
 updateMines(t);
+updateEnemyMines(t);
 updateMission(dt,t);
 refreshPlayerHealth();
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
