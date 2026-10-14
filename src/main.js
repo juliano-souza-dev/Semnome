@@ -18,7 +18,7 @@ const QUALITY_KEY='semnome.graphicsQuality';
 let graphicsQuality='standard';
 try{graphicsQuality=localStorage.getItem(QUALITY_KEY)==='ultra'?'ultra':'standard';}catch(_){}
 function applyGraphicsQuality(){
- renderer.setPixelRatio(Math.min(devicePixelRatio,graphicsQuality==='ultra'?1.5:.9));
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
  uniforms.uGraphicsQuality.value=graphicsQuality==='ultra'?1:0;
 }
 document.body.prepend(renderer.domElement);
@@ -69,9 +69,15 @@ float wave(vec2 p){return uWaveIntensity*(2.8*sin(dot(p,normalize(vec2(1.,.25)))
 void main(){
  vec2 p=vPos.xy;
  if(uGraphicsQuality<.5){
+  // Menos operações no shader, mas preserva contraste e detalhes visuais.
+  vec2 q=vPos.xy;
   float crest=smoothstep(-3.,4.,vHeight/max(uWaveIntensity,.08));
-  vec3 simpleSea=mix(vec3(.009,.12,.19),vec3(.035,.32,.43),crest);
-  gl_FragColor=vec4(simpleSea,1.);return;
+  vec3 sea=mix(vec3(.009,.12,.19),vec3(.035,.32,.43),crest);
+  float detail=sin(q.x*.19+uTime*1.1)*sin(q.y*.22-uTime*.8);
+  sea+=vec3(.025,.055,.065)*detail;
+  float glimmer=pow(max(0.,sin(q.x*.11+q.y*.07-uTime*.9)),14.);
+  sea+=vec3(.06,.11,.12)*glimmer;
+  gl_FragColor=vec4(sea,1.);return;
  }
  float h=.75;
  vec2 gradient=vec2(wave(p+vec2(h,0.))-wave(p-vec2(h,0.)),wave(p+vec2(0.,h))-wave(p-vec2(0.,h)));
