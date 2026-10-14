@@ -77,7 +77,8 @@ void main(){
   sea+=vec3(.025,.055,.065)*detail;
   float glimmer=pow(max(0.,sin(q.x*.11+q.y*.07-uTime*.9)),14.);
   sea+=vec3(.06,.11,.12)*glimmer;
-  gl_FragColor=vec4(mix(sea,sea*vec3(.30,.43,.68),uNight),1.);return;
+  float moonPath=pow(max(0.,1.-abs(q.x*.009+q.y*.003+sin(q.y*.022+uTime*.25)*.13)),13.)*smoothstep(0.,170.,length(q-uOffset));
+  gl_FragColor=vec4(mix(sea,sea*vec3(.30,.43,.68)+vec3(.12,.19,.31)*moonPath,uNight),1.);return;
  }
  float h=.75;
  vec2 gradient=vec2(wave(p+vec2(h,0.))-wave(p-vec2(h,0.)),wave(p+vec2(0.,h))-wave(p-vec2(0.,h)));
@@ -104,7 +105,8 @@ void main(){
  sea+=vec3(1.,.77,.46)*(spec*.38+glint*.22);
  float mist=smoothstep(180.,690.,length(p-uOffset));
  sea=mix(sea,vec3(.39,.55,.65),mist*.42);
- gl_FragColor=vec4(mix(sea,sea*vec3(.30,.43,.68),uNight),1.);
+ float moonPath=pow(max(0.,1.-abs(p.x*.009+p.y*.003+sin(p.y*.022+uTime*.25)*.13)),13.)*smoothstep(0.,170.,length(p-uOffset));
+ gl_FragColor=vec4(mix(sea,sea*vec3(.30,.43,.68)+vec3(.12,.19,.31)*moonPath,uNight),1.);
 }`
 }));
 water.rotation.x=-Math.PI/2;scene.add(water);
@@ -117,6 +119,16 @@ qualityButton.addEventListener('click',()=>{graphicsQuality=graphicsQuality==='u
 refreshQualityButton();
 const horizon=createWastelandHorizon(THREE,scene);
 const daytimeHorizon=scene.children.find(o=>o.isGroup);
+// Lua física visível: disco circular com bordas suaves e halo aditivo.
+const moonDirection=new THREE.Vector3(.36,.24,-.90).normalize();
+const moonMaterial=new THREE.ShaderMaterial({
+ transparent:true,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending,
+ uniforms:{},
+ vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+ fragmentShader:`varying vec2 vUv;void main(){float r=length(vUv-.5)*2.;float disc=1.-smoothstep(.275,.3,r);float halo=exp(-r*r*7.)*.28+exp(-r*r*1.2)*.07;float crater=sin(vUv.x*57.)*sin(vUv.y*43.)*.035;vec3 light=vec3(.84,.91,1.)*(disc*(.9+crater)+halo);gl_FragColor=vec4(light,clamp(disc+halo,0.,1.));}`
+});
+const moonMesh=new THREE.Mesh(new THREE.PlaneGeometry(155,155),moonMaterial);
+moonMesh.visible=false;moonMesh.renderOrder=900;scene.add(moonMesh);
 const nightDome=new THREE.Mesh(new THREE.SphereGeometry(800,40,24),new THREE.ShaderMaterial({
  side:THREE.BackSide,depthWrite:false,fog:false,
  vertexShader:'varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
@@ -124,7 +136,7 @@ const nightDome=new THREE.Mesh(new THREE.SphereGeometry(800,40,24),new THREE.Sha
 }));nightDome.visible=false;scene.add(nightDome);
 function applyOceanRegion(){
  const night=mission.stage>=5;
- nightDome.visible=night;uniforms.uNight.value=night?1:0;
+ nightDome.visible=night;moonMesh.visible=night;uniforms.uNight.value=night?1:0;
  sun.intensity=night?.8:3.3;sun.color.setHex(night?0x85b9ff:0xffd99b);
  scene.background.setHex(night?0x030819:0x8db6d5);
  if(daytimeHorizon)daytimeHorizon.visible=!night;
@@ -326,8 +338,8 @@ signalData.visible=false;scene.add(signalData);
 const rewardKey='semnome.unlockedShips.v1';
 let unlockedShips={};try{unlockedShips=JSON.parse(localStorage.getItem(rewardKey)||'{}')||{}}catch{}
 const shipSelect=document.createElement('button');shipSelect.style.cssText='display:none;position:fixed;bottom:68px;left:50%;transform:translateX(-50%);z-index:95;padding:12px;background:#103c61;color:white;border:1px solid #94e8ff;border-radius:12px;font:700 12px system-ui';document.body.appendChild(shipSelect);
-function refreshShipSelect(){shipSelect.style.display=unlockedShips.signal?'block':'none';shipSelect.textContent=unlockedShips.selected==='signal'?'🚢 Nova nave equipada · Trocar':'🚢 Equipar nave Sinal Perdido';ship.scale.setScalar(unlockedShips.selected==='signal'?1.28:1.17);signalHull.visible=unlockedShips.selected==='signal';}
-shipSelect.onclick=()=>{unlockedShips.selected=unlockedShips.selected==='signal'?'original':'signal';try{localStorage.setItem(rewardKey,JSON.stringify(unlockedShips))}catch{}refreshShipSelect();};
+function refreshShipSelect(){const equipped=unlockedShips.selected==='signal';shipSelect.style.display=unlockedShips.signal&&!equipped?'block':'none';shipSelect.textContent='🚢 Equipar nave Sinal Perdido';ship.scale.setScalar(equipped?1.28:1.17);signalHull.visible=equipped;}
+shipSelect.onclick=()=>{if(!unlockedShips.signal)return;unlockedShips.selected='signal';try{localStorage.setItem(rewardKey,JSON.stringify(unlockedShips))}catch{}refreshShipSelect();notifyCombat('NOVA NAVE EQUIPADA',2);};
 refreshShipSelect();
 const signalPrompt=document.createElement('div');
 signalPrompt.style.cssText='display:none;position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:170;width:min(370px,88vw);padding:18px;background:#092d42ed;border:1px solid #75cdf7;border-radius:15px;color:#fff;text-align:center;font:600 14px system-ui';
@@ -545,7 +557,7 @@ function updateMission(dt,t){
    }
   }else if(mission.stage===8&&distance<35){
    mission.stage=9;mission.finished=true;signalData.visible=false;
-   unlockedShips.signal=true;economy.scrap+=150;saveEconomy();
+   unlockedShips.signal=true;unlockedShips.selected='signal';economy.scrap+=150;saveEconomy();
    pickupInventory.shield=Math.min(9,pickupInventory.shield+2);pickupInventory.boost=Math.min(9,pickupInventory.boost+1);updatePickupButtons();
    try{localStorage.setItem(rewardKey,JSON.stringify(unlockedShips))}catch{}
    refreshShipSelect();saveCheckpoint();notifyCombat('SINAL PERDIDO CONCLUÍDO · NAVE DESBLOQUEADA!',7);
@@ -2012,6 +2024,7 @@ for(let i=impactEffects.length-1;i>=0;i--){
 
 // A malha acompanha o jogador com fases de onda em coordenadas globais. 
 water.position.set(x,0,z);uniforms.uOffset.value.set(x,z);
+if(moonMesh.visible){moonMesh.position.set(x+moonDirection.x*650,moonDirection.y*650,z+moonDirection.z*650);moonMesh.lookAt(camera.position);}
 horizon.update(x,z,t,height);
 // Câmera de ação: afastada, baixa, horizonte aparente e horizonte estável.
 // Inclinação de observação menor do que a do protótipo anterior para evitar vista quase vertical.
