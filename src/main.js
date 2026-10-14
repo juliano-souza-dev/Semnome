@@ -126,6 +126,7 @@ function applyOceanRegion(){
  nightDome.visible=night;uniforms.uNight.value=night?1:0;
  sun.intensity=night?.8:3.3;sun.color.setHex(night?0x85b9ff:0xffd99b);
  scene.background.setHex(night?0x030819:0x8db6d5);
+ if(horizon.group)horizon.group.visible=!night;
  scene.fog.color.setHex(night?0x071529:0x759ab4);
 }
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
@@ -336,7 +337,7 @@ function beginSignal(){
  if(mission.stage!==4)return;
  signalPrompt.style.display='none';merchantPanel.style.display='none';oceanLoading.style.display='flex';
  requestAnimationFrame(()=>setTimeout(()=>{
-  mission.stage=5;mission.finished=false;mission.calmSea=false;mission.shopClosed=true;
+  mission.stage=5;mission.finished=false;mission.calmSea=false;mission.shopClosed=true;signalPrompt.style.display='none';
   x=mission.signalX-1200;z=mission.signalZ;heading=-Math.PI/2;speed=0;
   hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
   for(const e of enemies){if(e.signalEnemy)continue;e.hp=0;e.model.visible=false;}
@@ -353,7 +354,7 @@ receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
 function activateInterceptors(){
  for(const enemy of enemies){
-  if(!enemy.dormant||enemy.waveDistance)continue;
+  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.clearAreaWave!==undefined)continue;
   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
   enemy.ai.lastCombatAt=clock.elapsedTime;
@@ -422,7 +423,8 @@ function restartCheckpoint(){
  for(const d of damageLabels)d.label.remove();damageLabels.length=0;
  merchantAccess.style.display=mission.calmSea&&!mission.shopClosed?'block':'none';
  if(mission.stage===2)mission.transitionAt=t+30;
- if(mission.stage>=5){signalShip.visible=true;signalShip.position.set(mission.signalX,height(mission.signalX,mission.signalZ,t)+1,mission.signalZ);if(mission.stage===7){mission.defendUntil=t+90;activateSignalAmbush(t);}}
+ if(mission.stage===4)signalPrompt.style.display='block';
+ if(mission.stage>=5){signalShip.visible=true;signalShip.position.set(mission.signalX,height(mission.signalX,mission.signalZ,t)+1,mission.signalZ);if(mission.stage===7){mission.defendUntil=t+90;mission.allyHp=100;activateSignalAmbush(t);}}
  applyOceanRegion();
  if(mission.stage===4){merchantShip.position.set((mission.shopX??x)+55,height((mission.shopX??x)+55,(mission.shopZ??z)+35,t)+1,(mission.shopZ??z)+35);merchantShip.visible=!mission.shopClosed;}
  if(mission.stage===3){
