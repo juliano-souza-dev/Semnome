@@ -292,6 +292,13 @@ for(let i=0;i<4;i++){
  x:0,z:0,y:0,anchorX:0,anchorZ:0,heading:0,speed:8,hp:0,phase:i*.7,radius:16,
  sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true,baseEnemy:true,boss:i===3,veteran:true});
 }
+// Três emboscadas de dois NPCs na travessia de extração (750, 1500 e 2250 m).
+for(let i=0;i<6;i++){
+ const id=reinforcementId++;
+ enemies.push({id,name:'Caçador de Extração '+(i+1),x:0,z:0,y:0,anchorX:0,anchorZ:0,
+ heading:0,speed:9,hp:0,phase:i*.9,radius:17,sprite:null,nextShot:0,
+ state:'dormant',hostile:true,dormant:true,extractionWave:Math.floor(i/2)});
+}
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
@@ -312,7 +319,7 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0)};
 const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*20;
@@ -399,6 +406,25 @@ function spawnBaseForce(bossOnly,t){
   e.model.visible=true;e.model.position.set(e.x,e.y,e.z);
  });
 }
+function launchExtractionWave(wave,t){
+ const target=enemies.filter(e=>e.extractionWave===wave);
+ target.forEach((e,i)=>{
+  const bearing=heading+(i===0?-.95:.95),distance=300+i*65;
+  e.x=x-Math.sin(bearing)*distance;e.z=z-Math.cos(bearing)*distance;
+  // Reposiciona se houver estruturas entre o spawn e a área de navegação.
+  for(let tries=0;tries<6&&horizon.colliders.some(o=>Math.hypot(e.x-o.x,e.z-o.z)<o.radius+22);tries++){
+   const a=bearing+(tries+1)*.45;
+   e.x=x-Math.sin(a)*distance;e.z=z-Math.cos(a)*distance;
+  }
+  e.anchorX=e.x;e.anchorZ=e.z;e.y=height(e.x,e.z,t)+1;
+  e.previousX=e.x;e.previousZ=e.z;e.heading=Math.atan2(x-e.x,z-e.z);
+  e.maxHp=135;e.hp=e.maxHp;e.dormant=false;e.state='pursuit';
+  e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;
+  e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.intent='pursuit';
+  e.model.position.set(e.x,e.y,e.z);e.model.visible=true;
+ });
+ notifyCombat('⚠ EMBOSCADA NA EXTRAÇÃO · 2 CAÇADORES',3);
+}
 function beginBaseMission(){
  if(mission.stage!==9)return;
  mission.stage=10;mission.finished=false;mission.calmSea=false;mission.shopClosed=true;
@@ -446,7 +472,7 @@ receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
 function activateInterceptors(){
  for(const enemy of enemies){
-  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.clearAreaWave!==undefined)continue;
+  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined)continue;
   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
   enemy.ai.lastCombatAt=clock.elapsedTime;
@@ -517,6 +543,7 @@ function restartCheckpoint(){
  for(const d of damageLabels)d.label.remove();damageLabels.length=0;
  merchantAccess.style.display=mission.calmSea&&!mission.shopClosed?'block':'none';
  if(mission.stage===2)mission.transitionAt=t+30;
+ if(mission.stage===13){mission.extractionDistance=0;mission.extractionNextWave=1;mission.extractionLastX=x;mission.extractionLastZ=z;for(const e of enemies.filter(e=>e.extractionWave!==undefined)){e.hp=0;e.dormant=true;e.model.visible=false;}}
  if(mission.stage===4)signalPrompt.style.display='block';
  if(mission.stage===9)basePrompt.style.display='block';
  if(mission.stage>=10){baseStructure.visible=true;baseStructure.position.set(mission.baseX,height(mission.baseX,mission.baseZ,t),mission.baseZ);if(mission.stage===11)spawnBaseForce(false,t);if(mission.stage===12)spawnBaseForce(true,t);}
@@ -644,11 +671,25 @@ function updateMission(dt,t){
   }else if(mission.stage===12){
    const boss=enemies.find(e=>e.baseEnemy&&e.boss);
    if(boss&&boss.hp<=0&&!boss.dormant){
-    mission.stage=13;mission.finished=false;mission.extractionX=mission.baseX-720;mission.extractionZ=mission.baseZ+280;saveCheckpoint();
+    mission.stage=13;mission.finished=false;
+    // Extração longa, criando espaço para três encontros a cada 750 metros.
+    mission.extractionStartX=x;mission.extractionStartZ=z;
+    mission.extractionX=x-2400;mission.extractionZ=z+700;
+    mission.extractionDistance=0;mission.extractionNextWave=1;mission.extractionLastX=x;mission.extractionLastZ=z;
+    saveCheckpoint();
     notifyCombat('COMANDANTE DERROTADO · RETORNE AO PONTO DE EXTRAÇÃO',5);
    }
   }else if(mission.stage===13){
-   if(Math.hypot(x-mission.extractionX,z-mission.extractionZ)<50){
+   // Distância realmente navegada, não apenas proximidade do destino.
+   const moved=Math.hypot(x-(mission.extractionLastX??x),z-(mission.extractionLastZ??z));
+   mission.extractionDistance+=Math.min(120,moved);
+   mission.extractionLastX=x;mission.extractionLastZ=z;
+   while(mission.extractionNextWave<=3&&mission.extractionDistance>=mission.extractionNextWave*750){
+    launchExtractionWave(mission.extractionNextWave-1,t);
+    mission.extractionNextWave++;
+   }
+   const hunters=enemies.some(e=>e.extractionWave!==undefined&&e.hp>0);
+   if(Math.hypot(x-mission.extractionX,z-mission.extractionZ)<50&&!hunters&&mission.extractionNextWave>3){
     mission.stage=14;mission.finished=true;economy.scrap+=300;saveEconomy();saveCheckpoint();
     notifyCombat('OPERAÇÃO CONCLUÍDA · +300 SUCATA · RETORNO SEGURO',6);
    }
@@ -700,7 +741,7 @@ function updateMission(dt,t){
   mission.stage===10?'🛰 RECONHECIMENTO · '+Math.floor(mission.recon)+'/12s':
   mission.stage===11?'⚔ TORRES '+mission.baseHits+'/5 · SENTINELAS '+mission.defensesDown+'/3':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
-  mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m':'✅ OPERAÇÃO CONCLUÍDA';
+  mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
 }
 
 function discardEnemyShot(shot){
