@@ -189,11 +189,12 @@ npcData.hp=COMBAT.npcMaxHp;
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
 const FLEET_SIZE=6;
 const enemies=[npcData];
+npcData.x=-360;npcData.z=-190;npcData.anchorX=npcData.x;npcData.anchorZ=npcData.z;
 npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';npcData.hostile=true;
 for(let i=1;i<FLEET_SIZE;i++){
- const sector=i-1,angle=(sector+.32*(sector%2))*Math.PI*2/(FLEET_SIZE-1);
- const radius=230+(sector%3)*115;
- const spawnX=Math.sin(angle)*radius,spawnZ=-150+Math.cos(angle)*radius;
+ const positions=[[-360,-190],[355,-260],[-245,-525],[310,-690],[-150,-880],[420,-975]];
+ const [spawnX,spawnZ]=positions[i];
+ const angle=Math.atan2(-spawnX,-spawnZ);
  enemies.push({id:i+1,name:'Patrulheiro '+String(i+1).padStart(2,'0'),
   x:spawnX,z:spawnZ,y:0,
   anchorX:spawnX,anchorZ:spawnZ,
@@ -226,6 +227,12 @@ const cargoBox=new THREE.Mesh(new THREE.BoxGeometry(14,8,11),new THREE.MeshStand
 const cargoBands=new THREE.Mesh(new THREE.BoxGeometry(15,1.3,12),new THREE.MeshStandardMaterial({color:0x172e3a,metalness:.65,roughness:.3}));
 cargo.add(cargoBox,cargoBands);scene.add(cargo);
 const cargoBeacon=new THREE.PointLight(0x48f3ff,3,85);cargoBeacon.position.y=12;cargo.add(cargoBeacon);
+const missionOverlay=document.createElement('div');
+missionOverlay.id='missionOverlay';
+missionOverlay.style.cssText='display:none;position:fixed;inset:0;z-index:220;background:#061523e8;align-items:center;justify-content:center;color:white;font-family:system-ui;text-align:center;padding:20px';
+missionOverlay.innerHTML='<div style="max-width:420px;background:#102d44;border:2px solid #ff7575;border-radius:18px;padding:28px"><h2 style="margin:0 0 12px">MISSÃO FRACASSADA</h2><p>Sua nave foi destruída antes de recuperar a carga.</p><button id="retryMission" style="background:#ffd262;color:#10202c;border:0;border-radius:12px;padding:14px 24px;font-weight:800;font-size:17px;cursor:pointer">↻ Tentar novamente</button></div>';
+document.body.appendChild(missionOverlay);
+missionOverlay.querySelector('#retryMission').addEventListener('click',()=>location.reload());
 const missionHud=document.createElement('div');missionHud.id='missionHud';
 missionHud.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:87;pointer-events:none;background:#0b223bdd;border:1px solid #5db8d2;border-radius:10px;padding:9px 14px;color:#fff;font:600 13px system-ui;text-align:center;max-width:58vw;text-shadow:0 1px 2px #000';
 document.body.appendChild(missionHud);
@@ -239,7 +246,7 @@ function updateMission(dt,t){
  missionMarker.visible=!mission.finished&&!mission.failed;
  missionMarker.position.set(cargoX,height(cargoX,cargoZ,t)+24+Math.sin(t*2)*2,cargoZ);
  if(!mission.finished&&!mission.failed){
-  if(playerCombat.hp<=0){mission.failed=true;notifyCombat('MISSÃO FRACASSADA · NAVE DESTRUÍDA',9);}
+  if(playerCombat.hp<=0){mission.failed=true;missionOverlay.style.display='flex';notifyCombat('MISSÃO FRACASSADA · NAVE DESTRUÍDA',9);}
   else if(distance<18){mission.finished=true;notifyCombat('CARGA RECUPERADA · MISSÃO CONCLUÍDA!',12);}
  }
  missionHud.textContent=mission.finished?'✅ CARGA RECUPERADA · VITÓRIA':mission.failed?'❌ MISSÃO FRACASSADA · REINICIE A PARTIDA':'📦 RECUPERE A CARGA · '+Math.round(distance)+' m · SOB PERSEGUIÇÃO';
@@ -930,7 +937,7 @@ for(const enemy of enemies){
   // sem teleporte e sem acerto automático.
   if(!mission.finished&&!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
-   if(distance<1250&&ai.plan.intent!=='withdraw'){
+   if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
      speed:Math.max(ai.plan.speed,Math.min(43,29+distance*.016)),
      state:distance<325?'attack':'pursuit',intent:'pursuit'};
@@ -1276,20 +1283,9 @@ for(let i=enemyShots.length-1;i>=0;i--){
  }
 }
 if(playerCombat.hp<=0){
- if(playerCombat.respawnAt===0)playerCombat.respawnAt=t+3;
- if(t>=playerCombat.respawnAt){
-  playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;
-  ship.visible=true;
-  playerCombat.invulnerableUntil=t+3;
-  notifyCombat('NAVE REPARADA · RETORNO AO COMBATE',1.8);
-  // Renascimento local: não teletransportar o jogador para a origem do mapa.
-  // Preserva a posição e o HP de todos os NPCs, evitando o salto de câmera/frota.
-  speed=0;boostUntil=0;boostReadyAt=0;
-  hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
-  cancelAreaAim();
-  for(const shot of enemyShots)discardEnemyShot(shot);
-  enemyShots.length=0;
- }
+ // Sem respawn automático: derrota exige nova tentativa.
+ playerCombat.respawnAt=0;ship.visible=false;
+ hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostUntil=0;
 }
 // Indicadores de dano seguem o inimigo na tela e desaparecem suavemente.
 for(let i=damageLabels.length-1;i>=0;i--){
