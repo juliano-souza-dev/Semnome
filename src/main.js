@@ -798,12 +798,12 @@ function updateRepairKits(now){
   kit.mesh.position.set(kit.x,height(kit.x,kit.z,now)+3+Math.sin(now*2+kit.phase)*.7,kit.z);
   kit.mesh.rotation.y+=.014;
   let collector=null,bestDistance=REPAIR.radius;
-  if(playerCombat.hp>0&&playerCombat.hp<ENEMY_AI.maxHp){
+  if(playerCombat.hp>0&&playerCombat.hp<playerMaxHp()){
    const distance=Math.hypot(x-kit.x,z-kit.z);
    if(distance<bestDistance){bestDistance=distance;collector=playerCombat;}
   }
   if(collector){
-   collector.hp=Math.min(ENEMY_AI.maxHp,collector.hp+REPAIR.amount);
+   collector.hp=Math.min(playerMaxHp(),collector.hp+REPAIR.amount);
    notifyCombat('KIT DE REPARO +'+REPAIR.amount+' HP',2);
   }
   if(collector||now>=kit.expires){scene.remove(kit.mesh);repairKits.splice(i,1);}
@@ -857,9 +857,9 @@ function updateHealZones(dt,t){
  }
  if(inside)healZoneUntil=t+20;
  const healingActive=t<healZoneUntil&&playerCombat.hp>0&&!mission.failed;
- if(healingActive&&playerCombat.hp<ENEMY_AI.maxHp){
+ if(healingActive&&playerCombat.hp<playerMaxHp()){
   healZoneFraction+=dt*HEAL_ZONE_RATE;
-  const healing=Math.min(ENEMY_AI.maxHp-playerCombat.hp,Math.floor(healZoneFraction));
+  const healing=Math.min(playerMaxHp()-playerCombat.hp,Math.floor(healZoneFraction));
   if(healing>0){playerCombat.hp+=healing;healZoneFraction-=healing;}
   if(t>=healZoneNoticeAt){notifyCombat(inside?'ÁREA DE REPARO · +1 HP/s':'REPARO RESIDUAL · +1 HP/s',1);healZoneNoticeAt=t+5;}
  }else if(!healingActive)healZoneFraction=0;
