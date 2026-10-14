@@ -201,6 +201,14 @@ for(let i=1;i<FLEET_SIZE;i++){
   heading:angle,speed:4+(i%4)*1.4,hp:COMBAT.npcMaxHp,phase:i*.87,radius:16+i%3*6,sprite:null,nextShot:2+i*.45,state:'patrol',hostile:true});
 }
 
+ // Reforços da etapa 2: pré-instanciados, mas inativos até a carga ser recolhida.
+const reinforcementPositions=[[710,-1220],[1020,-860],[1390,-1270],[1740,-870],[2160,-1200],[2640,-980]];
+for(let i=0;i<reinforcementPositions.length;i++){
+ const [sx,sz]=reinforcementPositions[i];
+ enemies.push({id:FLEET_SIZE+i+1,name:'Interceptador '+String(i+1).padStart(2,'0'),
+  x:sx,z:sz,y:0,anchorX:sx,anchorZ:sz,heading:-Math.PI/2,speed:7,
+  hp:0,phase:i*.65,radius:17,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true});
+}
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
@@ -221,7 +229,19 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,finished:false,failed:false};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false};
+const receiver=createWarMachine3D(THREE,{enemy:false});
+receiver.position.set(mission.deliveryX,0,mission.deliveryZ);
+receiver.rotation.y=Math.PI/2;receiver.visible=false;
+scene.add(receiver);
+function activateInterceptors(){
+ for(const enemy of enemies){
+  if(!enemy.dormant)continue;
+  enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
+  enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
+  enemy.ai.lastCombatAt=clock.elapsedTime;
+ }
+}
 const cargo=new THREE.Group();
 const cargoBox=new THREE.Mesh(new THREE.BoxGeometry(14,8,11),new THREE.MeshStandardMaterial({color:0xd3a348,metalness:.5,roughness:.42}));
 const cargoBands=new THREE.Mesh(new THREE.BoxGeometry(15,1.3,12),new THREE.MeshStandardMaterial({color:0x172e3a,metalness:.65,roughness:.3}));
@@ -239,18 +259,38 @@ document.body.appendChild(missionHud);
 const missionMarker=new THREE.Mesh(new THREE.ConeGeometry(5,13,6),new THREE.MeshBasicMaterial({color:0xffe57e,transparent:true,opacity:.9}));
 missionMarker.rotation.x=Math.PI;scene.add(missionMarker);
 function updateMission(dt,t){
- const {cargoX,cargoZ}=mission;
- cargo.position.set(cargoX,height(cargoX,cargoZ,t)+4,cargoZ);
- cargo.rotation.y=Math.sin(t*.6)*.04;
- const distance=Math.hypot(x-cargoX,z-cargoZ);
- missionMarker.visible=!mission.finished&&!mission.failed;
- missionMarker.position.set(cargoX,height(cargoX,cargoZ,t)+24+Math.sin(t*2)*2,cargoZ);
- if(!mission.finished&&!mission.failed){
-  if(playerCombat.hp<=0){mission.failed=true;missionOverlay.style.display='flex';notifyCombat('MISSÃO FRACASSADA · NAVE DESTRUÍDA',9);}
-  else if(distance<18){mission.finished=true;notifyCombat('CARGA RECUPERADA · MISSÃO CONCLUÍDA!',12);}
+ const {cargoX,cargoZ,deliveryX,deliveryZ}=mission;
+ cargo.visible=mission.stage===0;
+ if(mission.stage===0){
+  cargo.position.set(cargoX,height(cargoX,cargoZ,t)+4,cargoZ);
+  cargo.rotation.y=Math.sin(t*.6)*.04;
  }
- missionHud.textContent=mission.finished?'✅ CARGA RECUPERADA · VITÓRIA':mission.failed?'❌ MISSÃO FRACASSADA · REINICIE A PARTIDA':'📦 RECUPERE A CARGA · '+Math.round(distance)+' m · SOB PERSEGUIÇÃO';
+ receiver.visible=mission.stage===1||mission.finished;
+ if(receiver.visible)receiver.position.y=height(deliveryX,deliveryZ,t)+1;
+ const targetX=mission.stage===0?cargoX:deliveryX;
+ const targetZ=mission.stage===0?cargoZ:deliveryZ;
+ const distance=Math.hypot(x-targetX,z-targetZ);
+ missionMarker.visible=!mission.finished&&!mission.failed;
+ missionMarker.position.set(targetX,height(targetX,targetZ,t)+24+Math.sin(t*2)*2,targetZ);
+ if(!mission.finished&&!mission.failed){
+  if(playerCombat.hp<=0){
+   mission.failed=true;missionOverlay.style.display='flex';
+   notifyCombat('MISSÃO FRACASSADA · NAVE DESTRUÍDA',9);
+  }else if(mission.stage===0&&distance<18){
+   mission.stage=1;cargo.visible=false;receiver.visible=true;
+   activateInterceptors();
+   notifyCombat('CARGA RECUPERADA · ENTREGUE À NAVE ALIADA · REFORÇOS INIMIGOS!',6);
+  }else if(mission.stage===1&&distance<35){
+   mission.finished=true;
+   notifyCombat('CARGA ENTREGUE · MISSÃO CONCLUÍDA!',12);
+  }
+ }
+ missionHud.textContent=mission.finished?'✅ CARGA ENTREGUE · VITÓRIA':
+  mission.failed?'❌ MISSÃO FRACASSADA · TENTAR NOVAMENTE':
+  mission.stage===0?'📦 RECUPERE A CARGA · '+Math.round(distance)+' m':
+  '🚢 ENTREGUE A CARGA · '+Math.round(distance)+' m · 6 INTERCEPTADORES';
 }
+
 function discardEnemyShot(shot){
  scene.remove(shot.mesh,shot.trail);
  shot.trail.geometry.dispose();
