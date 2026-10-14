@@ -117,7 +117,7 @@ qualityButton.addEventListener('click',()=>{graphicsQuality=graphicsQuality==='u
 refreshQualityButton();
 const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
-const ship=createWarMachine3D(THREE);ship.scale.multiplyScalar(1.05);scene.add(ship);
+const ship=createWarMachine3D(THREE);ship.scale.multiplyScalar(1.17);scene.add(ship);
 // Nave original do Semnome restaurada. GLBs experimentais preservados em assets, mas não carregados.
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(5.8,32),new THREE.MeshBasicMaterial({color:0x062836,transparent:true,opacity:.22,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.12;scene.add(shadow);
 // Esteira arcade: geometria compartilhada, instâncias recicladas, nenhuma alocação por frame.
@@ -515,7 +515,10 @@ const healZones=healZonePositions.map(([zx,zz],index)=>{
  scene.add(base);
  return {x:zx,z:zz,base,sparks,index};
 });
-let healZoneFraction=0,healZoneNoticeAt=0;
+const healPlayerPlus=new THREE.Group();
+for(let i=0;i<8;i++){const plus=new THREE.Group();plus.add(new THREE.Mesh(plusBarV,plusMaterial),new THREE.Mesh(plusBarH,plusMaterial));healPlayerPlus.add(plus)}
+healPlayerPlus.visible=false;scene.add(healPlayerPlus);
+let healZoneFraction=0,healZoneNoticeAt=0,healZoneUntil=0;
 function updateHealZones(dt,t){
  let inside=false;
  for(const zone of healZones){
@@ -530,12 +533,16 @@ function updateHealZones(dt,t){
   }
   if(Math.hypot(x-zone.x,z-zone.z)<=HEAL_ZONE_RADIUS)inside=true;
  }
- if(inside&&playerCombat.hp>0&&playerCombat.hp<ENEMY_AI.maxHp&&!mission.failed){
+ if(inside)healZoneUntil=t+20;
+ const healingActive=t<healZoneUntil&&playerCombat.hp>0&&!mission.failed;
+ if(healingActive&&playerCombat.hp<ENEMY_AI.maxHp){
   healZoneFraction+=dt*HEAL_ZONE_RATE;
   const healing=Math.min(ENEMY_AI.maxHp-playerCombat.hp,Math.floor(healZoneFraction));
   if(healing>0){playerCombat.hp+=healing;healZoneFraction-=healing;}
-  if(t>=healZoneNoticeAt){notifyCombat('ÁREA DE REPARO · +1 HP/s',1.1);healZoneNoticeAt=t+3;}
- }else healZoneFraction=0;
+  if(t>=healZoneNoticeAt){notifyCombat(inside?'ÁREA DE REPARO · +1 HP/s':'REPARO RESIDUAL · +1 HP/s',1);healZoneNoticeAt=t+5;}
+ }else if(!healingActive)healZoneFraction=0;
+ healPlayerPlus.visible=healingActive;
+ if(healingActive){healPlayerPlus.position.set(x,height(x,z,t)+2,z);for(let i=0;i<healPlayerPlus.children.length;i++){const p=healPlayerPlus.children[i],u=(t*.52+i/8)%1;p.position.set(Math.cos(i*2.4)*5,2+u*11,Math.sin(i*2.4)*5);p.quaternion.copy(camera.quaternion);p.scale.setScalar(.65*(1-u*.4));}}
 }
 // Drops especiais luminosos: coluna translúcida + item flutuante, sem luzes dinâmicas.
 const specialDrops=[],DROP_INTERVAL=26,DROP_LIFE=90,DROP_MAX=4;
@@ -648,7 +655,7 @@ function refreshPlayerHealth(){
  // sempre horizontal e separado da simulação física.
  hpHud.style.display=playerCombat.hp>0?'flex':'none';
  hpHud.style.left='50%';
- hpHud.style.top='66%';
+ hpHud.style.top='78%';
  const bounds=hpHud.getBoundingClientRect();
  boostMeter.style.left=bounds.left+'px';
  boostMeter.style.top=(bounds.bottom+5)+'px';
@@ -662,6 +669,10 @@ function refreshPlayerHealth(){
  const compass=document.createElement('div');compass.id='combatCompass';
  compass.innerHTML='<div class="compassTrack"><span class="compassCenter">▼</span></div><div class="compassReadout">LOCALIZANDO HOSTIS</div>';
  document.getElementById('ui').appendChild(compass);
+ const objectivePing=document.createElement('span');
+ objectivePing.style.cssText='position:absolute;top:-7px;color:#ffe066;font-weight:900;font-size:20px;text-shadow:0 0 10px #ffa900';
+ objectivePing.textContent='◆';objectivePing.title='Destino da missão';
+ compass.querySelector('.compassTrack').appendChild(objectivePing);
  const compassTrack=compass.querySelector('.compassTrack');
  const compassReadout=compass.querySelector('.compassReadout');
  const compassPings=enemies.map(enemy=>{
@@ -673,6 +684,9 @@ function refreshPlayerHealth(){
  const threatStatus=document.createElement('div');threatStatus.id='threatStatus';threatStatus.setAttribute('aria-live','off');compass.appendChild(threatStatus);
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
+  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:null;
+  objectivePing.style.display=goal?'block':'none';
+  if(goal){const bearing=Math.atan2(-(goal.x-x),-(goal.z-z));const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));objectivePing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';objectivePing.textContent=Math.abs(delta)>Math.PI*.75?'◀':'◆';}
   let nearestEnemy=null,nearestRange=Infinity,activeThreats=0,shooters=0;
   for(let i=0;i<enemies.length;i++){
    const enemy=enemies[i],marker=compassPings[i];
@@ -1850,7 +1864,7 @@ if(orbitPointer===null&&t>=orbitManualUntil&&lockedNpc&&lockedNpc.hp>0&&playerCo
 // Enquadramento inspirado na referência: perspectiva baixa, horizonte visível
 // e bastante mar à frente. A nave ocupa o terço inferior da imagem.
 // Orientação permanece fixa no mundo, sem seguir a rotação do casco.
-camera.position.set(x+Math.sin(orbitYaw)*29,16,z+Math.cos(orbitYaw)*29);
+camera.position.set(x+Math.sin(orbitYaw)*25,14,z+Math.cos(orbitYaw)*25);
 camTarget.set(x-Math.sin(orbitYaw)*44,4,z-Math.cos(orbitYaw)*44);
 camera.lookAt(camTarget);
 cameraReady=true;
