@@ -346,6 +346,14 @@ const hpHud=document.createElement('div');hpHud.id='playerHealthBar';hpHud.setAt
 const hpFill=document.createElement('div');hpFill.id='playerHealthFill';
 const hpValue=document.createElement('span');hpValue.id='playerHealthValue';
 hpHud.append(hpFill,hpValue);document.body.appendChild(hpHud);
+const boostMeter=document.createElement('div');
+boostMeter.id='boostMeter';boostMeter.setAttribute('role','progressbar');
+boostMeter.setAttribute('aria-label','Energia do propulsor');
+boostMeter.setAttribute('aria-valuemin','0');boostMeter.setAttribute('aria-valuemax','100');
+boostMeter.style.cssText='position:fixed;z-index:20;height:7px;overflow:hidden;border-radius:5px;border:1px solid #b58e25;background:#29251c;pointer-events:none;box-sizing:border-box';
+const boostFill=document.createElement('div');
+boostFill.style.cssText='height:100%;width:100%;background:linear-gradient(90deg,#ffa700,#ffe95b);box-shadow:0 0 5px #ffca40';
+boostMeter.appendChild(boostFill);document.body.appendChild(boostMeter);
 function refreshPlayerHealth(){
  const percent=THREE.MathUtils.clamp(playerCombat.hp/ENEMY_AI.maxHp,0,1);
  hpFill.style.width=(percent*100).toFixed(1)+'%';
@@ -358,6 +366,14 @@ function refreshPlayerHealth(){
  hpHud.style.display=playerCombat.hp>0?'flex':'none';
  hpHud.style.left='50%';
  hpHud.style.top='66%';
+ const bounds=hpHud.getBoundingClientRect();
+ boostMeter.style.left=bounds.left+'px';
+ boostMeter.style.top=(bounds.bottom+5)+'px';
+ boostMeter.style.width=bounds.width+'px';
+ boostMeter.style.display=playerCombat.hp>0?'block':'none';
+ const charge=THREE.MathUtils.clamp(boostEnergy,0,1);
+ boostFill.style.width=(charge*100).toFixed(1)+'%';
+ boostMeter.setAttribute('aria-valuenow',String(Math.round(charge*100)));
 }
  // Bússola de combate: pings persistentes para toda a frota, inclusive fora do campo de visão.
  const compass=document.createElement('div');compass.id='combatCompass';
@@ -710,16 +726,13 @@ let speed=0,heading=0,x=0,z=0,bob=0;
 const hullPhysics={x:0,z:0,vx:0,vz:0};
 // Propulsor de evasão: arrancada curta, totalmente dirigível, com recarga própria.
 const boostButton=document.getElementById('boost');
-let boostUntil=0,boostReadyAt=0;
+let boostEnergy=1,boostActive=false;
 const BOOST_DASH_SPEED=105;
-const BOOST_DASH_DURATION=.85,BOOST_COOLDOWN=4;
+const BOOST_RECHARGE_SECONDS=45,BOOST_BURN_SECONDS=6;
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
- if(playerCombat.hp<=0||clock.elapsedTime<boostReadyAt)return;
- boostUntil=clock.elapsedTime+BOOST_DASH_DURATION;
- audio.play('boost');
- boostReadyAt=clock.elapsedTime+BOOST_COOLDOWN;
- // A direção não é travada: analógico e teclado permanecem ativos.
+ if(playerCombat.hp<=0||boostActive||boostEnergy<1)return;
+ boostActive=true;audio.play('boost');
  boostButton.classList.add('active');
 });
 // Minas aquáticas colocadas pelo jogador. NPCs não recebem percepção delas.
@@ -830,11 +843,16 @@ const padY=input.active&&Math.abs(input.y)>deadZone?Math.sign(input.y)*(Math.abs
 const throttle=THREE.MathUtils.clamp((keyboardForward?1:0)-(keyboardBack?1:0)-padY,-1,1);
 const steering=THREE.MathUtils.clamp(keySteer+padX,-1,1);
 const target=throttle>0?42*throttle:throttle<0?19*throttle:0;
-const boostRemaining=Math.max(0,boostUntil-t);
-boostButton.classList.toggle('active',boostRemaining>0);
-const boostCooldown=Math.max(0,boostReadyAt-t);
-boostButton.textContent=boostRemaining>0?'🚀 ESQUIVA':boostCooldown>0?'🚀 '+boostCooldown.toFixed(1)+'s':'🚀 PROPULSOR';
-boostButton.disabled=boostCooldown>0||playerCombat.hp<=0;
+if(boostActive){
+ boostEnergy=Math.max(0,boostEnergy-dt/BOOST_BURN_SECONDS);
+ if(boostEnergy<=0)boostActive=false;
+}else if(boostEnergy<1){
+ boostEnergy=Math.min(1,boostEnergy+dt/BOOST_RECHARGE_SECONDS);
+}
+const boostRemaining=boostActive?1:0;
+boostButton.classList.toggle('active',boostActive);
+boostButton.textContent=boostActive?'🚀 PROPULSOR ATIVO':boostEnergy<1?'🚀 '+Math.round(boostEnergy*100)+'%':'🚀 PROPULSOR';
+boostButton.disabled=boostEnergy<1||boostActive||playerCombat.hp<=0;
 // Corrige direção: arrastar o dedo para a direita gira a proa à direita.
 // Giro possível parado, mais responsivo em velocidade e durante o BOOST.
 if(playerCombat.hp>0){
@@ -881,7 +899,7 @@ if(playerCombat.hp>0){
   x=first.x+hitNX*contactRadius;z=first.z+hitNZ*contactRadius;
   const impactSpeed=Math.max(Math.hypot(hullPhysics.vx,hullPhysics.vz),Math.hypot(vx,vz)/Math.max(dt,.001));
   hullPhysics.x=x;hullPhysics.z=z;
-  hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostUntil=0;
+  hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostActive=false;
   // Construções são obstáculos sólidos, mas não retiram vida do jogador.
   // Somente resíduos flutuantes mantêm dano de impacto.
   if(first.kind==='debris'&&t>=playerCombat.invulnerableUntil&&impactSpeed>2){
@@ -893,7 +911,7 @@ if(playerCombat.hp>0){
    notifyCombat((first.kind==='building'?'COLISÃO COM ESTRUTURA':'COLISÃO COM DESTROÇOS')+' · -'+damage,1);
    if(playerCombat.hp===0){
     playerCombat.deathX=x;playerCombat.deathZ=z;playerCombat.deathHeading=heading;
-    playerCombat.respawnAt=t+3;speed=0;boostUntil=0;
+    playerCombat.respawnAt=t+3;speed=0;boostActive=false;
     hullPhysics.vx=0;hullPhysics.vz=0;ship.visible=false;cancelAreaAim();
     for(let burst=0;burst<6;burst++)energyFlash(new THREE.Vector3(x+(Math.random()-.5)*7,bob+2+Math.random()*5,z+(Math.random()-.5)*7));
     notifyCombat('NAVE DESTRUÍDA · RETORNO EM 3s',3);
@@ -1310,7 +1328,7 @@ for(let i=enemyShots.length-1;i>=0;i--){
   audio.play('impact');
   if(playerCombat.hp<=0){
    playerCombat.deathX=x;playerCombat.deathZ=z;playerCombat.deathHeading=heading;
-   playerCombat.respawnAt=t+3;speed=0;boostUntil=0;
+   playerCombat.respawnAt=t+3;speed=0;boostActive=false;
    hullPhysics.vx=0;hullPhysics.vz=0;
    ship.visible=false;cancelAreaAim();
    for(let burst=0;burst<6;burst++)energyFlash(new THREE.Vector3(x+(Math.random()-.5)*7,bob+2+Math.random()*5,z+(Math.random()-.5)*7));
@@ -1325,7 +1343,7 @@ for(let i=enemyShots.length-1;i>=0;i--){
 if(playerCombat.hp<=0){
  // Sem respawn automático: derrota exige nova tentativa.
  playerCombat.respawnAt=0;ship.visible=false;
- hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostUntil=0;
+ hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostActive=false;
 }
 // Indicadores de dano seguem o inimigo na tela e desaparecem suavemente.
 for(let i=damageLabels.length-1;i>=0;i--){
