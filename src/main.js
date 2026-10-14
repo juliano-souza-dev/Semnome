@@ -543,7 +543,21 @@ function restartCheckpoint(){
  for(const d of damageLabels)d.label.remove();damageLabels.length=0;
  merchantAccess.style.display=mission.calmSea&&!mission.shopClosed?'block':'none';
  if(mission.stage===2)mission.transitionAt=t+30;
- if(mission.stage===13){mission.extractionDistance=0;mission.extractionNextWave=1;mission.extractionLastX=x;mission.extractionLastZ=z;for(const e of enemies.filter(e=>e.extractionWave!==undefined)){e.hp=0;e.dormant=true;e.model.visible=false;}}
+ if(mission.stage===13){
+  // Checkpoints antigos (extração de ~770 m) não têm rota nem gatilhos válidos.
+  const startValid=Number.isFinite(mission.extractionStartX)&&Number.isFinite(mission.extractionStartZ);
+  const routeLen=startValid?Math.hypot(mission.extractionX-mission.extractionStartX,mission.extractionZ-mission.extractionStartZ):0;
+  if(routeLen<2300||routeLen>2800){
+   mission.extractionStartX=x;mission.extractionStartZ=z;
+   mission.extractionX=x-2450;mission.extractionZ=z+650;
+   mission.extractionDistance=0;mission.extractionNextWave=1;
+   saveCheckpoint();
+  }
+  mission.extractionLastX=x;mission.extractionLastZ=z;
+  // Checkpoint de extração sempre reinicia o encontro; inimigos não são herdados de partidas anteriores.
+  for(const e of enemies.filter(e=>e.extractionWave!==undefined)){e.hp=0;e.dormant=true;e.model.visible=false;}
+  mission.extractionDistance=0;mission.extractionNextWave=1;
+ }
  if(mission.stage===4)signalPrompt.style.display='block';
  if(mission.stage===9)basePrompt.style.display='block';
  if(mission.stage>=10){baseStructure.visible=true;baseStructure.position.set(mission.baseX,height(mission.baseX,mission.baseZ,t),mission.baseZ);if(mission.stage===11)spawnBaseForce(false,t);if(mission.stage===12)spawnBaseForce(true,t);}
@@ -674,7 +688,7 @@ function updateMission(dt,t){
     mission.stage=13;mission.finished=false;
     // Extração longa, criando espaço para três encontros a cada 750 metros.
     mission.extractionStartX=x;mission.extractionStartZ=z;
-    mission.extractionX=x-2400;mission.extractionZ=z+700;
+    mission.extractionX=x-2450;mission.extractionZ=z+650;
     mission.extractionDistance=0;mission.extractionNextWave=1;mission.extractionLastX=x;mission.extractionLastZ=z;
     saveCheckpoint();
     notifyCombat('COMANDANTE DERROTADO · RETORNE AO PONTO DE EXTRAÇÃO',5);
@@ -743,7 +757,7 @@ function updateMission(dt,t){
   mission.stage===10?'🛰 RECONHECIMENTO · '+Math.floor(mission.recon)+'/12s':
   mission.stage===11?'⚔ TORRES '+mission.baseHits+'/5 · SENTINELAS '+mission.defensesDown+'/3':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
-  mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m · '+Math.floor(mission.extractionDistance||0)+'m PERCORRIDOS · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
+  mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m RESTANTES · '+Math.floor(mission.extractionDistance||0)+'m NA ROTA · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
 }
 
 function discardEnemyShot(shot){
