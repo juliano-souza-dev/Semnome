@@ -333,13 +333,13 @@ function discardEnemyShot(shot){
  if(shot.warning){scene.remove(shot.warning);shot.warning.geometry.dispose();shot.warning.material.dispose();}
 }
 // Kits flutuantes disputados por todas as naves. Geometrias compartilhadas.
-const REPAIR={interval:19,amount:25,max:5,lifetime:65,radius:11};
+const REPAIR={interval:9.5,amount:25,max:10,lifetime:65,radius:11};
 const repairKits=[];
 const repairGeometry=new THREE.OctahedronGeometry(3.4,0);
 const repairMaterial=new THREE.MeshBasicMaterial({color:0x42ff91});
 const repairRingGeometry=new THREE.TorusGeometry(5.5,.55,6,16);
 const repairRingMaterial=new THREE.MeshBasicMaterial({color:0xd6ffdf,transparent:true,opacity:.85});
-let nextRepairSpawn=7;
+let nextRepairSpawn=3.5;
 function spawnRepairKit(now){
  if(repairKits.length>=REPAIR.max)return;
  for(let attempt=0;attempt<14;attempt++){
@@ -370,6 +370,56 @@ function updateRepairKits(now){
   }
   if(collector||now>=kit.expires){scene.remove(kit.mesh);repairKits.splice(i,1);}
  }
+}
+// Zonas verdes de reparo: 1 HP por segundo, apenas enquanto o casco estiver sobre a área.
+// Geometrias e materiais compartilhados para reduzir custo no celular.
+const HEAL_ZONE_RADIUS=46,HEAL_ZONE_RATE=1;
+const healZoneGeometry=new THREE.CircleGeometry(HEAL_ZONE_RADIUS,32);
+const healZoneMaterial=new THREE.MeshBasicMaterial({color:0x28f16c,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide});
+const healRimGeometry=new THREE.RingGeometry(HEAL_ZONE_RADIUS-2,HEAL_ZONE_RADIUS,36);
+const healRimMaterial=new THREE.MeshBasicMaterial({color:0x50ff8f,transparent:true,opacity:.72,depthWrite:false,side:THREE.DoubleSide});
+const plusMaterial=new THREE.MeshBasicMaterial({color:0x8dffab,transparent:true,opacity:.84,depthWrite:false,side:THREE.DoubleSide});
+const plusBarV=new THREE.PlaneGeometry(1.2,5);
+const plusBarH=new THREE.PlaneGeometry(5,1.2);
+const healZonePositions=[
+ [95,-310],[-100,-760],[430,-1150],[950,-950],
+ [1500,-1160],[2080,-890],[2710,-1210],[2950,-1010]
+];
+const healZones=healZonePositions.map(([zx,zz],index)=>{
+ const base=new THREE.Group(),disc=new THREE.Mesh(healZoneGeometry,healZoneMaterial);
+ disc.rotation.x=-Math.PI/2;base.add(disc);
+ const rim=new THREE.Mesh(healRimGeometry,healRimMaterial);
+ rim.rotation.x=-Math.PI/2;rim.position.y=.12;base.add(rim);
+ const sparks=[];
+ for(let k=0;k<4;k++){
+  const spark=new THREE.Group();
+  spark.add(new THREE.Mesh(plusBarV,plusMaterial),new THREE.Mesh(plusBarH,plusMaterial));
+  base.add(spark);sparks.push(spark);
+ }
+ scene.add(base);
+ return {x:zx,z:zz,base,sparks,index};
+});
+let healZoneFraction=0,healZoneNoticeAt=0;
+function updateHealZones(dt,t){
+ let inside=false;
+ for(const zone of healZones){
+  const elevation=height(zone.x,zone.z,t);
+  zone.base.position.set(zone.x,elevation+.25,zone.z);
+  for(let k=0;k<zone.sparks.length;k++){
+   const spark=zone.sparks[k],p=(t*.19+k*.25+zone.index*.17)%1;
+   const angle=k*Math.PI*.5+zone.index*.7;
+   spark.position.set(Math.cos(angle)*(14+k*5),3+p*14,Math.sin(angle)*(14+k*5));
+   spark.quaternion.copy(camera.quaternion);
+   spark.scale.setScalar(.7+(1-p)*.55);
+  }
+  if(Math.hypot(x-zone.x,z-zone.z)<=HEAL_ZONE_RADIUS)inside=true;
+ }
+ if(inside&&playerCombat.hp>0&&playerCombat.hp<ENEMY_AI.maxHp&&!mission.failed){
+  healZoneFraction+=dt*HEAL_ZONE_RATE;
+  const healing=Math.min(ENEMY_AI.maxHp-playerCombat.hp,Math.floor(healZoneFraction));
+  if(healing>0){playerCombat.hp+=healing;healZoneFraction-=healing;}
+  if(t>=healZoneNoticeAt){notifyCombat('ÁREA DE REPARO · +1 HP/s',1.1);healZoneNoticeAt=t+3;}
+ }else healZoneFraction=0;
 }
 let threatShotCount=0;
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
@@ -1622,6 +1672,7 @@ if(attackCamera.phase==='flight'&&attackCamera.shot){
 attackCamera.shake=0;
 areaAim.viewBlend=0;
 updateRepairKits(t);
+updateHealZones(dt,t);
 updateMines(t);
 updateMission(dt,t);
 refreshPlayerHealth();
