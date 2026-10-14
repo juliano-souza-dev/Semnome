@@ -222,7 +222,7 @@ const playerSprite={visible:false};
 // Alcance do jogador ampliado cerca de 20% para manter a perseguição aos NPCs viável.
 // IA inimiga, recargas, danos e velocidades de projétil permanecem iguais.
 const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
-const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},scatter:{range:270,cooldown:3.5,damage:24,impact:20},energyBomb:{range:370,cooldown:300,damage:650,impact:25}});
+const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},scatter:{range:270,cooldown:3.5,damage:24,impact:20},energyBomb:{range:370,cooldown:300,damage:0,impact:25}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
@@ -1042,7 +1042,7 @@ const AMMO_TYPES=[
  {id:'scatter',name:'Rajada de Energia',icon:'✨',description:'Três impactos rápidos em área',color:0xbc80ff},
  {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
  {id:'torpedo',name:'Torpedo',icon:'🚀',description:'Explosão em área · dano 165',color:0x62f2ec},
- {id:'energyBomb',name:'Bomba de Energia',icon:'💠',description:'Alta velocidade · 650 dano · recarga 5 minutos',color:0x69f9ff},
+ {id:'energyBomb',name:'Bomba de Energia',icon:'💠',description:'25% da vida máxima do alvo · recarga 5 minutos',color:0x69f9ff},
 ];
 let selectedAmmo=AMMO_TYPES[0];
 // Apenas armas de efeito especial usam a câmera tática superior.
@@ -2179,7 +2179,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       const radius=WEAPON_STATS[p.ammo].impact;
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius&&(!directShot||p.ammo==='torpedo'||physicalImpact===enemy)){
-        const damage=Math.min(enemy.hp,(p.damage??COMBAT.damage)*(enemy.boss?(p.ammo==='energyBomb'?.85:.42):1));
+        const damage=p.ammo==='energyBomb'?Math.min(enemy.hp,Math.max(1,Math.ceil(enemy.maxHp*.25))):Math.min(enemy.hp,(p.damage??COMBAT.damage)*(enemy.boss?.42:1));
         audio.play('impact',Math.max(-1,Math.min(1,(enemy.x-x)/140)),Math.hypot(enemy.x-x,enemy.z-z));
         enemy.hp=Math.max(0,enemy.hp-damage);
         enemy.lastDamageAt=t;
