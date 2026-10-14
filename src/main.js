@@ -448,6 +448,57 @@ function updateHealZones(dt,t){
   if(t>=healZoneNoticeAt){notifyCombat('ÁREA DE REPARO · +1 HP/s',1.1);healZoneNoticeAt=t+3;}
  }else healZoneFraction=0;
 }
+// Drops especiais luminosos: coluna translúcida + item flutuante, sem luzes dinâmicas.
+const specialDrops=[],DROP_INTERVAL=26,DROP_LIFE=90,DROP_MAX=4;
+let nextSpecialDrop=14,shieldUntil=0,superBoostUntil=0;
+const dropCoreGeometry=new THREE.OctahedronGeometry(3.6,0);
+const dropBeamGeometry=new THREE.CylinderGeometry(3.5,5,34,12,1,true);
+const dropRingGeometry=new THREE.RingGeometry(6,8,24);
+const shieldGeometry=new THREE.SphereGeometry(10.5,32,20);
+const shieldMaterial=new THREE.ShaderMaterial({
+ transparent:true,depthWrite:false,side:THREE.DoubleSide,
+ uniforms:{uTime:{value:0}},
+ vertexShader:'varying vec3 vNormal;varying vec3 vPos;void main(){vNormal=normalize(normalMatrix*normal);vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+ fragmentShader:'uniform float uTime;varying vec3 vNormal;varying vec3 vPos;void main(){float fresnel=pow(1.-abs(dot(normalize(vNormal),vec3(0.,0.,1.))),2.);float ripple=.5+.5*sin(vPos.y*1.8+uTime*6.);float alpha=.13+.43*fresnel+.1*ripple;gl_FragColor=vec4(.17,.72,1.,alpha);}'
+});
+const shieldMesh=new THREE.Mesh(shieldGeometry,shieldMaterial);shieldMesh.visible=false;scene.add(shieldMesh);
+function spawnSpecialDrop(now){
+ if(specialDrops.length>=DROP_MAX||mission.finished||mission.failed)return;
+ const type=Math.random()<.5?'boost':'shield';
+ for(let tries=0;tries<12;tries++){
+  const ang=Math.random()*Math.PI*2,dist=90+Math.random()*180;
+  const px=x+Math.cos(ang)*dist,pz=z+Math.sin(ang)*dist;
+  if(horizon.colliders.some(o=>Math.hypot(px-o.x,pz-o.z)<o.radius+22))continue;
+  const tint=type==='boost'?0xffd039:0x5bd9ff;
+  const item=new THREE.Group();
+  const beam=new THREE.Mesh(dropBeamGeometry,new THREE.MeshBasicMaterial({color:tint,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide}));
+  beam.position.y=17;item.add(beam);
+  const core=new THREE.Mesh(dropCoreGeometry,new THREE.MeshBasicMaterial({color:tint}));core.position.y=3;item.add(core);
+  const ring=new THREE.Mesh(dropRingGeometry,new THREE.MeshBasicMaterial({color:tint,transparent:true,opacity:.78,side:THREE.DoubleSide,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=.35;item.add(ring);
+  scene.add(item);specialDrops.push({x:px,z:pz,type,item,core,expires:now+DROP_LIFE,phase:Math.random()*6.28});break;
+ }
+}
+function updateSpecialDrops(dt,t){
+ if(t>=nextSpecialDrop){spawnSpecialDrop(t);nextSpecialDrop=t+DROP_INTERVAL;}
+ for(let i=specialDrops.length-1;i>=0;i--){
+  const drop=specialDrops[i];
+  drop.item.position.set(drop.x,height(drop.x,drop.z,t)+.3,drop.z);
+  drop.core.rotation.y+=dt*1.7;drop.core.position.y=3+Math.sin(t*2+drop.phase)*.8;
+  const collected=playerCombat.hp>0&&Math.hypot(x-drop.x,z-drop.z)<11;
+  if(collected){
+   if(drop.type==='boost'){superBoostUntil=t+20;notifyCombat('BOOSTER 2× · PRÓXIMOS 20s',2);}
+   else{shieldUntil=t+7;notifyCombat('ESCUDO · 7s',2);}
+  }
+  if(collected||t>=drop.expires){
+   scene.remove(drop.item);
+   for(const child of drop.item.children)child.material.dispose();
+   specialDrops.splice(i,1);
+  }
+ }
+ shieldMesh.visible=t<shieldUntil&&playerCombat.hp>0;
+ if(shieldMesh.visible){shieldMesh.position.copy(ship.position);shieldMesh.position.y+=3;shieldMaterial.uniforms.uTime.value=t;}
+}
 let threatShotCount=0;
 // NPCs compartilham geometria, shader e rastro dos tiros do jogador.
 // Barra de integridade acompanha a nave no espaço da tela, sempre horizontal.
@@ -973,7 +1024,7 @@ if(playerCombat.hp>0){
 }
 const collisionStartX=x,collisionStartZ=z;
 hullPhysics.x=x;hullPhysics.z=z;
-const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED:0,dt});
+const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED*(t<superBoostUntil?2:1):0,dt});
 x=movement.x;z=movement.z;speed=movement.speed;
 // Varredura contínua do trajeto: evita atravessar estruturas no BOOST ou FPS baixo.
 // Um contato bloqueia imediatamente o avanço; a onda só afeta a representação visual.
@@ -1014,7 +1065,7 @@ if(playerCombat.hp>0){
   hullPhysics.vx=0;hullPhysics.vz=0;speed=0;boostActive=false;
   // Construções são obstáculos sólidos, mas não retiram vida do jogador.
   // Somente resíduos flutuantes mantêm dano de impacto.
-  if(first.kind==='debris'&&t>=playerCombat.invulnerableUntil&&impactSpeed>2){
+  if(first.kind==='debris'&&t>=playerCombat.invulnerableUntil&&t>=shieldUntil&&impactSpeed>2){
    const damage=10;
    playerCombat.hp=Math.max(0,playerCombat.hp-damage);playerCombat.lastDamageAt=t;
    playerCombat.invulnerableUntil=t+1.1;hitFeedback=1;
@@ -1432,7 +1483,7 @@ for(let i=enemyShots.length-1;i>=0;i--){
  const playerDistance=Math.hypot(x-shot.mesh.position.x,z-shot.mesh.position.z);
  const damageHit=mode==='torpedo'?torpedoBlast&&playerDistance<=blastRadius:
    mode==='area'?areaBlast&&playerDistance<=blastRadius:playerFirst;
- if(damageHit&&t>=playerCombat.invulnerableUntil&&playerCombat.hp>0){
+ if(damageHit&&t>=playerCombat.invulnerableUntil&&t>=shieldUntil&&playerCombat.hp>0){
   playerCombat.hp=Math.max(0,playerCombat.hp-shot.hitDamage*(1-economy.armor*.05));
   playerCombat.lastDamageAt=t;hitFeedback=1;
   attackCamera.shake=Math.max(attackCamera.shake,.44);
@@ -1700,6 +1751,7 @@ if(attackCamera.phase==='flight'&&attackCamera.shot){
 attackCamera.shake=0;
 areaAim.viewBlend=0;
 updateRepairKits(t);
+updateSpecialDrops(dt,t);
 updateHealZones(dt,t);
 updateMines(t);
 updateMission(dt,t);
