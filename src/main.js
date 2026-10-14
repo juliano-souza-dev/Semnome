@@ -219,6 +219,55 @@ npcShadow.visible=false;
 const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:140,shotDamage:7,shotCooldown:1.95,maxHp:100};
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
+// OPERAÇÃO MAR DE FERRO: quatro fases e fracasso real se o comboio afundar.
+const mission={stage:0,finished:false,failed:false,cargoHp:250,cargoX:65,cargoZ:-125,baseX:35,baseZ:-670,escortStartedAt:0,enemyAttackAt:0};
+const cargo=createWarMachine3D(THREE,{enemy:false});
+cargo.scale.setScalar(.85);scene.add(cargo);
+const baseBeacon=new THREE.Mesh(new THREE.CylinderGeometry(7,12,18,8),
+ new THREE.MeshLambertMaterial({color:0x42cba9,emissive:0x16554a}));
+baseBeacon.position.set(mission.baseX,9,mission.baseZ);scene.add(baseBeacon);
+const missionHud=document.createElement('div');missionHud.id='missionHud';
+missionHud.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:87;pointer-events:none;background:#0b223bdd;border:1px solid #5db8d2;border-radius:10px;padding:9px 14px;color:#fff;font:600 13px system-ui;text-align:center;max-width:58vw;text-shadow:0 1px 2px #000';
+document.body.appendChild(missionHud);
+const missionMarker=new THREE.Mesh(new THREE.ConeGeometry(5,13,6),
+ new THREE.MeshBasicMaterial({color:0xffe57e,transparent:true,opacity:.85}));
+missionMarker.rotation.x=Math.PI;scene.add(missionMarker);
+function updateMission(dt,t){
+ cargo.position.set(mission.cargoX,height(mission.cargoX,mission.cargoZ,t)+1.1,mission.cargoZ);
+ const px=x-mission.cargoX,pz=z-mission.cargoZ,playerDistance=Math.hypot(px,pz);
+ if(!mission.finished&&!mission.failed){
+  if(mission.stage===0&&playerDistance<55){mission.stage=1;mission.escortStartedAt=t;notifyCombat('COMBOIO LOCALIZADO · PROTEJA O TRANSPORTE',4);}
+  if(mission.stage===1||mission.stage===2||mission.stage===3){
+   const toBaseX=mission.baseX-mission.cargoX,toBaseZ=mission.baseZ-mission.cargoZ;
+   const distance=Math.hypot(toBaseX,toBaseZ);
+   const hostile=enemies.filter(e=>e.hp>0&&Math.hypot(e.x-mission.cargoX,e.z-mission.cargoZ)<165);
+   // O cargueiro acompanha a escolta, em vez de atravessar a batalha sozinho.
+   if(playerDistance<190&&distance>20){
+    const move=Math.min(distance,Math.max(0,dt)*14);
+    mission.cargoX+=toBaseX/distance*move;mission.cargoZ+=toBaseZ/distance*move;
+    cargo.rotation.y=Math.atan2(-toBaseX,-toBaseZ);
+   }
+   // A ameaça é territorial: navios hostis próximos danificam o comboio periodicamente.
+   if(hostile.length&&t>=mission.enemyAttackAt){
+    mission.enemyAttackAt=t+4;
+    mission.cargoHp=Math.max(0,mission.cargoHp-Math.min(18,hostile.length*3));
+    energyFlash(new THREE.Vector3(mission.cargoX,height(mission.cargoX,mission.cargoZ,t)+4,mission.cargoZ));
+   }
+   if(mission.stage===1&&mission.cargoZ< -285){mission.stage=2;notifyCombat('BLOQUEIO À FRENTE · ABRA PASSAGEM',4);}
+   const blocking=enemies.filter(e=>e.hp>0&&Math.hypot(e.x-mission.baseX,e.z-(mission.baseZ+175))<210);
+   if(mission.stage===2&&blocking.length===0){mission.stage=3;notifyCombat('PASSAGEM LIBERADA · ESCOLTE ATÉ A BASE',4);}
+   if(mission.stage===3&&distance<22&&playerDistance<145){mission.finished=true;notifyCombat('MISSÃO CONCLUÍDA · COMBOIO SALVO!',12);}
+   if(mission.cargoHp<=0){mission.failed=true;notifyCombat('MISSÃO FRACASSADA · COMBOIO DESTRUÍDO',12);}
+  }
+ }
+ const waypoint=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:{x:mission.baseX,z:mission.baseZ};
+ missionMarker.visible=!mission.finished&&!mission.failed;
+ missionMarker.position.set(waypoint.x,height(waypoint.x,waypoint.z,t)+22+Math.sin(t*2)*2,waypoint.z);
+ const distance=Math.round(Math.hypot(x-waypoint.x,z-waypoint.z));
+ const labels=['LOCALIZE O COMBOIO','ESCOLTE O CARGUEIRO','ROMPA O BLOQUEIO','ENTREGUE O CARGUEIRO'];
+ missionHud.textContent=mission.finished?'✅ OPERAÇÃO CONCLUÍDA':mission.failed?'❌ COMBOIO PERDIDO':'⚓ MAR DE FERRO · '+labels[mission.stage]+' · '+distance+'m · CARGA '+mission.cargoHp+'/250';
+}
+
 function discardEnemyShot(shot){
  scene.remove(shot.mesh,shot.trail);
  shot.trail.geometry.dispose();
@@ -1482,6 +1531,7 @@ attackCamera.shake=0;
 areaAim.viewBlend=0;
 updateRepairKits(t);
 updateMines(t);
+updateMission(dt,t);
 refreshPlayerHealth();
 if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=null;attackCamera.launchOrigin=null;}
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Mar '+(currentSeaIntensity<.24?'calmo':currentSeaIntensity<.37?'médio':'bravinho');
