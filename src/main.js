@@ -340,7 +340,7 @@ function restartCheckpoint(){
  const cp=checkpoint,t=clock.elapsedTime;
  Object.assign(mission,cp.mission,{failed:false,finished:false});
  missionOverlay.style.display='none';merchantPanel.style.display='none';
- x=cp.x;z=cp.z;heading=cp.heading;speed=0;boostActive=false;boostEnergy=1;
+ x=cp.x;z=cp.z;heading=cp.heading;speed=0;boostActive=false;boostUseRemaining=0;boostEnergy=1;
  hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
  playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;playerCombat.invulnerableUntil=t+2;ship.visible=true;
  lockedNpc=null;attackCamera.phase='idle';attackCamera.shot=null;attackCamera.blend=0;
@@ -1053,13 +1053,13 @@ let speed=0,heading=0,x=0,z=0,bob=0;
 const hullPhysics={x:0,z:0,vx:0,vz:0};
 // Propulsor de evasão: arrancada curta, totalmente dirigível, com recarga própria.
 const boostButton=document.getElementById('boost');
-let boostEnergy=1,boostActive=false;
+let boostEnergy=1,boostActive=false,boostUseRemaining=0;
 const BOOST_DASH_SPEED=105;
-const BOOST_RECHARGE_SECONDS=45,BOOST_BURN_SECONDS=6;
+const BOOST_RECHARGE_SECONDS=30,BOOST_BURN_SECONDS=6,BOOST_COST=.5;
 boostButton.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
- if(playerCombat.hp<=0||boostActive||boostEnergy<.25)return;
- boostActive=true;audio.play('boost');
+ if(playerCombat.hp<=0||boostActive||boostEnergy<BOOST_COST)return;
+ boostActive=true;boostUseRemaining=BOOST_BURN_SECONDS;audio.play('boost');
  boostButton.classList.add('active');
 });
 // Minas aquáticas colocadas pelo jogador. NPCs não recebem percepção delas.
@@ -1171,15 +1171,17 @@ const throttle=THREE.MathUtils.clamp((keyboardForward?1:0)-(keyboardBack?1:0)-pa
 const steering=THREE.MathUtils.clamp(keySteer+padX,-1,1);
 const target=throttle>0?42*(1+economy.engine*.05)*throttle:throttle<0?19*throttle:0;
 if(boostActive){
- boostEnergy=Math.max(0,boostEnergy-dt/BOOST_BURN_SECONDS);
- if(boostEnergy<=0)boostActive=false;
+ const spent=Math.min(dt,boostUseRemaining);
+ boostEnergy=Math.max(0,boostEnergy-spent*BOOST_COST/BOOST_BURN_SECONDS);
+ boostUseRemaining=Math.max(0,boostUseRemaining-dt);
+ if(boostUseRemaining<=0||boostEnergy<=0)boostActive=false;
 }else if(boostEnergy<1){
  boostEnergy=Math.min(1,boostEnergy+dt/BOOST_RECHARGE_SECONDS);
 }
 const boostRemaining=boostActive?1:0;
 boostButton.classList.toggle('active',boostActive);
 boostButton.textContent=boostActive?'🚀 PROPULSOR ATIVO':boostEnergy<1?'🚀 '+Math.round(boostEnergy*100)+'%':'🚀 PROPULSOR';
-boostButton.disabled=boostEnergy<.25||boostActive||playerCombat.hp<=0;
+boostButton.disabled=boostEnergy<BOOST_COST||boostActive||playerCombat.hp<=0;
 // Corrige direção: arrastar o dedo para a direita gira a proa à direita.
 // Giro possível parado, mais responsivo em velocidade e durante o BOOST.
 if(playerCombat.hp>0){
