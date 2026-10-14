@@ -13,7 +13,14 @@ document.getElementById('landscapeFullscreen').addEventListener('click',async()=
 const scene=new THREE.Scene();scene.background=new THREE.Color('#8db6d5');scene.fog=new THREE.FogExp2('#759ab4',.00155);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1400);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;
+const QUALITY_KEY='semnome.graphicsQuality';
+let graphicsQuality='standard';
+try{graphicsQuality=localStorage.getItem(QUALITY_KEY)==='ultra'?'ultra':'standard';}catch(_){}
+function applyGraphicsQuality(){
+ renderer.setPixelRatio(Math.min(devicePixelRatio,graphicsQuality==='ultra'?1.5:.9));
+ uniforms.uGraphicsQuality.value=graphicsQuality==='ultra'?1:0;
+}
 document.body.prepend(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xb8dfff,0x123e58,1.65));
 const sun=new THREE.DirectionalLight(0xffd99b,3.3);sun.position.set(165,92,-330);scene.add(sun);
@@ -49,18 +56,23 @@ const waves=[
 ].map(w=>({...w,len:Math.hypot(w.dx,w.dz)}));
 function height(x,z,t){let y=0;for(const w of waves)y+=w.a*Math.sin((x*w.dx+z*w.dz)/w.len*w.k-t*w.s);return y*currentSeaIntensity}
 function normal(x,z,t){const h=.8;return new THREE.Vector3(height(x-h,z,t)-height(x+h,z,t),2*h,height(x,z-h,t)-height(x,z+h,t)).normalize()}
-const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uWaveIntensity:{value:currentSeaIntensity},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()}};
+const uniforms={uTime:{value:0},uOffset:{value:new THREE.Vector2(0,0)},uWaveIntensity:{value:currentSeaIntensity},uSunDirection:{value:new THREE.Vector3(165,92,-330).normalize()},uGraphicsQuality:{value:graphicsQuality==='ultra'?1:0}};
 const water=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100,190,190),new THREE.ShaderMaterial({
 uniforms,side:THREE.DoubleSide,
 vertexShader:`uniform float uTime;uniform float uWaveIntensity;uniform vec2 uOffset;varying vec3 vPos;varying float vHeight;
 float sea(vec2 p){return 2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8);}
 void main(){vec3 p=position;vec2 worldXZ=vec2(p.x,-p.y)+uOffset;p.z=sea(worldXZ)*uWaveIntensity;vHeight=p.z;vPos=vec3(worldXZ,p.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
-fragmentShader:`uniform float uTime;uniform float uWaveIntensity;uniform vec2 uOffset;uniform vec3 uSunDirection;
+fragmentShader:`uniform float uTime;uniform float uWaveIntensity;uniform float uGraphicsQuality;uniform vec2 uOffset;uniform vec3 uSunDirection;
 varying vec3 vPos;varying float vHeight;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float wave(vec2 p){return uWaveIntensity*(2.8*sin(dot(p,normalize(vec2(1.,.25)))*.055-uTime*1.1)+1.7*sin(dot(p,normalize(vec2(-.3,1.)))*.092-uTime*1.6)+1.15*sin(dot(p,normalize(vec2(.75,-.65)))*.17-uTime*2.)+.65*sin(dot(p,normalize(vec2(-.65,-.75)))*.29-uTime*2.8));}
 void main(){
  vec2 p=vPos.xy;
+ if(uGraphicsQuality<.5){
+  float crest=smoothstep(-3.,4.,vHeight/max(uWaveIntensity,.08));
+  vec3 simpleSea=mix(vec3(.009,.12,.19),vec3(.035,.32,.43),crest);
+  gl_FragColor=vec4(simpleSea,1.);return;
+ }
  float h=.75;
  vec2 gradient=vec2(wave(p+vec2(h,0.))-wave(p-vec2(h,0.)),wave(p+vec2(0.,h))-wave(p-vec2(0.,h)));
  vec3 n=normalize(vec3(-gradient.x,2.*h,-gradient.y));
@@ -90,6 +102,13 @@ void main(){
 }`
 }));
 water.rotation.x=-Math.PI/2;scene.add(water);
+applyGraphicsQuality();
+const qualityButton=document.createElement('button');qualityButton.id='graphicsQualityButton';qualityButton.type='button';
+qualityButton.style.cssText='position:fixed;top:12px;right:12px;z-index:95;padding:8px 12px;border-radius:10px;border:1px solid #83d6ed;background:#112c3de8;color:white;font-weight:700;touch-action:manipulation';
+qualityButton.setAttribute('aria-label','Alternar qualidade gráfica');document.body.appendChild(qualityButton);
+function refreshQualityButton(){qualityButton.textContent='⚙ Gráficos: '+(graphicsQuality==='ultra'?'Ultra':'Padrão');}
+qualityButton.addEventListener('click',()=>{graphicsQuality=graphicsQuality==='ultra'?'standard':'ultra';applyGraphicsQuality();try{localStorage.setItem(QUALITY_KEY,graphicsQuality);}catch(_){}refreshQualityButton();});
+refreshQualityButton();
 const horizon=createWastelandHorizon(THREE,scene);
 // Máquina provisória em geometria simples; sprites 16 direções entram após validação.
 const ship=createWarMachine3D(THREE);scene.add(ship);
@@ -113,7 +132,7 @@ function emitWake(px,pz,t,boost){
  item.mesh.visible=true;
 }
 function animateWake(dt,t,px,pz,yaw,velocity,boost){
- const rate=boost?.08:.135;
+ const rate=(boost?.08:.135)*(graphicsQuality==='ultra'?1:2.5);
  wakeTimer+=dt;
  if(Math.abs(velocity)>11){
   let count=0;
@@ -1462,5 +1481,5 @@ if(attackCamera.phase==='idle' && attackCamera.blend===0){attackCamera.target=nu
 document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')+Math.round(Math.abs(speed))+'  |  Mar '+(currentSeaIntensity<.24?'calmo':currentSeaIntensity<.37?'médio':'bravinho');
 renderer.render(scene,camera);
 }
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);applyGraphicsQuality();});
 document.getElementById('loading').remove();tick();
