@@ -312,7 +312,7 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0)};
 const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*20;
@@ -351,6 +351,10 @@ refreshShipSelect();
 const basePrompt=document.createElement('div');
 basePrompt.style.cssText='display:none;position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:170;width:min(385px,88vw);padding:18px;background:#092d42ef;border:1px solid #75cdf7;border-radius:15px;color:white;text-align:center;font:600 14px system-ui';
 basePrompt.innerHTML='<strong>🛰 ORIGEM DO SINAL LOCALIZADA</strong><p>Os dados revelam uma instalação inimiga. Melhore sua nave e prepare o ataque.</p><button style="padding:12px 24px;border:0;border-radius:9px;background:#92e8ff;color:#06233b;font-weight:800">INICIAR OPERAÇÃO</button>';document.body.appendChild(basePrompt);
+const baseHealthHud=document.createElement('div');
+baseHealthHud.style.cssText='display:none;position:fixed;top:75px;left:50%;transform:translateX(-50%);z-index:87;padding:6px 14px;border-radius:9px;border:1px solid #ffae70;background:#172130dd;color:white;font:700 13px system-ui;pointer-events:none';
+document.body.appendChild(baseHealthHud);
+const baseTurrets=[];
 const baseStructure=new THREE.Group();scene.add(baseStructure);baseStructure.visible=false;
 const baseMetal=new THREE.MeshStandardMaterial({color:0x344b65,metalness:.7,roughness:.36});
 const baseGlow=new THREE.MeshBasicMaterial({color:0x44cfff});
@@ -358,6 +362,8 @@ for(let i=0;i<5;i++){
  const angle=i*Math.PI*2/5;
  const tower=new THREE.Mesh(new THREE.CylinderGeometry(7,11,34,8),baseMetal);
  tower.position.set(Math.sin(angle)*45,17,Math.cos(angle)*45);baseStructure.add(tower);
+ const turret=new THREE.Group();turret.position.set(tower.position.x,35,tower.position.z);
+ const barrel=new THREE.Mesh(new THREE.BoxGeometry(3,3,13),baseMetal);barrel.position.z=-7;turret.add(barrel);baseStructure.add(turret);baseTurrets.push(turret);
  const beacon=new THREE.Mesh(new THREE.SphereGeometry(3,8,8),baseGlow);beacon.position.set(tower.position.x,36,tower.position.z);baseStructure.add(beacon);
 }
 const baseDeck=new THREE.Mesh(new THREE.CylinderGeometry(52,60,9,10),baseMetal);baseDeck.position.y=5;baseStructure.add(baseDeck);
@@ -367,7 +373,8 @@ function spawnBaseForce(bossOnly,t){
   const a=i*Math.PI*2/3+.4,dist=bossOnly?220:125;
   e.x=mission.baseX+Math.cos(a)*dist;e.z=mission.baseZ+Math.sin(a)*dist;
   e.anchorX=e.x;e.anchorZ=e.z;e.y=height(e.x,e.z,t)+1;e.previousX=e.x;e.previousZ=e.z;
-  e.maxHp=e.boss?450:130;e.hp=e.maxHp;e.heading=Math.atan2(x-e.x,z-e.z);
+  e.maxHp=e.boss?1100:130;e.hp=e.maxHp;
+  if(e.boss)e.model.scale.setScalar(1.75);e.heading=Math.atan2(x-e.x,z-e.z);
   e.dormant=false;e.state='pursuit';e.ai.intent='pursuit';e.ai.plan=null;e.ai.nextPlanTime=0;
   e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;
   e.model.visible=true;e.model.position.set(e.x,e.y,e.z);
@@ -377,7 +384,7 @@ function beginBaseMission(){
  if(mission.stage!==9)return;
  mission.stage=10;mission.finished=false;mission.calmSea=false;mission.shopClosed=true;
  merchantPanel.style.display='none';basePrompt.style.display='none';merchantShip.visible=false;
- mission.recon=0;mission.defensesDown=0;saveCheckpoint();
+ mission.recon=0;mission.defensesDown=0;mission.baseHits=0;mission.baseDestroyed=false;mission.towerNextShot=0;saveCheckpoint();
  notifyCombat('ORIGEM DO SINAL · RECONHEÇA A INSTALAÇÃO',4);
 }
 basePrompt.querySelector('button').onclick=beginBaseMission;
@@ -613,12 +620,17 @@ function updateMission(dt,t){
   }else if(mission.stage===11){
    const guards=enemies.filter(e=>e.baseEnemy&&!e.boss);
    mission.defensesDown=guards.filter(e=>e.hp<=0&&!e.dormant).length;
-   if(mission.defensesDown===3){mission.stage=12;spawnBaseForce(true,t);saveCheckpoint();notifyCombat('COMANDANTE INIMIGO DETECTADO!',5);}
+   if(mission.defensesDown===3&&mission.baseDestroyed){mission.stage=12;spawnBaseForce(true,t);saveCheckpoint();notifyCombat('COMANDANTE INIMIGO DETECTADO!',5);}
   }else if(mission.stage===12){
    const boss=enemies.find(e=>e.baseEnemy&&e.boss);
    if(boss&&boss.hp<=0&&!boss.dormant){
-    mission.stage=13;mission.finished=true;economy.scrap+=300;saveEconomy();saveCheckpoint();
-    notifyCombat('BASE NEUTRALIZADA · +300 SUCATA · OPERAÇÃO CONCLUÍDA!',7);
+    mission.stage=13;mission.finished=false;mission.extractionX=mission.baseX-720;mission.extractionZ=mission.baseZ+280;saveCheckpoint();
+    notifyCombat('COMANDANTE DERROTADO · RETORNE AO PONTO DE EXTRAÇÃO',5);
+   }
+  }else if(mission.stage===13){
+   if(Math.hypot(x-mission.extractionX,z-mission.extractionZ)<50){
+    mission.stage=14;mission.finished=true;economy.scrap+=300;saveEconomy();saveCheckpoint();
+    notifyCombat('OPERAÇÃO CONCLUÍDA · +300 SUCATA · RETORNO SEGURO',6);
    }
   }
  }
@@ -645,7 +657,8 @@ function updateMission(dt,t){
   mission.stage===9?'🛰 ORIGEM DO SINAL · LOJA DISPONÍVEL':
   mission.stage===10?'🛰 RECONHECIMENTO · '+Math.floor(mission.recon)+'/12s':
   mission.stage===11?'⚔ DEFESAS DA BASE · '+mission.defensesDown+'/3':
-  mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':'✅ BASE NEUTRALIZADA';
+  mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
+  mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m':'✅ OPERAÇÃO CONCLUÍDA';
 }
 
 function discardEnemyShot(shot){
@@ -894,7 +907,7 @@ function refreshPlayerHealth(){
  const threatStatus=document.createElement('div');threatStatus.id='threatStatus';threatStatus.setAttribute('aria-live','off');compass.appendChild(threatStatus);
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
-  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:null;
+  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:null;
   objectivePing.style.display=goal?'block':'none';
   if(goal){const bearing=Math.atan2(-(goal.x-x),-(goal.z-z));const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));objectivePing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';objectivePing.textContent=Math.abs(delta)>Math.PI*.75?'◀':'◆';}
   let nearestEnemy=null,nearestRange=Infinity,activeThreats=0,shooters=0;
@@ -1418,7 +1431,7 @@ if(playerCombat.hp>0){
  const originX=collisionStartX,originZ=collisionStartZ;
  const vx=x-originX,vz=z-originZ;
  let first=null,hitTime=Infinity,hitNX=0,hitNZ=0;
- for(const obstacle of horizon.colliders){
+ for(const obstacle of [...horizon.colliders,...(mission.stage>=10&&!mission.baseDestroyed?[{x:mission.baseX,z:mission.baseZ,radius:65}]:[])]){
   const radius=obstacle.radius+5.8;
   const rx=originX-obstacle.x,rz=originZ-obstacle.z;
   const startDistSq=rx*rx+rz*rz;
@@ -2020,7 +2033,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       const radius=WEAPON_STATS[p.ammo].impact;
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius&&(!directShot||p.ammo==='torpedo'||physicalImpact===enemy)){
-        const damage=Math.min(enemy.hp,p.damage??COMBAT.damage);
+        const damage=Math.min(enemy.hp,(p.damage??COMBAT.damage)*(enemy.boss?.42:1));
         audio.play('impact',Math.max(-1,Math.min(1,(enemy.x-x)/140)),Math.hypot(enemy.x-x,enemy.z-z));
         enemy.hp=Math.max(0,enemy.hp-damage);
         enemy.lastDamageAt=t;
