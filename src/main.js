@@ -409,7 +409,7 @@ function spawnBaseForce(bossOnly,t){
 function launchExtractionWave(wave,t){
  const target=enemies.filter(e=>e.extractionWave===wave);
  target.forEach((e,i)=>{
-  const bearing=heading+(i===0?-.95:.95),distance=300+i*65;
+  const bearing=heading+(i===0?-.62:.62),distance=145+i*38;
   e.x=x-Math.sin(bearing)*distance;e.z=z-Math.cos(bearing)*distance;
   // Reposiciona se houver estruturas entre o spawn e a área de navegação.
   for(let tries=0;tries<6&&horizon.colliders.some(o=>Math.hypot(e.x-o.x,e.z-o.z)<o.radius+22);tries++){
@@ -420,7 +420,7 @@ function launchExtractionWave(wave,t){
   e.previousX=e.x;e.previousZ=e.z;e.heading=Math.atan2(x-e.x,z-e.z);
   e.maxHp=135;e.hp=e.maxHp;e.dormant=false;e.state='pursuit';
   e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;
-  e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.intent='pursuit';
+  e.ai.plan={goalX:x,goalZ:z,active:true,state:'attack',intent:'pursuit',speed:48};e.ai.nextPlanTime=0;e.ai.intent='pursuit';e.ai.lastCombatAt=t;
   e.model.position.set(e.x,e.y,e.z);e.model.visible=true;
  });
  notifyCombat('⚠ EMBOSCADA NA EXTRAÇÃO · 2 CAÇADORES',3);
@@ -680,9 +680,11 @@ function updateMission(dt,t){
     notifyCombat('COMANDANTE DERROTADO · RETORNE AO PONTO DE EXTRAÇÃO',5);
    }
   }else if(mission.stage===13){
-   // Distância realmente navegada, não apenas proximidade do destino.
-   const moved=Math.hypot(x-(mission.extractionLastX??x),z-(mission.extractionLastZ??z));
-   mission.extractionDistance+=Math.min(120,moved);
+   // Progresso ao longo da rota, evitando gatilhos inconsistentes por curvas ou checkpoint.
+   const routeX=mission.extractionX-mission.extractionStartX,routeZ=mission.extractionZ-mission.extractionStartZ;
+   const routeLength=Math.hypot(routeX,routeZ)||1;
+   const along=((x-mission.extractionStartX)*routeX+(z-mission.extractionStartZ)*routeZ)/routeLength;
+   mission.extractionDistance=Math.max(mission.extractionDistance||0,Math.max(0,along));
    mission.extractionLastX=x;mission.extractionLastZ=z;
    while(mission.extractionNextWave<=3&&mission.extractionDistance>=mission.extractionNextWave*750){
     launchExtractionWave(mission.extractionNextWave-1,t);
@@ -741,7 +743,7 @@ function updateMission(dt,t){
   mission.stage===10?'🛰 RECONHECIMENTO · '+Math.floor(mission.recon)+'/12s':
   mission.stage===11?'⚔ TORRES '+mission.baseHits+'/5 · SENTINELAS '+mission.defensesDown+'/3':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
-  mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
+  mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m · '+Math.floor(mission.extractionDistance||0)+'m PERCORRIDOS · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
 }
 
 function discardEnemyShot(shot){
@@ -1640,10 +1642,10 @@ for(const enemy of enemies){
   // sem teleporte e sem acerto automático.
   if(!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
-   if(enemy.clearAreaWave!==undefined&&mission.stage===3){
+   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)){
     // NPCs desta missão caçam o jogador desde o spawn; não retornam à patrulha.
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:true,
-     speed:enemy.veteran?47:39,state:distance<170?'attack':'pursuit',intent:'pursuit'};
+     speed:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
    }else if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
      speed:Math.max(ai.plan.speed,Math.min(enemy.veteran?52:43,29+distance*.016)),
