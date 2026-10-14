@@ -222,7 +222,7 @@ const playerSprite={visible:false};
 // Alcance do jogador ampliado cerca de 20% para manter a perseguição aos NPCs viável.
 // IA inimiga, recargas, danos e velocidades de projétil permanecem iguais.
 const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
-const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},scatter:{range:270,cooldown:3.5,damage:24,impact:20}});
+const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},scatter:{range:270,cooldown:3.5,damage:24,impact:20},energyBomb:{range:370,cooldown:300,damage:650,impact:25}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
@@ -1041,6 +1041,7 @@ const AMMO_TYPES=[
  {id:'scatter',name:'Rajada de Energia',icon:'✨',description:'Três impactos rápidos em área',color:0xbc80ff},
  {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
  {id:'torpedo',name:'Torpedo',icon:'🚀',description:'Explosão em área · dano 165',color:0x62f2ec},
+ {id:'energyBomb',name:'Bomba de Energia',icon:'💠',description:'Alta velocidade · 650 dano · recarga 5 minutos',color:0x69f9ff},
 ];
 let selectedAmmo=AMMO_TYPES[0];
 // Apenas armas de efeito especial usam a câmera tática superior.
@@ -1051,7 +1052,7 @@ const weaponDock=document.createElement('div');weaponDock.id='weaponDock';
 document.getElementById('ui').appendChild(weaponDock);
 function renderWeaponDock(){
  weaponDock.replaceChildren();
- for(const id of ['plasma','iron','torpedo','scatter']){
+ for(const id of ['plasma','iron','torpedo','scatter','energyBomb']){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
@@ -1128,7 +1129,22 @@ function energyFlash(position){
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
 const weaponReadyAt=Object.fromEntries(Object.keys(WEAPON_STATS).map(id=>[id,0]));
 const currentWeapon=()=>WEAPON_STATS[selectedAmmo.id];
-const weaponRemaining=()=>Math.max(0,weaponReadyAt[selectedAmmo.id]-clock.elapsedTime);
+const ENERGY_BOMB_KEY='semnome.energyBomb.readyAt.v1';
+let energyBombReadyAt=0;
+try{energyBombReadyAt=Math.max(0,Number(localStorage.getItem(ENERGY_BOMB_KEY))||0)}catch{}
+const weaponRemaining=()=>selectedAmmo.id==='energyBomb'?Math.max(0,(energyBombReadyAt-Date.now())/1000):Math.max(0,weaponReadyAt[selectedAmmo.id]-clock.elapsedTime);
+const energyBombStatus=document.createElement('div');
+energyBombStatus.style.cssText='position:fixed;right:12px;top:265px;z-index:94;color:#a9f6ff;background:#082b42db;border:1px solid #68e6ff;border-radius:9px;padding:5px 8px;font:700 12px system-ui;pointer-events:none';
+document.body.appendChild(energyBombStatus);
+let lastEnergyBombSecond=-1;
+function updateEnergyBombStatus(){
+ const secs=Math.ceil(Math.max(0,(energyBombReadyAt-Date.now())/1000));
+ if(secs===lastEnergyBombSecond)return;
+ lastEnergyBombSecond=secs;
+ energyBombStatus.textContent=secs?'💠 Bomba de Energia · '+Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0'):'💠 Bomba de Energia · PRONTA';
+ const slot=weaponDock.querySelector('[data-weapon="energyBomb"]');
+ if(slot){slot.title=energyBombStatus.textContent;slot.style.opacity=secs?'.55':'1';}
+}
 const AREA_RANGE=360,AREA_RADIUS=22;
 const aimHint=document.getElementById('aimHint'),cancelAimButton=document.getElementById('cancelAim');
 const areaAim={active:false,point:new THREE.Vector3(),valid:false,pointerId:null,holdStarted:0,viewBlend:0,startX:0,startY:0,origin:new THREE.Vector3(),right:new THREE.Vector3(),forward:new THREE.Vector3()};
@@ -1279,6 +1295,7 @@ function finishAreaAim(e,cancel=false){
 function launchShot(manualPoint=null){
  lastShotTime=clock.elapsedTime;
  weaponReadyAt[selectedAmmo.id]=clock.elapsedTime+currentWeapon().cooldown;
+ if(selectedAmmo.id==='energyBomb'){energyBombReadyAt=Date.now()+300000;try{localStorage.setItem(ENERGY_BOMB_KEY,String(energyBombReadyAt))}catch{}updateEnergyBombStatus();}
  audio.play(selectedAmmo.id);
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
  const destination=manualPoint?manualPoint.clone():(lockedNpc&&lockedNpc.hp>0?new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z):new THREE.Vector3(x-Math.sin(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange(),0,z-Math.cos(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange()));
@@ -1295,8 +1312,8 @@ function launchShot(manualPoint=null){
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='torpedo'?Math.max(.65,Math.hypot(origin.x-destination.x,origin.z-destination.z)/115):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
- const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
+ const travel=ammo.id==='energyBomb'?Math.max(.055,origin.distanceTo(destination)/1250):ammo.id==='torpedo'?Math.max(.65,Math.hypot(origin.x-destination.x,origin.z-destination.z)/115):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
+ const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo'||ammo.id==='energyBomb')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,2),plasmaMaterial);
@@ -1489,6 +1506,7 @@ const clock=new THREE.Clock(),camTarget=new THREE.Vector3(),wanted=new THREE.Vec
 function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;
 currentSeaIntensity=seaIntensityAt(t);
+updateEnergyBombStatus();
 uniforms.uTime.value=t;
 uniforms.uWaveIntensity.value=currentSeaIntensity;
 // Pilotagem direta e previsível: eixo Y regula motor, eixo X gira casco.
@@ -2063,14 +2081,14 @@ for(let i=projectiles.length-1;i>=0;i--){
    p.mesh.position.y=height(p.mesh.position.x,p.mesh.position.z,t)+.55;
    p.foamTimer+=dt;
    if(p.foamTimer>=.12){p.foamTimer=0;emitWake(p.mesh.position.x,p.mesh.position.z,t,false);}
-  }else if(p.ammo==='plasma'||p.ammo==='iron'){
+  }else if(p.ammo==='plasma'||p.ammo==='iron'||p.ammo==='energyBomb'){
    p.mesh.position.lerpVectors(p.origin,p.destination,u);
   }else{
    ballisticPoint(p.origin,p.destination,p.travel,p.age,p.arcHeight,p.mesh.position);
   }
   // Tiros diretos só atingem se a bala cruzar fisicamente o casco do NPC.
   // A varredura é RELATIVA: o alvo também pode se mover ou usar dash.
-  const directShot=p.ammo==='torpedo'||p.ammo==='plasma'||p.ammo==='iron';
+  const directShot=p.ammo==='torpedo'||p.ammo==='plasma'||p.ammo==='iron'||p.ammo==='energyBomb';
   let physicalImpact=null,physicalFraction=Infinity;
   if(directShot){
    for(const enemy of enemies){
@@ -2146,7 +2164,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       const radius=WEAPON_STATS[p.ammo].impact;
       // Cada NPC só recebe um impacto por torpedo; a área vale para toda a frota.
       if(enemy.hp>0&&distance<=radius&&(!directShot||p.ammo==='torpedo'||physicalImpact===enemy)){
-        const damage=Math.min(enemy.hp,(p.damage??COMBAT.damage)*(enemy.boss?.42:1));
+        const damage=Math.min(enemy.hp,(p.damage??COMBAT.damage)*(enemy.boss?(p.ammo==='energyBomb'?.85:.42):1));
         audio.play('impact',Math.max(-1,Math.min(1,(enemy.x-x)/140)),Math.hypot(enemy.x-x,enemy.z-z));
         enemy.hp=Math.max(0,enemy.hp-damage);
         enemy.lastDamageAt=t;
