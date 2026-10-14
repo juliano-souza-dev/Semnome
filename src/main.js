@@ -259,17 +259,19 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,transitionAt:0,clearWave:-1,clearDestroyed:0};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
-const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0)};
+const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0)};
+const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*20;
 const saveEconomy=()=>{try{localStorage.setItem(economyKey,JSON.stringify(economy))}catch{}};
 const merchantShip=createWarMachine3D(THREE,{enemy:false});merchantShip.scale.multiplyScalar(1.05);merchantShip.visible=false;scene.add(merchantShip);
 const merchantPanel=document.createElement('div');merchantPanel.style.cssText='display:none;position:fixed;inset:0;z-index:210;background:#061b2ad9;align-items:center;justify-content:center;padding:18px;font-family:system-ui;color:white';
 merchantPanel.innerHTML='<div style="width:min(420px,95vw);background:#103349;border:1px solid #57d5b4;border-radius:14px;padding:18px;max-height:80vh;overflow:auto"><h2 style="font-size:19px">⚓ Mar Calmo · Comerciante</h2><p id="merchantBalance"></p><div id="merchantItems"></div><button id="merchantClose" style="margin-top:12px;padding:10px;border:0;border-radius:8px">Voltar ao mar</button></div>';
 document.body.appendChild(merchantPanel);
-const upgrades=[{id:'engine',label:'⚡ Motor (+5% velocidade)',base:45},{id:'weapons',label:'🎯 Armas (+8% dano)',base:60},{id:'armor',label:'🛡️ Blindagem (-5% dano)',base:55}];
+const upgrades=[{id:'health',label:'❤️ Vida máxima (+20 HP)',base:65},{id:'engine',label:'⚡ Velocidade da nave (+5%)',base:45},{id:'weapons',label:'🎯 Dano contra NPCs (+8%)',base:60},{id:'booster',label:'🚀 Velocidade do propulsor (+10%)',base:70},{id:'armor',label:'🛡️ Blindagem (-5% dano)',base:55}];
+function shopInRange(){return mission.calmSea&&!mission.shopClosed&&Math.hypot(x-(mission.shopX??mission.deliveryX),z-(mission.shopZ??mission.deliveryZ))<=200;}
 function openMerchant(){
- if(!mission.calmSea||mission.shopClosed||Math.hypot(x-mission.deliveryX,z-mission.deliveryZ)>200)return;
+ if(!shopInRange())return;
  merchantPanel.style.display='flex';
  const items=merchantPanel.querySelector('#merchantItems');items.replaceChildren();
  merchantPanel.querySelector('#merchantBalance').textContent='🔩 Sucata: '+economy.scrap;
@@ -278,7 +280,7 @@ function openMerchant(){
   const btn=document.createElement('button');btn.style.cssText='display:block;width:100%;margin:8px 0;padding:12px;background:#226479;color:white;border:1px solid #4ca6a0;border-radius:9px;text-align:left';
   btn.textContent=item.label+' · nível '+level+'/5 · '+(level>=5?'Máximo':cost+' sucata');
   btn.disabled=level>=5||economy.scrap<cost;
-  btn.onclick=()=>{if(!mission.calmSea||economy.scrap<cost)return;economy.scrap-=cost;economy[item.id]++;if(item.id==='armor')playerCombat.hp=Math.min(ENEMY_AI.maxHp,playerCombat.hp+25);saveEconomy();openMerchant()};
+  btn.onclick=()=>{if(!shopInRange()||economy.scrap<cost||economy[item.id]>=5)return;economy.scrap-=cost;economy[item.id]++;if(item.id==='health')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+20);if(item.id==='armor')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+25);saveEconomy();openMerchant()};
   items.appendChild(btn);
  }
 }
@@ -342,7 +344,7 @@ function restartCheckpoint(){
  missionOverlay.style.display='none';merchantPanel.style.display='none';
  x=cp.x;z=cp.z;heading=cp.heading;speed=0;boostActive=false;boostUseRemaining=0;boostEnergy=1;
  hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
- playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;playerCombat.invulnerableUntil=t+2;ship.visible=true;
+ playerCombat.hp=playerMaxHp();playerCombat.respawnAt=0;playerCombat.invulnerableUntil=t+2;ship.visible=true;
  lockedNpc=null;attackCamera.phase='idle';attackCamera.shot=null;attackCamera.blend=0;
  activatedWaves.clear();for(const key of cp.waves)activatedWaves.add(key);
  enemies.forEach((e,i)=>{
@@ -359,6 +361,7 @@ function restartCheckpoint(){
  for(const d of damageLabels)d.label.remove();damageLabels.length=0;
  merchantAccess.style.display=mission.calmSea&&!mission.shopClosed?'block':'none';
  if(mission.stage===2)mission.transitionAt=t+30;
+ if(mission.stage===4){merchantShip.position.set((mission.shopX??x)+55,height((mission.shopX??x)+55,(mission.shopZ??z)+35,t)+1,(mission.shopZ??z)+35);merchantShip.visible=!mission.shopClosed;}
  if(mission.stage===3){
   // Restaura o INÍCIO da missão, nunca o estado parcial incompatível da IA.
   mission.clearDestroyed=0;mission.clearWave=0;
@@ -423,7 +426,7 @@ function updateMission(dt,t){
    saveCheckpoint();
    notifyCombat('CARGA RECUPERADA · ENTREGUE À NAVE ALIADA',3);
   }else if(mission.stage===1&&distance<35){
-   mission.stage=2;mission.finished=false;mission.calmSea=true;mission.transitionAt=t+30;
+   mission.stage=2;mission.finished=false;mission.calmSea=true;mission.shopClosed=false;mission.shopX=deliveryX;mission.shopZ=deliveryZ;mission.transitionAt=t+30;
    merchantShip.position.set(deliveryX+70,height(deliveryX+70,deliveryZ+60,t)+1,deliveryZ+60);
    merchantShip.visible=true;
    notifyCombat('CARGA ENTREGUE · LOJA DISPONÍVEL',2.5);
@@ -439,11 +442,13 @@ function updateMission(dt,t){
    if(alive===0&&defeated===0)launchClearWave(wave,t);
    else if(alive===0&&defeated===expected&&wave<2)launchClearWave(wave+1,t);
    else if(alive===0&&defeated===expected&&wave===2){
-    mission.clearDestroyed=10;mission.stage=4;mission.finished=true;notifyCombat('ÁREA LIMPA · MISSÃO CONCLUÍDA!',5);
+    mission.clearDestroyed=10;mission.stage=4;mission.finished=true;mission.calmSea=true;mission.shopClosed=false;mission.shopX=x;mission.shopZ=z;
+    merchantShip.position.set(x+55,height(x+55,z+35,t)+1,z+35);merchantShip.visible=true;
+    saveCheckpoint();notifyCombat('ÁREA LIMPA · LOJA DE MELHORIAS DISPONÍVEL',4);
    }
   }
  }
- if(mission.calmSea&&!mission.shopClosed&&Math.hypot(x-deliveryX,z-deliveryZ)>200){
+ if(mission.calmSea&&!mission.shopClosed&&Math.hypot(x-(mission.shopX??deliveryX),z-(mission.shopZ??deliveryZ))>200){
   mission.shopClosed=true;merchantPanel.style.display='none';merchantShip.visible=false;
  }
  merchantAccess.style.display=mission.calmSea&&!mission.shopClosed&&!mission.failed?'block':'none';
@@ -661,11 +666,12 @@ boostMeter.appendChild(boostFill);document.body.appendChild(boostMeter);
 function refreshPlayerHealth(){
  // Garante HP finito dentro do limite real, inclusive após migração de dados.
  if(!Number.isFinite(playerCombat.hp))playerCombat.hp=ENEMY_AI.maxHp;
- playerCombat.hp=THREE.MathUtils.clamp(playerCombat.hp,0,ENEMY_AI.maxHp);
- const percent=THREE.MathUtils.clamp(playerCombat.hp/ENEMY_AI.maxHp,0,1);
+ playerCombat.hp=THREE.MathUtils.clamp(playerCombat.hp,0,playerMaxHp());
+ const percent=THREE.MathUtils.clamp(playerCombat.hp/playerMaxHp(),0,1);
  hpFill.style.width=(percent*100).toFixed(1)+'%';
  hpFill.style.background=percent>.6?'linear-gradient(180deg,#aaff56,#52ce18)':percent>.3?'linear-gradient(180deg,#ffe76b,#e7a528)':'linear-gradient(180deg,#ff8380,#d72832)';
- hpValue.textContent=Math.ceil(playerCombat.hp)+' / '+ENEMY_AI.maxHp;
+ hpValue.textContent=Math.ceil(playerCombat.hp)+' / '+playerMaxHp();
+ hpHud.setAttribute('aria-valuemax',String(playerMaxHp()));
  hpHud.setAttribute('aria-valuenow',String(playerCombat.hp));
  // HUD em coordenadas da tela: não recebe altura das ondas, bob, roll nem projeção 3D.
  // A câmera de perseguição mantém o jogador centralizado; o indicador permanece
@@ -1199,7 +1205,7 @@ if(playerCombat.hp>0){
 }
 const collisionStartX=x,collisionStartZ=z;
 hullPhysics.x=x;hullPhysics.z=z;
-const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED*(t<superBoostUntil?2:1):0,dt});
+const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED*(1+economy.booster*.10)*(t<superBoostUntil?2:1):0,dt});
 x=movement.x;z=movement.z;speed=movement.speed;
 // Varredura contínua do trajeto: evita atravessar estruturas no BOOST ou FPS baixo.
 // Um contato bloqueia imediatamente o avanço; a onda só afeta a representação visual.
