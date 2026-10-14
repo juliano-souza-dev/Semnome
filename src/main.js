@@ -245,7 +245,31 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false};
+const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
+const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0)};
+const saveEconomy=()=>{try{localStorage.setItem(economyKey,JSON.stringify(economy))}catch{}};
+const merchantShip=createWarMachine3D(THREE,{enemy:false});merchantShip.scale.multiplyScalar(1.05);merchantShip.visible=false;scene.add(merchantShip);
+const merchantPanel=document.createElement('div');merchantPanel.style.cssText='display:none;position:fixed;inset:0;z-index:210;background:#061b2ad9;align-items:center;justify-content:center;padding:18px;font-family:system-ui;color:white';
+merchantPanel.innerHTML='<div style="width:min(420px,95vw);background:#103349;border:1px solid #57d5b4;border-radius:14px;padding:18px;max-height:80vh;overflow:auto"><h2 style="font-size:19px">⚓ Mar Calmo · Comerciante</h2><p id="merchantBalance"></p><div id="merchantItems"></div><button id="merchantClose" style="margin-top:12px;padding:10px;border:0;border-radius:8px">Voltar ao mar</button></div>';
+document.body.appendChild(merchantPanel);
+const upgrades=[{id:'engine',label:'⚡ Motor (+5% velocidade)',base:45},{id:'weapons',label:'🎯 Armas (+8% dano)',base:60},{id:'armor',label:'🛡️ Blindagem (-5% dano)',base:55}];
+function openMerchant(){
+ if(!mission.calmSea)return;
+ merchantPanel.style.display='flex';
+ const items=merchantPanel.querySelector('#merchantItems');items.replaceChildren();
+ merchantPanel.querySelector('#merchantBalance').textContent='🔩 Sucata: '+economy.scrap;
+ for(const item of upgrades){
+  const level=economy[item.id],cost=item.base*(level+1);
+  const btn=document.createElement('button');btn.style.cssText='display:block;width:100%;margin:8px 0;padding:12px;background:#226479;color:white;border:1px solid #4ca6a0;border-radius:9px;text-align:left';
+  btn.textContent=item.label+' · nível '+level+'/5 · '+(level>=5?'Máximo':cost+' sucata');
+  btn.disabled=level>=5||economy.scrap<cost;
+  btn.onclick=()=>{if(!mission.calmSea||economy.scrap<cost)return;economy.scrap-=cost;economy[item.id]++;if(item.id==='armor')playerCombat.hp=Math.min(ENEMY_AI.maxHp,playerCombat.hp+25);saveEconomy();openMerchant()};
+  items.appendChild(btn);
+ }
+}
+merchantPanel.querySelector('#merchantClose').onclick=()=>merchantPanel.style.display='none';
+const merchantAccess=document.createElement('button');merchantAccess.textContent='⚓ Loja';merchantAccess.style.cssText='display:none;position:fixed;right:12px;bottom:110px;z-index:95;padding:9px;background:#164853;color:white;border:1px solid #70ccb4;border-radius:8px';document.body.appendChild(merchantAccess);merchantAccess.onclick=openMerchant;
 const receiver=createWarMachine3D(THREE,{enemy:false});receiver.scale.multiplyScalar(1.05);
 receiver.position.set(mission.deliveryX,0,mission.deliveryZ);
 receiver.rotation.y=Math.PI/2;receiver.visible=false;
@@ -285,7 +309,7 @@ missionOverlay.innerHTML='<div style="max-width:420px;background:#102d44;border:
 document.body.appendChild(missionOverlay);
 missionOverlay.querySelector('#retryMission').addEventListener('click',()=>location.reload());
 const missionHud=document.createElement('div');missionHud.id='missionHud';
-missionHud.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:87;pointer-events:none;background:#0b223bdd;border:1px solid #5db8d2;border-radius:10px;padding:9px 14px;color:#fff;font:600 13px system-ui;text-align:center;max-width:58vw;text-shadow:0 1px 2px #000';
+missionHud.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:87;pointer-events:none;background:#0b223bdd;border:1px solid #5db8d2;border-radius:10px;padding:5px 9px;color:#fff;font:600 11px system-ui;text-align:center;max-width:58vw;text-shadow:0 1px 2px #000';
 document.body.appendChild(missionHud);
 const missionMarker=new THREE.Mesh(new THREE.ConeGeometry(5,13,6),new THREE.MeshBasicMaterial({color:0xffe57e,transparent:true,opacity:.9}));
 missionMarker.rotation.x=Math.PI;scene.add(missionMarker);
@@ -313,8 +337,11 @@ function updateMission(dt,t){
    activateInterceptors();
    notifyCombat('CARGA RECUPERADA · ENTREGUE À NAVE ALIADA · REFORÇOS INIMIGOS!',6);
   }else if(mission.stage===1&&distance<35){
-   mission.finished=true;
-   notifyCombat('CARGA ENTREGUE · MISSÃO CONCLUÍDA!',12);
+   mission.finished=true;mission.calmSea=true;
+   merchantShip.position.set(deliveryX+70,height(deliveryX+70,deliveryZ+60,t)+1,deliveryZ+60);
+   merchantShip.visible=true;merchantAccess.style.display='block';
+   for(const enemy of enemies){if(enemy.hp>0){enemy.hp=0;enemy.state='destroyed';enemy.model.visible=false;}}
+   openMerchant();notifyCombat('MAR CALMO · MELHORE SUA NAVE',4);
   }
  }
  missionHud.textContent=mission.finished?'✅ CARGA ENTREGUE · VITÓRIA':
@@ -635,7 +662,7 @@ const hitOverlay=document.createElement('div');
 hitOverlay.style.cssText='position:fixed;inset:0;z-index:31;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 48%,rgba(255,34,39,.56) 100%);transition:opacity 170ms ease-out';
 document.body.appendChild(hitOverlay);
 const combatNotice=document.createElement('div');
-combatNotice.style.cssText='position:fixed;top:19%;left:50%;transform:translateX(-50%);z-index:37;pointer-events:none;text-align:center;color:#fff0ba;text-shadow:0 3px 6px #00121d,0 0 15px #00c8ff;font:900 clamp(15px,2.7vw,29px) system-ui;letter-spacing:.08em;opacity:0;transition:opacity .2s;white-space:nowrap';
+combatNotice.style.cssText='position:fixed;top:19%;left:50%;transform:translateX(-50%);z-index:37;pointer-events:none;text-align:center;color:#fff0ba;text-shadow:0 3px 6px #00121d,0 0 15px #00c8ff;font:700 clamp(11px,2vw,15px) system-ui;max-width:80vw;white-space:normal;line-height:1.3;letter-spacing:0;opacity:0;transition:opacity .2s;white-space:nowrap';
 document.body.appendChild(combatNotice);
 let noticeUntil=0,noticeText='',hitFeedback=0,wonBattle=false;
 function notifyCombat(message,duration=2){noticeText=message;noticeUntil=clock.elapsedTime+duration;combatNotice.textContent=message;combatNotice.style.opacity='1'}
@@ -644,7 +671,7 @@ function showDamage(enemy,amount){
  if(damageLabels.length>=9){const old=damageLabels.shift();old.label.remove();}
  const label=document.createElement('div');
  label.textContent='-'+amount;
- label.style.cssText='position:fixed;z-index:48;color:#ff4545;font:900 21px system-ui;text-shadow:0 2px 2px #300,0 0 8px #ff0000;pointer-events:none;transform:translate(-50%,-50%)';
+ label.style.cssText='position:fixed;z-index:48;color:#ff4545;font:700 13px system-ui;text-shadow:0 2px 2px #300,0 0 8px #ff0000;pointer-events:none;transform:translate(-50%,-50%)';
  document.body.appendChild(label);
  damageLabels.push({label,enemy,age:0});
  if(enemy.sprite){
@@ -752,7 +779,7 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,ammo.id==='torpedo'?new THREE.LineBasicMaterial({color:0xd6ffff,transparent:true,opacity:.7,depthWrite:false}):energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage*(1+economy.weapons*.08)};
  if(ammo.id==='torpedo'){
   core.visible=false;plasma.visible=false;glow.visible=false;outerGlow.visible=false;
   const shell=new THREE.MeshStandardMaterial({color:0x657c83,metalness:.65,roughness:.3});
@@ -927,7 +954,7 @@ const padX=input.active&&Math.abs(input.x)>deadZone?Math.sign(input.x)*(Math.abs
 const padY=input.active&&Math.abs(input.y)>deadZone?Math.sign(input.y)*(Math.abs(input.y)-deadZone)/(1-deadZone):0;
 const throttle=THREE.MathUtils.clamp((keyboardForward?1:0)-(keyboardBack?1:0)-padY,-1,1);
 const steering=THREE.MathUtils.clamp(keySteer+padX,-1,1);
-const target=throttle>0?42*throttle:throttle<0?19*throttle:0;
+const target=throttle>0?42*(1+economy.engine*.05)*throttle:throttle<0?19*throttle:0;
 if(boostActive){
  boostEnergy=Math.max(0,boostEnergy-dt/BOOST_BURN_SECONDS);
  if(boostEnergy<=0)boostActive=false;
@@ -1406,7 +1433,7 @@ for(let i=enemyShots.length-1;i>=0;i--){
  const damageHit=mode==='torpedo'?torpedoBlast&&playerDistance<=blastRadius:
    mode==='area'?areaBlast&&playerDistance<=blastRadius:playerFirst;
  if(damageHit&&t>=playerCombat.invulnerableUntil&&playerCombat.hp>0){
-  playerCombat.hp=Math.max(0,playerCombat.hp-shot.hitDamage);
+  playerCombat.hp=Math.max(0,playerCombat.hp-shot.hitDamage*(1-economy.armor*.05));
   playerCombat.lastDamageAt=t;hitFeedback=1;
   attackCamera.shake=Math.max(attackCamera.shake,.44);
   playerCombat.invulnerableUntil=t+.45;
@@ -1561,6 +1588,7 @@ for(let i=projectiles.length-1;i>=0;i--){
         energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z));
         if(enemy.hp===0){
           enemy.state='destroyed';
+          economy.scrap+=20+10*(enemy.id%4);saveEconomy();
           const survivors=enemies.filter(e=>e.hp>0).length;
           notifyCombat(survivors>0?'ALVO DESTRUÍDO · '+survivors+' RESTANTES':'OCEANO LIBERADO · VITÓRIA!',survivors>0?2:6);
           if(survivors===0)wonBattle=true;
