@@ -642,6 +642,26 @@ function updateMission(dt,t){
  basePrompt.style.display=mission.stage===9&&!mission.failed?'block':'none';
  baseStructure.visible=mission.stage>=10;
  if(baseStructure.visible)baseStructure.position.set(mission.baseX,height(mission.baseX,mission.baseZ,t),mission.baseZ);
+ baseHealthHud.style.display=mission.stage===11&&!mission.failed?'block':'none';
+ if(mission.stage===11)baseHealthHud.textContent='🏰 BASE · '+mission.baseHits+'/5 ACERTOS';
+ for(const turret of baseTurrets){
+  turret.lookAt(x-baseStructure.position.x,3,z-baseStructure.position.z);
+  turret.rotation.x=0;turret.rotation.z=0;
+  turret.visible=mission.stage>=10&&!mission.baseDestroyed;
+ }
+ if(mission.stage>=10&&mission.stage<=11&&!mission.baseDestroyed&&!mission.failed&&playerCombat.hp>0){
+  const distanceToBase=Math.hypot(x-mission.baseX,z-mission.baseZ);
+  if(distanceToBase<420&&t>=mission.towerNextShot){
+   mission.towerNextShot=t+1.55;
+   if(t>=shieldUntil&&t>=playerCombat.invulnerableUntil){
+    // Disparo da bateria defensiva com verificação de proximidade, não é dano de uma hitbox invisível.
+    playerCombat.hp=Math.max(0,playerCombat.hp-9*(1-economy.armor*.05));
+    playerCombat.lastDamageAt=t;playerCombat.invulnerableUntil=t+.4;
+    energyFlash(new THREE.Vector3(x,bob+3,z));
+    notifyCombat('⚠ TORRES DA BASE · IMPACTO!',1.2);
+   }
+  }
+ }
  if(mission.stage>=5){signalShip.visible=true;signalShip.position.set(mission.signalX,height(mission.signalX,mission.signalZ,t)+1,mission.signalZ);signalData.visible=mission.stage===8;if(signalData.visible)signalData.position.set(mission.signalX+12,height(mission.signalX+12,mission.signalZ+10,t)+4,mission.signalZ+10);}
  if(mission.stage===2&&merchantPanel.style.display==='flex'&&t>=mission.transitionAt)merchantPanel.style.display='none';
  missionHud.textContent=mission.failed?'❌ MISSÃO FRACASSADA':
@@ -656,7 +676,7 @@ function updateMission(dt,t){
   mission.stage===8?'📦 RECOLHA OS DADOS · '+Math.round(distance)+' m':
   mission.stage===9?'🛰 ORIGEM DO SINAL · LOJA DISPONÍVEL':
   mission.stage===10?'🛰 RECONHECIMENTO · '+Math.floor(mission.recon)+'/12s':
-  mission.stage===11?'⚔ DEFESAS DA BASE · '+mission.defensesDown+'/3':
+  mission.stage===11?'⚔ TORRES '+mission.baseHits+'/5 · SENTINELAS '+mission.defensesDown+'/3':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
   mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m':'✅ OPERAÇÃO CONCLUÍDA';
 }
@@ -1747,7 +1767,7 @@ for(const enemy of enemies){
      enemyShots.push({weaponId:choice.id,weapon,mesh,glow,outerGlow,plasma,core,
        trail,trailPoints,origin:origin.clone(),destination:destination.clone(),arcHeight:0,
        age:0,duration:flight+extraTime,source:enemy.id,warning,coreMat,glowMat,trailMat,
-       secondary,hitDamage:secondary?Math.max(2,Math.round(weapon.damage*.65)):weapon.damage});
+       secondary,hitDamage:(secondary?Math.max(2,Math.round(weapon.damage*.65)):weapon.damage)*(enemy.boss?2.7:1)});
     };
     spawnShot(predicted);
     if(choice.id==='scatter'){
@@ -2008,7 +2028,21 @@ for(let i=projectiles.length-1;i>=0;i--){
   p.trail.geometry.attributes.position.needsUpdate=true;
   // Tiro direto que erra não causa dano. Apenas munições especiais
   // de impacto em área (meteor/scatter/siege) explodem ao chegar ao destino.
-  const directExpired=directShot&&u>=1&&!physicalImpact;
+  // A base recebe somente impactos reais, um por projétil. Cinco acertos para neutralizar.
+  if(mission.stage===11&&!mission.baseDestroyed&&!p.baseCounted){
+   const hit=sweptMovingContact(previousPosition,p.mesh.position,
+    {x:mission.baseX,z:mission.baseZ},{x:mission.baseX,z:mission.baseZ},62);
+   const endHit=u>=1&&Math.hypot(p.destination.x-mission.baseX,p.destination.z-mission.baseZ)<62;
+   if(hit.hit||endHit){
+    p.baseCounted=true;mission.baseHits=Math.min(5,mission.baseHits+1);
+    mission.baseDestroyed=mission.baseHits>=5;
+    notifyCombat('BASE ATINGIDA · '+mission.baseHits+'/5',1.8);
+    energyFlash(new THREE.Vector3(mission.baseX,height(mission.baseX,mission.baseZ,t)+22,mission.baseZ));
+    if(mission.baseDestroyed)notifyCombat('ESTRUTURA NEUTRALIZADA · DERROTE AS SENTINELAS',4);
+    p.age=p.travel;
+   }
+  }
+  const directExpired=directShot&&u>=1&&!physicalImpact&&!p.baseCounted;
   if(u>=1||physicalImpact){
     if(directExpired){
       scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();p.trail.material.dispose();
