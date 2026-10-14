@@ -575,7 +575,7 @@ cancelAimButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopProp
 renderer.domElement.addEventListener('pointerdown',e=>{if(!areaAim.active)return;e.preventDefault();e.stopImmediatePropagation();placeAim(e)},true);
 renderer.domElement.addEventListener('pointermove',e=>{if(!areaAim.active || e.buttons===0 && e.pointerType==='mouse')return;e.preventDefault();e.stopImmediatePropagation();placeAim(e)},true);
 const areaBursts=[];
-const attackCamera={phase:'idle',shot:null,target:null,launchOrigin:null,launchYaw:0,impactAt:0,blend:0,shake:0};
+const attackCamera={phase:'idle',shot:null,target:null,launchOrigin:null,launchYaw:0,impactAt:0,blend:0,shake:0,startedAt:0,shotCount:0};
 const shotView=new THREE.Vector3(),shotLook=new THREE.Vector3(),normalView=new THREE.Vector3(),normalLook=new THREE.Vector3();
 const smoothstep01=v=>{v=THREE.MathUtils.clamp(v,0,1);return v*v*(3-2*v)};
 // O casco só gira por navegação ou arrasto; o tiro em arco mira sem girar a nave.
@@ -736,10 +736,15 @@ function launchShot(manualPoint=null){
    projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(.72+i*.07),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true,damage:Math.round(WEAPON_STATS.scatter.damage*.65)});
   }
  }
- // Cada novo tiro atualiza a cena de ataque sem interromper a navegação.
- attackCamera.phase='flight';attackCamera.shot=shot;attackCamera.target=destination.clone();
- attackCamera.launchOrigin=origin.clone();attackCamera.launchYaw=heading;
- attackCamera.impactAt=0;attackCamera.shake=0;
+ // A câmera acompanha ocasionalmente o torpedo, sem bloquear pilotagem.
+ if(ammo.id==='torpedo'){
+  attackCamera.shotCount++;
+  if(attackCamera.shotCount%3===1&&orbitPointer===null&&clock.elapsedTime>=orbitManualUntil){
+   attackCamera.phase='flight';attackCamera.shot=shot;attackCamera.target=destination.clone();
+   attackCamera.launchOrigin=origin.clone();attackCamera.launchYaw=heading;
+   attackCamera.startedAt=clock.elapsedTime;attackCamera.blend=0;
+  }
+ }
 }
 // O disparo usa um ponteiro independente; pode ocorrer enquanto os outros dedos navegam e giram a câmera.
 fireButton.addEventListener('pointerdown',e=>{
@@ -1596,7 +1601,24 @@ camera.position.set(x+Math.sin(orbitYaw)*29,16,z+Math.cos(orbitYaw)*29);
 camTarget.set(x-Math.sin(orbitYaw)*44,4,z-Math.cos(orbitYaw)*44);
 camera.lookAt(camTarget);
 cameraReady=true;
-attackCamera.blend=0;
+if(attackCamera.phase==='flight'&&attackCamera.shot){
+ const p=attackCamera.shot,elapsed=t-attackCamera.startedAt;
+ if(elapsed>1.6||p.age>=p.travel||orbitPointer!==null){
+  attackCamera.phase='impact';attackCamera.impactAt=t;attackCamera.shot=null;
+ }else{
+  const dx=p.destination.x-p.origin.x,dz=p.destination.z-p.origin.z;
+  const len=Math.max(1,Math.hypot(dx,dz));
+  shotView.set(p.mesh.position.x-dx/len*20,p.mesh.position.y+11,p.mesh.position.z-dz/len*20);
+  shotLook.set(p.mesh.position.x+dx/len*24,p.mesh.position.y+2,p.mesh.position.z+dz/len*24);
+  attackCamera.blend=Math.min(.85,attackCamera.blend+dt*3);
+  camera.position.lerp(shotView,attackCamera.blend);
+  camTarget.lerp(shotLook,attackCamera.blend);
+  camera.lookAt(camTarget);
+ }
+}else if(attackCamera.phase==='impact'){
+ attackCamera.blend=Math.max(0,attackCamera.blend-dt*3);
+ if(attackCamera.blend===0||t-attackCamera.impactAt>.4)attackCamera.phase='idle';
+}
 attackCamera.shake=0;
 areaAim.viewBlend=0;
 updateRepairKits(t);
