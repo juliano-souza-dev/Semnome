@@ -321,12 +321,44 @@ missionOverlay.id='missionOverlay';
 missionOverlay.style.cssText='display:none;position:fixed;inset:0;z-index:220;background:#061523e8;align-items:center;justify-content:center;color:white;font-family:system-ui;text-align:center;padding:20px';
 missionOverlay.innerHTML='<div style="max-width:420px;background:#102d44;border:2px solid #ff7575;border-radius:18px;padding:28px"><h2 style="margin:0 0 12px">MISSÃO FRACASSADA</h2><p>Sua nave foi destruída antes de recuperar a carga.</p><button id="retryMission" style="background:#ffd262;color:#10202c;border:0;border-radius:12px;padding:14px 24px;font-weight:800;font-size:17px;cursor:pointer">↻ Tentar novamente</button></div>';
 document.body.appendChild(missionOverlay);
-missionOverlay.querySelector('#retryMission').addEventListener('click',()=>location.reload());
+missionOverlay.querySelector('#retryMission').addEventListener('click',()=>restartCheckpoint());
 const missionHud=document.createElement('div');missionHud.id='missionHud';
 missionHud.style.cssText='position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:87;pointer-events:none;background:#0b223bdd;border:1px solid #5db8d2;border-radius:10px;padding:5px 9px;color:#fff;font:600 11px system-ui;text-align:center;max-width:58vw;text-shadow:0 1px 2px #000';
 document.body.appendChild(missionHud);
 const missionMarker=new THREE.Mesh(new THREE.ConeGeometry(5,13,6),new THREE.MeshBasicMaterial({color:0xffe57e,transparent:true,opacity:.9}));
 missionMarker.rotation.x=Math.PI;scene.add(missionMarker);
+// Checkpoints persistem na partida sem recarregar a página.
+let checkpoint=null;
+function saveCheckpoint(){
+ checkpoint={x,z,heading,mission:{...mission},waves:[...activatedWaves],
+  enemies:enemies.map(e=>({x:e.x,z:e.z,heading:e.heading,hp:e.hp,maxHp:e.maxHp,dormant:e.dormant,state:e.state}))};
+}
+function restartCheckpoint(){
+ if(!checkpoint)return;
+ const cp=checkpoint,t=clock.elapsedTime;
+ Object.assign(mission,cp.mission,{failed:false,finished:false});
+ missionOverlay.style.display='none';merchantPanel.style.display='none';
+ x=cp.x;z=cp.z;heading=cp.heading;speed=0;boostActive=false;boostEnergy=1;
+ hullPhysics.x=x;hullPhysics.z=z;hullPhysics.vx=0;hullPhysics.vz=0;
+ playerCombat.hp=ENEMY_AI.maxHp;playerCombat.respawnAt=0;playerCombat.invulnerableUntil=t+2;ship.visible=true;
+ lockedNpc=null;attackCamera.phase='idle';attackCamera.shot=null;attackCamera.blend=0;
+ activatedWaves.clear();for(const key of cp.waves)activatedWaves.add(key);
+ enemies.forEach((e,i)=>{
+  Object.assign(e,cp.enemies[i]);e.previousX=e.x;e.previousZ=e.z;e.vx=0;e.vz=0;
+  e.lastCombatAt=t;e.nextRegenAt=t+75;e.stunnedUntil=0;
+  e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;
+  e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.weaponReadyAt={};e.ai.choice=null;e.ai.trackedShot=null;
+  e.model.visible=e.hp>0;
+ });
+ for(const shot of enemyShots)discardEnemyShot(shot);enemyShots.length=0;
+ for(const p of projectiles){scene.remove(p.mesh,p.trail);p.trail?.geometry?.dispose();}
+ projectiles.length=0;
+ for(const mine of mines)scene.remove(mine.mesh);mines.length=0;
+ for(const d of damageLabels)d.label.remove();damageLabels.length=0;
+ merchantAccess.style.display=mission.calmSea&&!mission.shopClosed?'block':'none';
+ if(mission.stage===2)mission.transitionAt=t+30;
+ refreshPlayerHealth();notifyCombat('CHECKPOINT RESTAURADO',2);
+}
 function launchClearWave(wave,t){
  mission.clearWave=wave;
  const offsets=[[-220,-180],[240,-300],[0,-390],[-390,-410],[420,-520],[-170,-640],[-520,-690],[540,-740],[-360,-940],[390,-960]];
@@ -364,6 +396,7 @@ function updateMission(dt,t){
  if(!mission.failed){
   if(mission.stage===0&&distance<18){
    mission.stage=1;cargo.visible=false;receiver.visible=true;activateInterceptors();
+   saveCheckpoint();
    notifyCombat('CARGA RECUPERADA · ENTREGUE À NAVE ALIADA',3);
   }else if(mission.stage===1&&distance<35){
    mission.stage=2;mission.finished=false;mission.calmSea=true;mission.transitionAt=t+30;
@@ -371,7 +404,7 @@ function updateMission(dt,t){
    merchantShip.visible=true;
    notifyCombat('CARGA ENTREGUE · LOJA DISPONÍVEL',2.5);
   }else if(mission.stage===2&&t>=mission.transitionAt){
-   mission.stage=3;launchClearWave(0,t);
+   mission.stage=3;launchClearWave(0,t);saveCheckpoint();
   }else if(mission.stage===3){
    const alive=enemies.some(e=>e.clearAreaWave===mission.clearWave&&e.hp>0);
    if(!alive&&mission.clearWave<2)launchClearWave(mission.clearWave+1,t);
@@ -1839,4 +1872,5 @@ document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')
 renderer.render(scene,camera);
 }
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);applyGraphicsQuality();});
+saveCheckpoint();
 document.getElementById('loading').remove();tick();
