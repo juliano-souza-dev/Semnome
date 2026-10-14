@@ -183,7 +183,7 @@ const playerSprite={visible:false};
 // Alcance do jogador ampliado cerca de 20% para manter a perseguição aos NPCs viável.
 // IA inimiga, recargas, danos e velocidades de projétil permanecem iguais.
 const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
-const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},meteor:{range:320,cooldown:3.4,damage:32,impact:11},scatter:{range:260,cooldown:3.3,damage:22,impact:10},siege:{range:430,cooldown:5.0,damage:45,impact:22}});
+const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},scatter:{range:270,cooldown:3.5,damage:24,impact:20}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
@@ -451,22 +451,20 @@ const fireButton=document.getElementById('fire'),lockLabel=document.getElementBy
 fireButton.setAttribute('aria-label','Segurar para mirar e soltar para disparar');
 const AMMO_TYPES=[
  {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
- {id:'meteor',name:'Meteoro',icon:'☄️',description:'Subida alta e queda vertical',color:0xff8b35},
- {id:'scatter',name:'Chuva de energia',icon:'✨',description:'Três impactos em sequência',color:0xbc80ff},
+ {id:'scatter',name:'Rajada de Energia',icon:'✨',description:'Três impactos rápidos em área',color:0xbc80ff},
  {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
- {id:'torpedo',name:'Torpedo',icon:'🚀',description:'Explosão raio 55 · veloz · dano 55',color:0x62f2ec},
- {id:'siege',name:'Tempestade Orbital',icon:'🪐',description:'Mira manual · alcance 360 · explosão em área',color:0xe5a4ff}
+ {id:'torpedo',name:'Torpedo',icon:'🚀',description:'Explosão em área · dano 165',color:0x62f2ec},
 ];
 let selectedAmmo=AMMO_TYPES[0];
 // Apenas armas de efeito especial usam a câmera tática superior.
-const TACTICAL_AMMO=new Set(['meteor','scatter','siege']);
+const TACTICAL_AMMO=new Set(['scatter']);
 const ammoButton=document.getElementById('ammo'),ammoMenu=document.getElementById('ammoMenu');
  // Barra lateral de armamentos visíveis, inspirada nos botões da referência.
 const weaponDock=document.createElement('div');weaponDock.id='weaponDock';
 document.getElementById('ui').appendChild(weaponDock);
 function renderWeaponDock(){
  weaponDock.replaceChildren();
- for(const id of ['plasma','iron','torpedo','meteor','scatter','siege']){
+ for(const id of ['plasma','iron','torpedo','scatter']){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
@@ -735,7 +733,7 @@ function launchShot(manualPoint=null){
    small.position.copy(start);scene.add(small);
    const points=Array.from({length:12},()=>start.clone()),geom=new THREE.BufferGeometry().setFromPoints(points);
    const trail2=new THREE.Line(geom,energyTrailMaterial);scene.add(trail2);
-   projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(1.18+i*.17),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true,damage:Math.round(WEAPON_STATS.scatter.damage*.65)});
+   projectiles.push({mesh:small,glow:halo,outerGlow:halo,plasma:null,trail:trail2,trailPoints:points,origin:start,destination:goal,travel:travel*(.72+i*.07),arcHeight:arcHeight*(1.15+i*.12),age:-.10*(i+1),ammo:'scatter',secondary:true,damage:Math.round(WEAPON_STATS.scatter.damage*.65)});
   }
  }
  // Cada novo tiro atualiza a cena de ataque sem interromper a navegação.
