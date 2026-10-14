@@ -329,9 +329,11 @@ const missionMarker=new THREE.Mesh(new THREE.ConeGeometry(5,13,6),new THREE.Mesh
 missionMarker.rotation.x=Math.PI;scene.add(missionMarker);
 // Checkpoints persistem na partida sem recarregar a página.
 let checkpoint=null;
+const CHECKPOINT_KEY='semnome.mission.checkpoint.v2';
 function saveCheckpoint(){
  checkpoint={x,z,heading,mission:{...mission},waves:[...activatedWaves],
   enemies:enemies.map(e=>({x:e.x,z:e.z,heading:e.heading,hp:e.hp,maxHp:e.maxHp,dormant:e.dormant,state:e.state}))};
+ try{localStorage.setItem(CHECKPOINT_KEY,JSON.stringify(checkpoint))}catch{}
 }
 function restartCheckpoint(){
  if(!checkpoint)return;
@@ -361,15 +363,26 @@ function restartCheckpoint(){
 }
 function launchClearWave(wave,t){
  mission.clearWave=wave;
- const offsets=[[-220,-180],[240,-300],[0,-390],[-390,-410],[420,-520],[-170,-640],[-520,-690],[540,-740],[-360,-940],[390,-960]];
  let index=0;
  for(const enemy of enemies){
   if(enemy.clearAreaWave!==wave||!enemy.dormant)continue;
-  const [dx,dz]=offsets[index+ (wave===1?3:wave===2?6:0)];index++;
-  enemy.x=x+dx;enemy.z=z+dz;enemy.anchorX=enemy.x;enemy.anchorZ=enemy.z;
+  // Distribuição circular em até 500m, evitando obstáculos e surgimento sobre a nave.
+  const count=wave===2?4:3;
+  const angle=(Math.PI*2*(index+.24*(wave%2))/count)+wave*.53;
+  const radius=270+(index%3)*92;
+  let sx=x+Math.cos(angle)*radius,sz=z+Math.sin(angle)*radius;
+  for(let attempt=0;attempt<8;attempt++){
+   const blocked=horizon.colliders.some(o=>Math.hypot(sx-o.x,sz-o.z)<o.radius+24);
+   if(!blocked)break;
+   const adjusted=angle+(attempt+1)*.38;
+   sx=x+Math.cos(adjusted)*radius;sz=z+Math.sin(adjusted)*radius;
+  }
+  index++;
+  enemy.x=sx;enemy.z=sz;enemy.anchorX=enemy.x;enemy.anchorZ=enemy.z;
   enemy.ai.body.x=enemy.x;enemy.ai.body.z=enemy.z;enemy.ai.body.vx=0;enemy.ai.body.vz=0;
   enemy.vx=0;enemy.vz=0;enemy.heading=Math.atan2(x-enemy.x,z-enemy.z);
   enemy.dormant=false;enemy.hp=enemy.veteran?150:enemy.maxHp;enemy.maxHp=enemy.veteran?150:enemy.maxHp;
+  enemy.model.visible=true;
   enemy.state='pursuit';enemy.ai.plan=null;enemy.ai.nextPlanTime=0;
   enemy.ai.estimateVx=0;enemy.ai.estimateVz=0;
  }
@@ -1872,5 +1885,10 @@ document.getElementById('status').textContent=(speed<-.5?'Ré: ':'Velocidade: ')
 renderer.render(scene,camera);
 }
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);applyGraphicsQuality();});
-saveCheckpoint();
+try{
+ const stored=JSON.parse(localStorage.getItem(CHECKPOINT_KEY)||'null');
+ if(stored&&Array.isArray(stored.enemies)&&stored.enemies.length===enemies.length&&stored.mission&&Number.isFinite(stored.x)){
+  checkpoint=stored;restartCheckpoint();
+ }else saveCheckpoint();
+}catch{saveCheckpoint();}
 document.getElementById('loading').remove();tick();
