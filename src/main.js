@@ -187,12 +187,12 @@ const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impac
 npcData.hp=COMBAT.npcMaxHp;
 // Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
-const FLEET_SIZE=13;
+const FLEET_SIZE=6;
 const enemies=[npcData];
 npcData.id=1;npcData.name='Patrulheiro 01';npcData.phase=0;npcData.radius=15;npcData.sprite=null;npcData.nextShot=3;npcData.state='patrol';npcData.hostile=true;
 for(let i=1;i<FLEET_SIZE;i++){
  const sector=i-1,angle=(sector+.32*(sector%2))*Math.PI*2/(FLEET_SIZE-1);
- const radius=300+(sector%4)*130;
+ const radius=230+(sector%3)*115;
  const spawnX=Math.sin(angle)*radius,spawnZ=-150+Math.cos(angle)*radius;
  enemies.push({id:i+1,name:'Patrulheiro '+String(i+1).padStart(2,'0'),
   x:spawnX,z:spawnZ,y:0,
