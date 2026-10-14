@@ -908,6 +908,8 @@ function startAreaAim(e){
  if(playerCombat.hp<=0||areaAim.active||weaponRemaining()>0)return;
  areaAim.active=true;areaAim.pointerId=e.pointerId;areaAim.valid=true;
  areaAim.startX=e.clientX;areaAim.startY=e.clientY;areaAim.holdStarted=clock.elapsedTime;
+ // Memoriza a direção atual da torreta antes de qualquer ajuste da mira.
+ areaAim.startTurretYaw=heading+(ship.userData.turretPivot?.rotation.y??0);
  // Especial: visão aérea desde o primeiro toque, sem temporizador.
  areaAim.viewBlend=TACTICAL_AMMO.has(selectedAmmo.id)?1:0;
  aimHint.textContent=(TACTICAL_AMMO.has(selectedAmmo.id)?'MIRA AÉREA':'MIRA DIRETA')+' · '+selectedAmmo.name.toUpperCase()+' · '+weaponRange()+' m';
@@ -928,6 +930,14 @@ function startAreaAim(e){
 function finishAreaAim(e,cancel=false){
  if(!areaAim.active||e.pointerId!==areaAim.pointerId)return;
  let destination=!cancel&&areaAim.valid?areaAim.point.clone():null;
+ // Toque simples sem alvo: atira exatamente para a frente da torreta.
+ // Arrastar continua utilizando a mira manual, sem assistência forçada.
+ const tap= Math.hypot(e.clientX-areaAim.startX,e.clientY-areaAim.startY)<12;
+ if(destination&&tap&&(!lockedNpc||lockedNpc.hp<=0)){
+  const yaw=areaAim.startTurretYaw;
+  const tx=x-Math.sin(yaw)*weaponRange(),tz=z-Math.cos(yaw)*weaponRange();
+  destination.set(tx,height(tx,tz,clock.elapsedTime)+.35,tz);
+ }
  // Correção leve de mira em alvo móvel: prevê o ponto de encontro,
  // mas o projétil segue sua trajetória e pode errar se o alvo manobrar.
  if(destination){
@@ -957,7 +967,7 @@ function launchShot(manualPoint=null){
  weaponReadyAt[selectedAmmo.id]=clock.elapsedTime+currentWeapon().cooldown;
  audio.play(selectedAmmo.id);
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
- const destination=manualPoint?manualPoint.clone():new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z);
+ const destination=manualPoint?manualPoint.clone():(lockedNpc&&lockedNpc.hp>0?new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z):new THREE.Vector3(x-Math.sin(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange(),0,z-Math.cos(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange()));
  const ammo=selectedAmmo;
  // Nas armas comuns, a saída é a boca real da torre giratória.
  // Nas especiais, a trajetória aérea também nasce do canhão.
