@@ -135,7 +135,7 @@ const nightDome=new THREE.Mesh(new THREE.SphereGeometry(800,40,24),new THREE.Sha
  fragmentShader:`varying vec3 vDir;void main(){vec3 d=normalize(vDir);float h=smoothstep(-.18,.65,d.y);vec3 sky=mix(vec3(.022,.056,.12),vec3(.002,.006,.027),h);float n=fract(sin(dot(floor(d*950.),vec3(12.9898,78.233,37.719)))*43758.5453);float stars=step(.996,n)*smoothstep(.06,.3,d.y);float moon=pow(max(dot(d,normalize(vec3(.55,.66,-.45))),0.),1200.);gl_FragColor=vec4(sky+stars*vec3(.8,.85,1.)+moon*vec3(.7,.8,1.),1.);}`
 }));nightDome.visible=false;scene.add(nightDome);
 function applyOceanRegion(){
- const night=mission.stage>=5;
+ const night=mission.stage>=5&&mission.stage<22;
  nightDome.visible=night;moonMesh.visible=night;uniforms.uNight.value=night?1:0;
  sun.intensity=night?.8:3.3;sun.color.setHex(night?0x85b9ff:0xffd99b);
  scene.background.setHex(night?0x030819:0x8db6d5);
@@ -304,6 +304,8 @@ for(let i=0;i<6;i++){
  const id=reinforcementId++;
  enemies.push({id,name:i===5?'Capitão Fantasma':'Espectro de Sucata '+(i+1),x:0,z:0,y:0,anchorX:0,anchorZ:0,heading:0,speed:12,hp:0,phase:i*.7,radius:18,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true,ghostWave:Math.floor(i/3),ghostCaptain:i===5,veteran:true});
 }
+// Missão 07: equipe hostil protegendo o coletor pelágico, usando o arsenal e IA existentes.
+for(let i=0;i<3;i++){const id=reinforcementId++;enemies.push({id,name:i===2?'Guardião da Maré':'Caçador Pelágico '+(i+1),x:0,z:0,y:0,anchorX:0,anchorZ:0,heading:0,speed:12,hp:0,phase:i*.8,radius:18,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true,tideGuard:true,tideBoss:i===2,veteran:true});}
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
@@ -324,7 +326,7 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,tideX:0,tideZ:0,tideScan:0,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0)};
 const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*20;
@@ -480,6 +482,20 @@ function activateGhostWave(wave,t){
   e.maxHp=e.ghostCaptain?420:200;e.hp=e.maxHp;e.dormant=false;e.state='pursuit';
   e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.weaponReadyAt={};
   e.model.position.set(e.x,e.y,e.z);e.model.visible=true;
+ });
+}
+const tidePrompt=document.createElement('div');
+tidePrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:18px;background:#081b33f2;color:white;border:1px solid #8ce8ff;border-radius:14px;text-align:center;width:min(370px,88vw);font:600 14px system-ui';
+tidePrompt.innerHTML='<strong>☀ MISSÃO 07 · O CORAÇÃO DA MARÉ</strong><p>O sol voltou. Os registros da Frota Fantasma apontam para um coletor pelágico abandonado. Recupere seus dados antes dos saqueadores.</p><button style="padding:12px 20px;border:0;background:#8ce8ff;border-radius:8px;font-weight:800">INICIAR MISSÃO</button>';document.body.appendChild(tidePrompt);
+tidePrompt.querySelector('button').onclick=()=>{if(mission.stage!==22)return;tidePrompt.style.display='none';mission.stage=23;mission.finished=false;mission.tideX=x-550;mission.tideZ=z-320;mission.tideScan=0;saveCheckpoint();notifyCombat('☀ LOCALIZE O COLETOR PELÁGICO',4);};
+function activateTideGuards(t,reset){
+ const group=enemies.filter(e=>e.tideGuard);
+ group.forEach((e,i)=>{
+  if(!reset&&e.hp<=0&&!e.dormant)return;
+  const a=heading+2*Math.PI*i/3,cx=mission.tideX,cz=mission.tideZ;
+  e.x=cx+Math.sin(a)*170;e.z=cz+Math.cos(a)*170;
+  e.anchorX=e.x;e.anchorZ=e.z;e.y=height(e.x,e.z,t)+1;e.previousX=e.x;e.previousZ=e.z;e.heading=Math.atan2(x-e.x,z-e.z);
+  e.maxHp=e.tideBoss?450:210;e.hp=e.maxHp;e.dormant=false;e.state='pursuit';e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.weaponReadyAt={};e.model.position.set(e.x,e.y,e.z);e.model.visible=true;
  });
 }
 function updateSubHunt(dt,t){
@@ -655,7 +671,7 @@ receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
 function activateInterceptors(){
  for(const enemy of enemies){
-  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined||enemy.ghostWave!==undefined)continue;
+  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined||enemy.ghostWave!==undefined||enemy.tideGuard)continue;
   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
   enemy.ai.lastCombatAt=clock.elapsedTime;
@@ -745,6 +761,8 @@ function restartCheckpoint(){
  if(mission.stage===4)signalPrompt.style.display='block';
  if(mission.stage===14)subPrompt.style.display='block';
  if(mission.stage===19)ghostPrompt.style.display='block';
+ if(mission.stage===22)tidePrompt.style.display='block';
+ if(mission.stage===25)activateTideGuards(t,false);
  if(mission.stage===21){mission.ghostWave=0;activateGhostWave(0,t);}
  if(mission.stage>=15&&mission.stage<=18){for(const key of Object.keys(hunterWeaponReady))delete hunterWeaponReady[key];hunterBoostUntil=0;hunterBoostReadyAt=t+8;mission.subPhaseAt=t;mission.subNextAttack=t+5;mission.subSurviveUntil=t+120;sonarReady=0;clearSubShots();}
  if(mission.stage===9)basePrompt.style.display='block';
@@ -819,7 +837,7 @@ function updateMission(dt,t){
    mission.stage=2;mission.finished=false;mission.calmSea=true;mission.shopClosed=false;mission.shopX=deliveryX;mission.shopZ=deliveryZ;mission.transitionAt=t+30;
    merchantShip.position.set(deliveryX+70,height(deliveryX+70,deliveryZ+60,t)+1,deliveryZ+60);
    merchantShip.visible=true;
-   notifyCombat('CARGA ENTREGUE · LOJA DISPONÍVEL',2.5);
+   openMerchant();notifyCombat('CARGA ENTREGUE · MELHORIAS DISPONÍVEIS',2.5);
   }else if(mission.stage===2&&t>=mission.transitionAt){
    mission.stage=3;mission.clearDestroyed=0;launchClearWave(0,t);saveCheckpoint();
   }else if(mission.stage===3){
@@ -834,7 +852,7 @@ function updateMission(dt,t){
    else if(alive===0&&defeated===expected&&wave===2){
     mission.clearDestroyed=10;mission.stage=4;mission.finished=true;mission.calmSea=true;mission.shopClosed=false;mission.shopX=x;mission.shopZ=z;
     merchantShip.position.set(x+55,height(x+55,z+35,t)+1,z+35);merchantShip.visible=true;
-    saveCheckpoint();signalPrompt.style.display='block';notifyCombat('ÁREA LIMPA · LOJA DE MELHORIAS DISPONÍVEL',4);
+    saveCheckpoint();signalPrompt.style.display='block';openMerchant();notifyCombat('ÁREA LIMPA · MELHORIAS DISPONÍVEIS',4);
    }
   }else if(mission.stage===5&&distance<60){
    mission.stage=6;mission.scan=0;notifyCombat('MANTENHA A POSIÇÃO · VARREDURA 10s',3);
@@ -859,7 +877,7 @@ function updateMission(dt,t){
    merchantShip.position.set(x+55,height(x+55,z+35,t)+1,z+35);merchantShip.visible=true;
    basePrompt.style.display='block';
    unlockedShips.signal=true;unlockedShips.selected='signal';economy.scrap+=150;saveEconomy();
-   pickupInventory.shield=Math.min(9,pickupInventory.shield+2);pickupInventory.boost=Math.min(9,pickupInventory.boost+1);updatePickupButtons();
+   pickupInventory.shield=Math.min(9,pickupInventory.shield+2);pickupInventory.boost=Math.min(9,pickupInventory.boost+1);updatePickupButtons();openMerchant();
    try{localStorage.setItem(rewardKey,JSON.stringify(unlockedShips))}catch{}
    refreshShipSelect();saveCheckpoint();notifyCombat('SINAL PERDIDO CONCLUÍDO · NAVE DESBLOQUEADA!',7);
   }else if(mission.stage===10){
@@ -889,12 +907,22 @@ function updateMission(dt,t){
    if(t<sonarUntil){mission.subScan+=dt;if(mission.subScan>=5){mission.stage=18;mission.subPhaseAt=t;saveCheckpoint();notifyCombat('ALVO LOCALIZADO · ATIRE QUANDO EMERGIR',4);}}
   }else if(mission.stage===18){
    if(mission.subHp<=0){mission.stage=19;mission.finished=true;ghostPrompt.style.display='block';economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
+  }else if(mission.stage===23){
+   if(Math.hypot(x-mission.tideX,z-mission.tideZ)<110){mission.stage=24;mission.tideScan=0;saveCheckpoint();notifyCombat('📡 COLETOR PELÁGICO · MANTENHA POSIÇÃO',3);}
+  }else if(mission.stage===24){
+   const near=Math.hypot(x-mission.tideX,z-mission.tideZ)<100;
+   mission.tideScan=Math.max(0,Math.min(8,(mission.tideScan||0)+(near?dt:-dt*.7)));
+   if(mission.tideScan>=8){mission.stage=25;activateTideGuards(t,true);saveCheckpoint();notifyCombat('⚠ EMBOSCADA · PROTEJA OS DADOS DO COLETOR',4);}
+  }else if(mission.stage===25){
+   if(!enemies.some(e=>e.tideGuard&&e.hp>0)){
+    mission.stage=26;mission.finished=true;economy.scrap+=900;saveEconomy();saveCheckpoint();notifyCombat('✅ CORAÇÃO DA MARÉ RECUPERADO · +900 SUCATAS',6);
+   }
   }else if(mission.stage===20){
    if(Math.hypot(x-mission.ghostX,z-mission.ghostZ)<180){mission.stage=21;mission.ghostWave=0;activateGhostWave(0,t);saveCheckpoint();notifyCombat('⚠ FROTA FANTASMA · EMBOSCADA',4);}
   }else if(mission.stage===21){
    if(!enemies.some(e=>e.ghostWave===mission.ghostWave&&e.hp>0)){
     if(mission.ghostWave===0){mission.ghostWave=1;activateGhostWave(1,t);saveCheckpoint();notifyCombat('⚠ SEGUNDA ESQUADRA · CAPITÃO FANTASMA',4);}
-    else{mission.stage=22;mission.finished=true;economy.scrap+=750;saveEconomy();saveCheckpoint();notifyCombat('FROTA FANTASMA DERROTADA · +750 SUCATAS',6);}
+    else{mission.stage=22;mission.finished=true;economy.scrap+=750;saveEconomy();applyOceanRegion();saveCheckpoint();tidePrompt.style.display='block';notifyCombat('☀ AMANHECER · FROTA FANTASMA DERROTADA · +750 SUCATAS',6);}
    }
   }else if(mission.stage===13){
    // Progresso ao longo da rota, evitando gatilhos inconsistentes por curvas ou checkpoint.
@@ -966,7 +994,11 @@ function updateMission(dt,t){
   mission.stage===19?'✅ CAÇADA CONCLUÍDA · NOVA TRANSMISSÃO':
   mission.stage===20?'📡 ENCONTRE A FROTA FANTASMA · '+Math.round(Math.hypot(x-mission.ghostX,z-mission.ghostZ))+'m':
   mission.stage===21?'⚔ FROTA FANTASMA · ESQUADRA '+(mission.ghostWave+1)+'/2 · '+enemies.filter(e=>e.ghostWave!==undefined&&e.hp>0).length+' HOSTIS':
-  mission.stage===22?'✅ FROTA FANTASMA DERROTADA · +750 SUCATAS':
+  mission.stage===22?'☀ AMANHECER · NOVA MISSÃO DISPONÍVEL':
+  mission.stage===23?'📡 CORAÇÃO DA MARÉ · ENCONTRE O COLETOR · '+Math.round(Math.hypot(x-mission.tideX,z-mission.tideZ))+'m':
+  mission.stage===24?'⚡ EXTRAINDO DADOS PELÁGICOS · '+Math.floor((mission.tideScan||0)/8*100)+'%':
+  mission.stage===25?'⚔ PROTEJA O COLETOR · '+enemies.filter(e=>e.tideGuard&&e.hp>0).length+' HOSTIS':
+  mission.stage===26?'✅ CORAÇÃO DA MARÉ RECUPERADO · +900 SUCATAS':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
   mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m RESTANTES · '+Math.floor(mission.extractionDistance||0)+'m NA ROTA · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
 }
@@ -1218,7 +1250,7 @@ const compassPings=enemies.map(enemy=>{
  const threatStatus=document.createElement('div');threatStatus.id='threatStatus';threatStatus.setAttribute('aria-live','off');compass.appendChild(threatStatus);
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
-  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:mission.stage===20?{x:mission.ghostX,z:mission.ghostZ}:null;
+  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:mission.stage===20?{x:mission.ghostX,z:mission.ghostZ}:mission.stage===23||mission.stage===24?{x:mission.tideX,z:mission.tideZ}:null;
   const trackingSub=mission.stage>=16&&mission.stage<=18&&!mission.failed;
   const subDist=Math.hypot(x-mission.subX,z-mission.subZ);
   subCompassPing.style.display=trackingSub?'block':'none';
@@ -1921,10 +1953,10 @@ for(const enemy of enemies){
   // sem teleporte e sem acerto automático.
   if(!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
-   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)||(enemy.ghostWave!==undefined&&mission.stage===21)){
+   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)||(enemy.ghostWave!==undefined&&mission.stage===21)||(enemy.tideGuard&&mission.stage===25)){
     // NPCs desta missão caçam o jogador desde o spawn; não retornam à patrulha.
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:true,
-     speed:enemy.ghostWave!==undefined?47:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
+     speed:enemy.tideGuard?46:enemy.ghostWave!==undefined?47:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
    }else if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
      speed:Math.max(ai.plan.speed,Math.min(enemy.veteran?52:43,29+distance*.016)),
