@@ -435,7 +435,7 @@ function updateSubHunt(dt,t){
   if(flee||chase){
    hunterBoostMode=flee?'escape':'chase';
    hunterBoostUntil=t+(flee?2.8:3.5);
-   hunterBoostReadyAt=t+(low?17:14);
+   hunterBoostReadyAt=t+30;
    hunterLastBoost=t;
    notifyCombat(flee?'🔥 CAÇADORA USA SUPER BOOSTER PARA FUGIR':'🔥 CAÇADORA ATIVA SUPER BOOSTER DE CAÇADA',2);
   }
@@ -1404,7 +1404,7 @@ function finishAreaAim(e,cancel=false){
  // Toque simples sem alvo: atira exatamente para a frente da torreta.
  // Arrastar continua utilizando a mira manual, sem assistência forçada.
  const tap=!areaAim.manualDragged&&Math.hypot(e.clientX-areaAim.startX,e.clientY-areaAim.startY)<12;
- if(destination&&tap&&(!lockedNpc||lockedNpc.hp<=0)){
+ if(destination&&tap&&(!lockedNpc||lockedNpc.hp<=0)&&!(mission.stage>=16&&mission.stage<=18&&mission.subHp>0)){
   // Deriva a trajetória da boca do canhão no mundo, sem estimar pelos ângulos do casco.
   ship.updateMatrixWorld(true);
   const muzzle=ship.userData.firePoint;
@@ -1424,6 +1424,13 @@ function finishAreaAim(e,cancel=false){
   for(const enemy of enemies){
    const dist=Math.hypot(enemy.x-destination.x,enemy.z-destination.z);
    if(enemy.hp>0&&dist<bestDist){best=enemy;bestDist=dist;}
+  }
+  if(mission.stage>=16&&mission.stage<=18&&mission.subHp>0){
+   const hunterDistance=Math.hypot(mission.subX-destination.x,mission.subZ-destination.z);
+   if(hunterDistance<42&&hunterDistance<bestDist+30){
+    destination.set(mission.subX,height(mission.subX,mission.subZ,clock.elapsedTime)+8,mission.subZ);
+    best=null;
+   }
   }
   if(best){
    if(direct){
@@ -1451,7 +1458,8 @@ function launchShot(manualPoint=null){
  }
  audio.play(selectedAmmo.id);
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
- const destination=manualPoint?manualPoint.clone():(lockedNpc&&lockedNpc.hp>0?new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z):new THREE.Vector3(x-Math.sin(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange(),0,z-Math.cos(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange()));
+ const hunterAim=mission.stage>=16&&mission.stage<=18&&mission.subHp>0&&Math.hypot(x-mission.subX,z-mission.subZ)<weaponRange();
+ const destination=manualPoint?manualPoint.clone():(hunterAim?new THREE.Vector3(mission.subX,height(mission.subX,mission.subZ,clock.elapsedTime)+8,mission.subZ):lockedNpc&&lockedNpc.hp>0?new THREE.Vector3(lockedNpc.x,lockedNpc.y+2.5,lockedNpc.z):new THREE.Vector3(x-Math.sin(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange(),0,z-Math.cos(heading+(ship.userData.turretPivot?.rotation.y??0))*weaponRange()));
  const ammo=selectedAmmo;
  // Nas armas comuns, a saída é a boca real da torre giratória.
  // Nas especiais, a trajetória aérea também nasce do canhão.
@@ -2095,10 +2103,14 @@ for(const enemy of enemies){
  if(enemy.hp>0&&range<nearestDistance){nearest=enemy;nearestDistance=range}
 }
 lockedNpc=nearest;
+const hunterTarget=mission.stage>=16&&mission.stage<=18&&mission.subHp>0&&!mission.failed;
+const hunterDist=hunterTarget?Math.hypot(x-mission.subX,z-mission.subZ):Infinity;
+const hunterLocked=hunterTarget&&hunterDist<weaponRange()&&hunterDist<nearestDistance;
 refreshCompass(t);
-targetRing.visible=!!lockedNpc;
-if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
-lockLabel.textContent=lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP'+(lockedNpc.state==='evade'?' · ESQUIVA 🚀':lockedNpc.state==='withdraw'?' · RECUANDO':lockedNpc.state==='regroup'?' · BUSCANDO APOIO':'')+(lockedNpc.ai.currentWeapon?' · '+NPC_WEAPONS[lockedNpc.ai.currentWeapon].name:''):'Procurando alvo...';
+targetRing.visible=hunterLocked||!!lockedNpc;
+if(hunterLocked)targetRing.position.set(mission.subX,height(mission.subX,mission.subZ,t)+.18,mission.subZ);
+else if(lockedNpc)targetRing.position.set(lockedNpc.x,height(lockedNpc.x,lockedNpc.z,t)+.18,lockedNpc.z);
+lockLabel.textContent=hunterLocked?'ALVO TRAVADO · CAÇADORA DE SUCATA · '+Math.ceil(mission.subHp)+'/1200 HP · '+(t<hunterBoostUntil?'BOOSTER ATIVO':'BOOSTER RECARREGANDO'):lockedNpc?'ALVO TRAVADO · '+lockedNpc.name+' · '+lockedNpc.hp+'/'+COMBAT.npcMaxHp+' HP'+(lockedNpc.state==='evade'?' · ESQUIVA 🚀':lockedNpc.state==='withdraw'?' · RECUANDO':lockedNpc.state==='regroup'?' · BUSCANDO APOIO':'')+(lockedNpc.ai.currentWeapon?' · '+NPC_WEAPONS[lockedNpc.ai.currentWeapon].name:''):'Procurando alvo...';
 // Estado de recarga do botão é atualizado no fechamento do frame.
 // Antigo protótipo oculto: somente a máquina 3D deve aparecer.
 npc.visible=false;
@@ -2297,9 +2309,9 @@ for(let i=projectiles.length-1;i>=0;i--){
     p.age=p.travel;
    }
   }
-  if(mission.stage===18&&p.ammo!=='torpedo'&&!p.subCounted){
+  if(mission.stage===18&&!p.subCounted){
    const dist=Math.hypot(p.mesh.position.x-mission.subX,p.mesh.position.z-mission.subZ);
-   if(t>=hunterBoostUntil&&dist<42&&Math.abs(p.mesh.position.y-submarine.position.y)<24){
+   if(dist<42&&Math.abs(p.mesh.position.y-submarine.position.y)<24){
     p.subCounted=true;mission.subHp=Math.max(0,mission.subHp-(p.ammo==='energyBomb'?300:Math.max(1,p.damage||25)));
     p.age=p.travel;energyFlash(p.mesh.position);notifyCombat('CAÇADORA DE SUCATA ATINGIDO · '+Math.ceil(mission.subHp)+' HP',2);
    }
