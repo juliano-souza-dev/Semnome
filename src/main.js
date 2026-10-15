@@ -222,7 +222,7 @@ const playerSprite={visible:false};
 // Alcance do jogador ampliado cerca de 20% para manter a perseguição aos NPCs viável.
 // IA inimiga, recargas, danos e velocidades de projétil permanecem iguais.
 const COMBAT={range:235,projectileSpeed:175,damage:25,cooldown:2.7,npcMaxHp:100};
-const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:7.5,damage:165,impact:63.25},scatter:{range:270,cooldown:3.5,damage:24,impact:20},energyBomb:{range:370,cooldown:300,damage:0,impact:25}});
+const WEAPON_STATS=Object.freeze({plasma:{range:250,cooldown:2.1,damage:25,impact:8},iron:{range:285,cooldown:2.5,damage:40,impact:8},torpedo:{range:295,cooldown:11.25,damage:165,impact:63.25},scatter:{range:270,cooldown:3.5,damage:24,impact:20},energyBomb:{range:370,cooldown:300,damage:0,impact:25}});
 npcData.hp=COMBAT.npcMaxHp;
 // Frota ampliada: 13 naves hostis em setores de patrulha distribuídos.
 // Mantém instâncias e IA existentes; evita concentrar todos os NPCs na origem.
@@ -1244,7 +1244,24 @@ const healPlayerPlus=new THREE.Group();
 for(let i=0;i<8;i++){const plus=new THREE.Group();plus.add(new THREE.Mesh(plusBarV,plusMaterial),new THREE.Mesh(plusBarH,plusMaterial));healPlayerPlus.add(plus)}
 healPlayerPlus.visible=false;scene.add(healPlayerPlus);
 let healZoneFraction=0,healZoneNoticeAt=0,healZoneUntil=0;
+let nextFinalHealRelocation=0;
+function relocateFinalHealZones(t){
+ // Nas etapas finais a frota se desloca: as zonas antigas estavam quilômetros atrás.
+ // Reposiciona apenas três zonas, sem criar geometrias adicionais no WebGL.
+ for(let i=0;i<3;i++){
+  const zone=healZones[i],angle=heading+(i-1)*1.85,dist=100+i*55;
+  let zx=x+Math.sin(angle)*dist,zz=z+Math.cos(angle)*dist;
+  for(let j=0;j<6&&horizon.colliders.some(o=>Math.hypot(zx-o.x,zz-o.z)<o.radius+HEAL_ZONE_RADIUS+8);j++){
+   const a=angle+j*1.1;zx=x+Math.sin(a)*(dist+25*j);zz=z+Math.cos(a)*(dist+25*j);
+  }
+  zone.x=zx;zone.z=zz;
+ }
+}
+
 function updateHealZones(dt,t){
+ const finalBattle=mission.stage===37;
+ if(finalBattle&&t>=nextFinalHealRelocation){relocateFinalHealZones(t);nextFinalHealRelocation=t+75;}
+ if(!finalBattle&&nextFinalHealRelocation){for(let i=0;i<3;i++){healZones[i].x=healZonePositions[i][0];healZones[i].z=healZonePositions[i][1];}nextFinalHealRelocation=0;}
  let inside=false;
  for(const zone of healZones){
   const elevation=height(zone.x,zone.z,t);
@@ -1768,7 +1785,7 @@ function launchShot(manualPoint=null){
  // Recuo e clarão visíveis no instante do disparo.
  ship.userData.recoil=.42;ship.userData.flashTime=.15;
  // Disparos comuns 60% mais rápidos; Teste de Ferro conserva o seu ajuste de 3x.
- const travel=ammo.id==='energyBomb'?Math.max(.055,origin.distanceTo(destination)/1250):ammo.id==='torpedo'?Math.max(.65,Math.hypot(origin.x-destination.x,origin.z-destination.z)/115):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
+ const travel=ammo.id==='energyBomb'?Math.max(.055,origin.distanceTo(destination)/1250):ammo.id==='torpedo'?Math.max(.325,Math.hypot(origin.x-destination.x,origin.z-destination.z)/230):ammo.id==='siege'?3.0:ammo.id==='iron'?Math.max(.06,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/2.65):Math.max(.34,origin.distanceTo(destination)/COMBAT.projectileSpeed*1.8/1.6)*(ammo.id==='meteor'?1.25:1);
  const arcHeight=(ammo.id==='plasma'||ammo.id==='iron'||ammo.id==='torpedo'||ammo.id==='energyBomb')?0:ammo.id==='siege'?THREE.MathUtils.clamp(origin.distanceTo(destination)*.85,65,145):THREE.MathUtils.clamp(origin.distanceTo(destination)*(ammo.id==='meteor'?.92:.44),ammo.id==='meteor'?26:13,ammo.id==='meteor'?70:38);
  const mesh=new THREE.Group();
  const core=new THREE.Mesh(energyCoreGeometry,energyCoreMaterial);
