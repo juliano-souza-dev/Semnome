@@ -1364,6 +1364,7 @@ const AMMO_TYPES=[
  {id:'energyBomb',name:'Núcleo de Sobrecarga',icon:'💠',description:'25% da vida máxima · recarga 5 minutos · apagão 1s',color:0x69f9ff},
 ];
 let selectedAmmo=AMMO_TYPES[0];
+let lastMainAmmo=selectedAmmo;
 const MAIN_WEAPONS=new Set(['scatter','torpedo','iron']);
 // Apenas armas de efeito especial usam a câmera tática superior.
 const TACTICAL_AMMO=new Set(['scatter']);
@@ -1382,7 +1383,7 @@ function renderWeaponDock(){
   button.setAttribute('aria-label','Selecionar '+ammo.name);button.setAttribute('aria-pressed',String(selectedAmmo.id===id));
   button.addEventListener('pointerdown',e=>{
    e.preventDefault();e.stopPropagation();
-   selectedAmmo=ammo;cancelAreaAim();hudButton(ammoButton,ammo.id,'',34);
+   selectedAmmo=ammo;lastMainAmmo=ammo;cancelAreaAim();hudButton(ammoButton,ammo.id,'',34);
    ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');
    renderAmmoMenu();renderWeaponDock();
   });
@@ -1395,7 +1396,7 @@ function renderAmmoMenu(){
   const button=document.createElement('button');button.type='button';
   button.className=ammo.id===selectedAmmo.id?'chosen':'';
   hudButton(button,ammo.id,ammo.name+' · '+ammo.description+' · Alcance '+WEAPON_STATS[ammo.id].range+' · '+WEAPON_STATS[ammo.id].cooldown+'s',30);
-  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();hudButton(ammoButton,ammo.id,'',42);ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu();renderWeaponDock()});
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;lastMainAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();hudButton(ammoButton,ammo.id,'',42);ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu();renderWeaponDock()});
   ammoMenu.append(button);
  }
 }
@@ -1410,6 +1411,7 @@ hudButton(overloadSelect,'energyBomb','',33);
 document.getElementById('ui').appendChild(overloadSelect);
 overloadSelect.addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();
+ if(Date.now()<energyBombReadyAt){notifyCombat('NÚCLEO RECARREGANDO · USE AS ARMAS PRINCIPAIS',2);return;}
  selectedAmmo=AMMO_TYPES.find(a=>a.id==='energyBomb');
  cancelAreaAim();hudButton(ammoButton,'energyBomb','',34);
  ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');
@@ -1718,6 +1720,14 @@ function launchShot(manualPoint=null){
  if(ammo.id==='scatter'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
  
  projectiles.push(shot);
+ // A recarga de 5 minutos pertence SOMENTE ao especial. Após lançar, retorna
+ // à última arma comum; o blackout de movimento/dano dura apenas 1 segundo.
+ if(ammo.id==='energyBomb'){
+  selectedAmmo=lastMainAmmo;
+  hudButton(ammoButton,selectedAmmo.id,'',34);
+  renderAmmoMenu();renderWeaponDock();
+  updateOverloadSelection();
+ }
  if(ammo.id==='scatter'){
   // Impactos secundários independentes, descendentes, em posições próximas ao alvo.
   for(let i=0;i<2;i++){
