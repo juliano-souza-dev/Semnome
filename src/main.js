@@ -319,6 +319,8 @@ for(let rank=0;rank<18;rank++){
 }
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
+const chaseRival={id:99981,name:'Sombra Pelágica',x:0,z:0,y:0,anchorX:0,anchorZ:0,heading:0,speed:12,hp:0,maxHp:0,phase:0,radius:18,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true,veteran:true,chaseRival:true};
+enemies.push(chaseRival);
 for(const enemy of enemies){
  enemy.model=createWarMachine3D(THREE,{enemy:true});enemy.model.scale.multiplyScalar(1.17);
  enemy.vx=0;enemy.vz=0;
@@ -374,7 +376,8 @@ function openMerchant(){
   items.appendChild(btn);
  }
 }
-merchantPanel.querySelector('#merchantClose').onclick=()=>{merchantPanel.style.display='none';if(mission.stage===36)refreshSurvivalPrompt();};
+merchantPanel.querySelector('#merchantClose').onclick=()=>{merchantPanel.style.display='none';if(mission.stage===36)refreshSurvivalPrompt();
+ if(mission.stage===39)openChaseMission();};
 const merchantAccess=document.createElement('button');merchantAccess.textContent='⚓ Loja';merchantAccess.style.cssText='display:none;position:fixed;right:12px;bottom:110px;z-index:95;padding:9px;background:#164853;color:white;border:1px solid #70ccb4;border-radius:8px';document.body.appendChild(merchantAccess);merchantAccess.onclick=openMerchant;
 // A Caçadora de Sucata: nave de emboscada, sem nave sucateiras neste mundo.
 // Mesmo chassi 3D das naves do jogo, ampliado para o chefe Caçadora.
@@ -601,6 +604,27 @@ function deploySurvivors(count,t){
  }
  return amount;
 }
+const chasePrompt=document.createElement('div');chasePrompt.id='chasePrompt';
+chasePrompt.style.cssText='display:none;position:fixed;top:20%;left:50%;transform:translateX(-50%);z-index:180;width:min(360px,85vw);padding:16px;border-radius:12px;border:1px solid #8af0ff;background:#081d34ed;color:#fff;text-align:center;font:600 13px system-ui;pointer-events:auto';
+chasePrompt.innerHTML='<strong>⚔ MISSÃO 11 · A PERSEGUIÇÃO</strong><p>Uma nave com seu mesmo poder de fogo, mas metade da sua vida máxima. Afunde-a antes de ser destruído.</p><button style="padding:12px 18px;border:0;border-radius:8px;background:#84eaff;color:#102738;font-weight:800">INICIAR PERSEGUIÇÃO</button>';document.body.appendChild(chasePrompt);
+function openChaseMission(){chasePrompt.style.display=mission.stage===39&&!mission.failed?'block':'none';}
+function deployChaseRival(t){
+ chaseRival.maxHp=Math.max(1,Math.round(playerMaxHp()*.5));chaseRival.hp=chaseRival.maxHp;
+ chaseRival.x=x-Math.sin(heading)*315;chaseRival.z=z-Math.cos(heading)*315;
+ chaseRival.previousX=chaseRival.x;chaseRival.previousZ=chaseRival.z;chaseRival.anchorX=chaseRival.x;chaseRival.anchorZ=chaseRival.z;
+ chaseRival.y=height(chaseRival.x,chaseRival.z,t)+1;chaseRival.heading=Math.atan2(x-chaseRival.x,z-chaseRival.z);
+ chaseRival.state='pursuit';chaseRival.dormant=false;chaseRival.nextShot=t+2;
+ chaseRival.ai.body.x=chaseRival.x;chaseRival.ai.body.z=chaseRival.z;chaseRival.ai.body.vx=0;chaseRival.ai.body.vz=0;
+ chaseRival.ai.plan=null;chaseRival.ai.choice=null;chaseRival.ai.nextPlanTime=0;chaseRival.ai.lastChoiceAt=-100;
+ chaseRival.ai.weaponReadyAt={};chaseRival.ai.estimateVx=0;chaseRival.ai.estimateVz=0;
+ chaseRival.model.position.set(chaseRival.x,chaseRival.y,chaseRival.z);chaseRival.model.visible=true;
+}
+chasePrompt.querySelector('button').addEventListener('click',()=>{
+ if(mission.stage!==39||mission.failed)return;
+ chaseRival.hp=0;chaseRival.dormant=true;chaseRival.model.visible=false;saveCheckpoint();
+ mission.stage=40;mission.finished=false;deployChaseRival(clock.elapsedTime);chasePrompt.style.display='none';
+ notifyCombat('⚠ A PERSEGUIÇÃO · DESTRUA A SOMBRA PELÁGICA',5);
+});
 function updateSurvivalCombat(t){
  if(mission.stage!==37||mission.failed)return;
  let fallen=0;
@@ -615,7 +639,7 @@ function updateSurvivalCombat(t){
   mission.survivePending-=spawned;
  }
  if(mission.surviveSpawned>=SURVIVE_TOTAL&&mission.surviveKilled>=SURVIVE_TOTAL){
-  mission.stage=38;mission.finished=true;economy.scrap+=2500;saveEconomy();saveCheckpoint();
+  mission.stage=39;mission.finished=false;economy.scrap+=2500;saveEconomy();saveCheckpoint();
   notifyCombat('🏆 SOBREVIVEU AOS 200 INIMIGOS · +2500 SUCATAS',6);
  }
 }
@@ -806,7 +830,7 @@ receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
 function activateInterceptors(){
  for(const enemy of enemies){
-  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined||enemy.ghostWave!==undefined||enemy.tideGuard||enemy.siegeWave!==undefined||enemy.survivorRank!==undefined)continue;
+  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined||enemy.ghostWave!==undefined||enemy.tideGuard||enemy.siegeWave!==undefined||enemy.survivorRank!==undefined||enemy.chaseRival)continue;
   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
   enemy.ai.lastCombatAt=clock.elapsedTime;
@@ -1051,6 +1075,11 @@ function updateMission(dt,t){
    if(Math.hypot(x-mission.prepX,z-mission.prepZ)<95){mission.stage=36;mission.prepArrived=true;saveCheckpoint();openMerchant();notifyCombat('⚓ NAVE ALIADA · MELHORIAS FINAIS',4);}
   }else if(mission.stage===37){
    updateSurvivalCombat(t);
+  }else if(mission.stage===40){
+   if(chaseRival.hp<=0){
+    chaseRival.dormant=true;chaseRival.model.visible=false;mission.stage=41;mission.finished=true;
+    economy.scrap+=3500;saveEconomy();saveCheckpoint();notifyCombat('🏆 A PERSEGUIÇÃO VENCIDA · +3500 SUCATAS',7);
+   }
   }else if(mission.stage===27){
    if(Math.hypot(x-mission.siegeX,z-mission.siegeZ)<210){mission.stage=28;mission.siegeWave=0;mission.siegeNextAt=t+1;saveCheckpoint();notifyCombat('⚠ A RUPTURA AVANÇA · PREPARE-SE',4);}
   }else if(mission.stage===28){
@@ -1160,6 +1189,9 @@ function updateMission(dt,t){
   mission.stage===36?'⚔ PREPARAÇÃO FINAL · MELHORIAS E INÍCIO DO COMBATE':
   mission.stage===37?'⚔ SOBREVIVA · '+mission.surviveKilled+'/200 AFUNDADOS · '+enemies.filter(e=>e.survivorRank!==undefined&&e.hp>0&&!e.dormant).length+' EM COMBATE':
   mission.stage===38?'🏆 SOBREVIVA · 200 NPCS DERROTADOS · +2500 SUCATAS':
+  mission.stage===39?'⚔ MISSÃO 11 · A PERSEGUIÇÃO · INICIE O DUELO':
+  mission.stage===40?'🎯 A PERSEGUIÇÃO · SOMBRA PELÁGICA '+Math.max(0,Math.round(chaseRival.hp))+'/'+chaseRival.maxHp+' HP':
+  mission.stage===41?'🏆 A PERSEGUIÇÃO CONCLUÍDA · +3500 SUCATAS':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
   mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m RESTANTES · '+Math.floor(mission.extractionDistance||0)+'m NA ROTA · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
 }
@@ -2195,10 +2227,10 @@ for(const enemy of enemies){
   // sem teleporte e sem acerto automático.
   if(!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
-   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)||(enemy.ghostWave!==undefined&&mission.stage===21)||(enemy.tideGuard&&mission.stage===25)||(enemy.siegeWave!==undefined&&mission.stage===28)||(enemy.survivorRank!==undefined&&mission.stage===37)){
+   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)||(enemy.ghostWave!==undefined&&mission.stage===21)||(enemy.tideGuard&&mission.stage===25)||(enemy.siegeWave!==undefined&&mission.stage===28)||(enemy.survivorRank!==undefined&&mission.stage===37)||(enemy.chaseRival&&mission.stage===40)){
     // NPCs desta missão caçam o jogador desde o spawn; não retornam à patrulha.
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:true,
-     speed:enemy.survivorRank!==undefined?42+Math.floor((enemy.surviveTicket||0)/25)*2:enemy.siegeWave!==undefined?46+enemy.siegeWave*2:enemy.tideGuard?46:enemy.ghostWave!==undefined?47:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
+     speed:enemy.chaseRival?64:enemy.survivorRank!==undefined?42+Math.floor((enemy.surviveTicket||0)/25)*2:enemy.siegeWave!==undefined?46+enemy.siegeWave*2:enemy.tideGuard?46:enemy.ghostWave!==undefined?47:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
    }else if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
      speed:Math.max(ai.plan.speed,Math.min(enemy.veteran?52:43,29+distance*.016)),
@@ -2310,7 +2342,7 @@ for(const enemy of enemies){
  // Cada piloto reavalia o arsenal em intervalos curtos. A pontuação matemática
  // escolhe a maior P(acerto) dentre as armas ALCANÇÁVEIS e disponíveis.
  // Inércia perceptiva: decisões não mudam freneticamente a cada quadro.
- const skill=role===2?.92:role===1?.84:.77;
+ const skill=enemy.chaseRival?.99:role===2?.92:role===1?.84:.77;
  const estimate={x:ai.estimateVx*skill,z:ai.estimateVz*skill};
  if(t-ai.lastChoiceAt>.16||!ai.choice){
   ai.lastChoiceAt=t;
@@ -2385,7 +2417,7 @@ for(const enemy of enemies){
      enemyShots.push({weaponId:choice.id,weapon,mesh,glow,outerGlow,plasma,core,
        trail,trailPoints,origin:origin.clone(),destination:destination.clone(),arcHeight:0,
        age:0,duration:flight+extraTime,source:enemy.id,warning,coreMat,glowMat,trailMat,
-       secondary,hitDamage:(secondary?Math.max(2,Math.round(weapon.damage*.65)):weapon.damage)*(enemy.boss?2.7:1)});
+       secondary,hitDamage:enemy.chaseRival?Math.round((secondary?.65:1)*(choice.id==='torpedo'?WEAPON_STATS.torpedo.damage:choice.id==='iron'?WEAPON_STATS.iron.damage:WEAPON_STATS.scatter.damage)*(1+3*(economy.weapons<=5?economy.weapons*.08:.40+(economy.weapons-5)*.0125))):(secondary?Math.max(2,Math.round(weapon.damage*.65)):weapon.damage)*(enemy.boss?2.7:1)});
     };
     spawnShot(predicted);
     if(choice.id==='scatter'){
