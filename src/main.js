@@ -1390,7 +1390,9 @@ function startAreaAim(e){
  const distance=selectedAmmo.id==='siege'?105:selectedAmmo.id==='torpedo'?100:Math.min(80,weaponRange()*.40);
  // Mira aparece imediatamente em frente à nave; o arrasto controla o ponto de impacto.
  areaAim.origin.set(x+f.x*distance,0,z+f.z*distance);
- if(lockedNpc&&lockedNpc.hp>0&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
+ if(mission.stage>=16&&mission.stage<=18&&mission.subHp>0&&Math.hypot(x-mission.subX,z-mission.subZ)<=weaponRange()){
+  areaAim.origin.set(mission.subX,0,mission.subZ);
+ }else if(lockedNpc&&lockedNpc.hp>0&&Math.hypot(x-lockedNpc.x,z-lockedNpc.z)<=weaponRange()){
   areaAim.origin.set(lockedNpc.x,0,lockedNpc.z);
  }
  areaAim.point.copy(areaAim.origin);areaAim.point.y=height(areaAim.point.x,areaAim.point.z,clock.elapsedTime)+.35;
@@ -1404,7 +1406,7 @@ function finishAreaAim(e,cancel=false){
  // Toque simples sem alvo: atira exatamente para a frente da torreta.
  // Arrastar continua utilizando a mira manual, sem assistência forçada.
  const tap=!areaAim.manualDragged&&Math.hypot(e.clientX-areaAim.startX,e.clientY-areaAim.startY)<12;
- if(destination&&tap&&(!lockedNpc||lockedNpc.hp<=0)&&!(mission.stage>=16&&mission.stage<=18&&mission.subHp>0)){
+ if(destination&&tap&&(!lockedNpc||lockedNpc.hp<=0)&&!(mission.stage>=16&&mission.stage<=18&&mission.subHp>0&&Math.hypot(x-mission.subX,z-mission.subZ)<=weaponRange())){
   // Deriva a trajetória da boca do canhão no mundo, sem estimar pelos ângulos do casco.
   ship.updateMatrixWorld(true);
   const muzzle=ship.userData.firePoint;
@@ -2105,7 +2107,7 @@ for(const enemy of enemies){
 lockedNpc=nearest;
 const hunterTarget=mission.stage>=16&&mission.stage<=18&&mission.subHp>0&&!mission.failed;
 const hunterDist=hunterTarget?Math.hypot(x-mission.subX,z-mission.subZ):Infinity;
-const hunterLocked=hunterTarget&&hunterDist<weaponRange()&&hunterDist<nearestDistance;
+const hunterLocked=hunterTarget&&hunterDist<=weaponRange();
 refreshCompass(t);
 targetRing.visible=hunterLocked||!!lockedNpc;
 if(hunterLocked)targetRing.position.set(mission.subX,height(mission.subX,mission.subZ,t)+.18,mission.subZ);
