@@ -1373,7 +1373,7 @@ const weaponDock=document.createElement('div');weaponDock.id='weaponDock';
 document.getElementById('ui').appendChild(weaponDock);
 function renderWeaponDock(){
  weaponDock.replaceChildren();
- if(typeof updateOverloadSelection==='function'&&typeof overloadSelect!=='undefined')updateOverloadSelection();
+ const special=document.getElementById('overloadSelect');if(special){special.classList.toggle('selected',selectedAmmo.id==='energyBomb');special.setAttribute('aria-pressed',String(selectedAmmo.id==='energyBomb'));}
  for(const id of ['scatter','torpedo','iron']){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
