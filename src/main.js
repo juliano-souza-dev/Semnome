@@ -1358,13 +1358,13 @@ const compassPings=enemies.map(enemy=>{
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
 fireButton.setAttribute('aria-label','Segurar para mirar e soltar para disparar');
 const AMMO_TYPES=[
- {id:'plasma',name:'Pulso Pelágico',icon:'⚡',description:'Descarga de energia do oceano · núcleo de sucata',color:0x25cfff},
  {id:'scatter',name:'Rajada de Ruptura',icon:'✨',description:'Três fragmentos energizados em área',color:0xbc80ff},
  {id:'iron',name:'Fragmento Condensado',icon:'🔩',description:'Sucata magnetizada · alta velocidade · dano 40',color:0xffd28b},
  {id:'torpedo',name:'Dardo Pelágico',icon:'🚀',description:'Projétil de sucata energizada · dano 165',color:0x62f2ec},
  {id:'energyBomb',name:'Núcleo de Sobrecarga',icon:'💠',description:'25% da vida máxima · recarga 5 minutos · apagão 1s',color:0x69f9ff},
 ];
 let selectedAmmo=AMMO_TYPES[0];
+const MAIN_WEAPONS=new Set(['scatter','torpedo','iron']);
 // Apenas armas de efeito especial usam a câmera tática superior.
 const TACTICAL_AMMO=new Set(['scatter']);
 const ammoButton=document.getElementById('ammo'),ammoMenu=document.getElementById('ammoMenu');
@@ -1373,7 +1373,8 @@ const weaponDock=document.createElement('div');weaponDock.id='weaponDock';
 document.getElementById('ui').appendChild(weaponDock);
 function renderWeaponDock(){
  weaponDock.replaceChildren();
- for(const id of ['plasma','iron','torpedo','scatter','energyBomb']){
+ if(typeof updateOverloadSelection==='function'&&typeof overloadSelect!=='undefined')updateOverloadSelection();
+ for(const id of ['scatter','torpedo','iron']){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
@@ -1390,7 +1391,7 @@ function renderWeaponDock(){
 }
 function renderAmmoMenu(){
  ammoMenu.replaceChildren();
- for(const ammo of AMMO_TYPES){
+ for(const ammo of AMMO_TYPES.filter(a=>MAIN_WEAPONS.has(a.id))){
   const button=document.createElement('button');button.type='button';
   button.className=ammo.id===selectedAmmo.id?'chosen':'';
   hudButton(button,ammo.id,ammo.name+' · '+ammo.description+' · Alcance '+WEAPON_STATS[ammo.id].range+' · '+WEAPON_STATS[ammo.id].cooldown+'s',30);
@@ -1400,6 +1401,25 @@ function renderAmmoMenu(){
 }
 ammoButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();const isOpen=ammoMenu.classList.toggle('open');ammoButton.setAttribute('aria-expanded',String(isOpen));if(isOpen)renderAmmoMenu()});
 renderAmmoMenu();renderWeaponDock();
+// Núcleo: seleção especial independente do arsenal principal.
+const overloadSelect=document.createElement('button');
+overloadSelect.id='overloadSelect';overloadSelect.type='button';overloadSelect.className='weaponSlot';
+overloadSelect.title='Arma especial · Núcleo de Sobrecarga';
+overloadSelect.setAttribute('aria-label','Selecionar Núcleo de Sobrecarga');
+hudButton(overloadSelect,'energyBomb','',33);
+document.getElementById('ui').appendChild(overloadSelect);
+overloadSelect.addEventListener('pointerdown',event=>{
+ event.preventDefault();event.stopPropagation();
+ selectedAmmo=AMMO_TYPES.find(a=>a.id==='energyBomb');
+ cancelAreaAim();hudButton(ammoButton,'energyBomb','',34);
+ ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');
+ renderAmmoMenu();renderWeaponDock();
+});
+function updateOverloadSelection(){
+ overloadSelect.classList.toggle('selected',selectedAmmo.id==='energyBomb');
+ overloadSelect.setAttribute('aria-pressed',String(selectedAmmo.id==='energyBomb'));
+}
+updateOverloadSelection();
 // Projétil de energia WebGL: núcleo emissivo ciano, halo aditivo e rastro azul.
 const energyCoreGeometry=new THREE.SphereGeometry(.8,16,12);
 const energyCoreMaterial=new THREE.MeshBasicMaterial({color:0x9efcff,toneMapped:false});
