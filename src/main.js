@@ -384,7 +384,7 @@ document.body.appendChild(hunterBoostHud);
 const subShots=[]; // Compatibilidade com checkpoints antigos; ataques usam enemyShots.
 const subPrompt=document.createElement('div');subPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:19px;width:min(370px,88vw);background:#071b32f2;border:1px solid #72dafe;border-radius:14px;color:white;font:600 14px system-ui;text-align:center';
 subPrompt.innerHTML='<strong>⚔ CAÇADA À SUCATEIRA</strong><p>Uma nave aliada desapareceu. Uma caçadora feita de sucata interceptou o último sinal.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
-const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';sonarBtn.textContent='📡 VARREDURA DE MARÉ';document.body.appendChild(sonarBtn);
+const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';hudButton(sonarBtn,'sonar','VARREDURA DE MARÉ',27);document.body.appendChild(sonarBtn);
 const SONAR_KEY='semnome.sonar.unlocked.v1';
 let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
 let sonarUntil=0,sonarReady=0,subEmpUntil=0;
@@ -1082,8 +1082,8 @@ for(const [type,label] of [['shield','🛡️ ESCUDO'],['boost','⚡ BOOST 2×']
 }
 document.body.appendChild(pickupControls);
 function updatePickupButtons(){
- pickupButtons.shield.textContent='🛡️ ESCUDO ×'+pickupInventory.shield;
- pickupButtons.boost.textContent='⚡ BOOST 2× ×'+pickupInventory.boost;
+ hudButton(pickupButtons.shield,'shield','BARREIRA ×'+pickupInventory.shield,26);
+ hudButton(pickupButtons.boost,'boost','IMPULSO 2× ×'+pickupInventory.boost,26);
  for(const type of ['shield','boost']){
   pickupButtons[type].disabled=pickupInventory[type]===0||playerCombat.hp<=0;
   pickupButtons[type].style.opacity=pickupButtons[type].disabled?'.48':'1';
@@ -1246,6 +1246,24 @@ const AMMO_TYPES=[
  {id:'torpedo',name:'Dardo Pelágico',icon:'🚀',description:'Projétil de sucata energizada · dano 165',color:0x62f2ec},
  {id:'energyBomb',name:'Núcleo de Sobrecarga',icon:'💠',description:'25% da vida máxima · recarga 5 minutos · apagão 10s',color:0x69f9ff},
 ];
+const HUD_ICON_FILES=Object.freeze({
+ plasma:'pulso_pelagico.webp',iron:'fragmento_condensado.webp',torpedo:'dardo_pelagico.webp',
+ scatter:'rajada_de_ruptura.webp',energyBomb:'nucleo_de_sobrecarga.webp',
+ shield:'barreira_pelagica.webp',boost:'impulso_de_mare.webp',mine:'no_de_ruptura.webp',sonar:'varredura_de_mare.webp'
+});
+function hudIcon(type,size=32){
+ const img=document.createElement('img');
+ img.src=new URL(HUD_ICON_FILES[type],document.baseURI).href;
+ img.alt='';img.draggable=false;img.decoding='async';
+ img.style.cssText='width:'+size+'px;height:'+size+'px;object-fit:contain;display:inline-block;vertical-align:middle;pointer-events:none;flex-shrink:0';
+ return img;
+}
+function hudButton(button,type,label='',size=30){
+ const children=[hudIcon(type,size)];
+ if(label){const text=document.createElement('span');text.textContent=label;text.style.cssText='vertical-align:middle;white-space:nowrap';children.push(text);}
+ button.replaceChildren(...children);
+ button.setAttribute('aria-label',label||type);
+}
 let selectedAmmo=AMMO_TYPES[0];
 // Apenas armas de efeito especial usam a câmera tática superior.
 const TACTICAL_AMMO=new Set(['scatter']);
@@ -1259,11 +1277,11 @@ function renderWeaponDock(){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
-  button.textContent=ammo.icon;button.title=ammo.name+' · Alcance '+WEAPON_STATS[id].range+' · Recarga '+WEAPON_STATS[id].cooldown+'s';button.dataset.weapon=id;button.dataset.special=String(TACTICAL_AMMO.has(id));
+  hudButton(button,id,'',46);button.title=ammo.name+' · Alcance '+WEAPON_STATS[id].range+' · Recarga '+WEAPON_STATS[id].cooldown+'s';button.dataset.weapon=id;button.dataset.special=String(TACTICAL_AMMO.has(id));
   button.setAttribute('aria-label','Selecionar '+ammo.name);button.setAttribute('aria-pressed',String(selectedAmmo.id===id));
   button.addEventListener('pointerdown',e=>{
    e.preventDefault();e.stopPropagation();
-   selectedAmmo=ammo;cancelAreaAim();ammoButton.textContent=ammo.icon;
+   selectedAmmo=ammo;cancelAreaAim();hudButton(ammoButton,ammo.id,'',42);
    ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');
    renderAmmoMenu();renderWeaponDock();
   });
@@ -1275,8 +1293,8 @@ function renderAmmoMenu(){
  for(const ammo of AMMO_TYPES){
   const button=document.createElement('button');button.type='button';
   button.className=ammo.id===selectedAmmo.id?'chosen':'';
-  button.textContent=ammo.icon+' '+ammo.name+' · '+ammo.description+' · Alcance '+WEAPON_STATS[ammo.id].range+' · '+WEAPON_STATS[ammo.id].cooldown+'s';
-  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();ammoButton.textContent=ammo.icon;ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu();renderWeaponDock()});
+  hudButton(button,ammo.id,ammo.name+' · '+ammo.description+' · Alcance '+WEAPON_STATS[ammo.id].range+' · '+WEAPON_STATS[ammo.id].cooldown+'s',30);
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectedAmmo=ammo;if(typeof cancelAreaAim==='function')cancelAreaAim();hudButton(ammoButton,ammo.id,'',42);ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');renderAmmoMenu();renderWeaponDock()});
   ammoMenu.append(button);
  }
 }
@@ -1624,7 +1642,7 @@ let mineReadyAt=0;
 const mineGeometry=new THREE.IcosahedronGeometry(2.7,0);
 const mineMaterial=new THREE.MeshStandardMaterial({color:0x293b4c,metalness:.7,roughness:.35});
 const mineButton=document.createElement('button');
-mineButton.type='button';mineButton.id='mineButton';mineButton.textContent='💣 NÓ DE RUPTURA';
+mineButton.type='button';mineButton.id='mineButton';hudButton(mineButton,'mine','NÓ DE RUPTURA',27);
 mineButton.style.cssText='position:fixed;right:14px;bottom:125px;z-index:90;border:1px solid #8ef0ff;border-radius:12px;background:#132c3d;color:white;padding:11px;font-weight:700;touch-action:manipulation';
 document.body.appendChild(mineButton);
 function deployMine(){
@@ -1657,7 +1675,7 @@ function updateEnemyMines(t){
 mineButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();deployMine();});
 function updateMines(now){
  mineButton.disabled=energyDisabled()||playerCombat.hp<=0||now<mineReadyAt||mines.length>=MINE.max;
- mineButton.textContent=now<mineReadyAt?'💣 '+Math.ceil(mineReadyAt-now)+'s':'💣 NÓ DE RUPTURA';
+ hudButton(mineButton,'mine',now<mineReadyAt?Math.ceil(mineReadyAt-now)+'s':'NÓ DE RUPTURA',27);
  for(let i=mines.length-1;i>=0;i--){
   const mine=mines[i];
   mine.mesh.position.set(mine.x,height(mine.x,mine.z,now)+.9,mine.z);
@@ -1759,7 +1777,7 @@ if(boostActive){
 }
 const boostRemaining=boostActive?1:0;
 boostButton.classList.toggle('active',boostActive);
-boostButton.textContent=boostActive?'🚀 PROPULSOR ATIVO':boostEnergy<1?'🚀 '+Math.round(boostEnergy*100)+'%':'🚀 PROPULSOR';
+hudButton(boostButton,'boost',boostActive?'IMPULSO ATIVO':boostEnergy<1?Math.round(boostEnergy*100)+'%':'IMPULSO DE MARÉ',30);
 boostButton.disabled=blackout||boostEnergy<BOOST_COST||boostActive||playerCombat.hp<=0;
 // Corrige direção: arrastar o dedo para a direita gira a proa à direita.
 // Giro possível parado, mais responsivo em velocidade e durante o BOOST.
