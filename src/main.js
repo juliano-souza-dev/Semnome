@@ -346,14 +346,22 @@ function openMerchant(){
 }
 merchantPanel.querySelector('#merchantClose').onclick=()=>merchantPanel.style.display='none';
 const merchantAccess=document.createElement('button');merchantAccess.textContent='⚓ Loja';merchantAccess.style.cssText='display:none;position:fixed;right:12px;bottom:110px;z-index:95;padding:9px;background:#164853;color:white;border:1px solid #70ccb4;border-radius:8px';document.body.appendChild(merchantAccess);merchantAccess.onclick=openMerchant;
+// A Caçadora de Sucata: nave de emboscada, sem nave sucateiras neste mundo.
 const submarine=new THREE.Group();scene.add(submarine);submarine.visible=false;
-const subMetal=new THREE.MeshStandardMaterial({color:0x172c46,metalness:.76,roughness:.3});
-const subBody=new THREE.Mesh(new THREE.CapsuleGeometry(7,30,6,10),subMetal);subBody.rotation.x=Math.PI/2;submarine.add(subBody);
-const subTower=new THREE.Mesh(new THREE.BoxGeometry(6,7,12),subMetal);subTower.position.y=6;submarine.add(subTower);
-for(const side of [-1,1]){const fin=new THREE.Mesh(new THREE.BoxGeometry(18,.8,6),subMetal);fin.position.set(side*6,0,11);submarine.add(fin);}
-const subShots=[],subShotGeo=new THREE.SphereGeometry(1.8,8,6),subShotMat=new THREE.MeshBasicMaterial({color:0x65f2ff});
+const scrapMetal=new THREE.MeshStandardMaterial({color:0x5d4438,metalness:.78,roughness:.47,flatShading:true});
+const scrapDark=new THREE.MeshStandardMaterial({color:0x20313e,metalness:.72,roughness:.38,flatShading:true});
+const scrapFire=new THREE.MeshBasicMaterial({color:0xff7530});
+const subBody=new THREE.Mesh(new THREE.BoxGeometry(24,4,39),scrapDark);subBody.rotation.y=.09;submarine.add(subBody);
+for(const side of [-1,1]){
+ const plate=new THREE.Mesh(new THREE.BoxGeometry(13,1.5,23),scrapMetal);plate.position.set(side*14,-.6,3);plate.rotation.z=side*.17;submarine.add(plate);
+ const thruster=new THREE.Mesh(new THREE.CylinderGeometry(3,4,8,9),scrapMetal);thruster.rotation.x=Math.PI/2;thruster.position.set(side*10,1,17);submarine.add(thruster);
+ const flame=new THREE.Mesh(new THREE.ConeGeometry(2.1,7,8),scrapFire);flame.rotation.x=-Math.PI/2;flame.position.set(side*10,1,24);submarine.add(flame);
+ const gun=new THREE.Mesh(new THREE.CylinderGeometry(1.8,2.3,12,8),scrapMetal);gun.rotation.x=Math.PI/2;gun.position.set(side*11,3,-15);submarine.add(gun);
+}
+const cockpit=new THREE.Mesh(new THREE.BoxGeometry(9,5,12),scrapMetal);cockpit.position.set(0,3,-4);submarine.add(cockpit);
+const subShots=[],subShotGeo=new THREE.IcosahedronGeometry(3.6,1),subShotMat=new THREE.MeshBasicMaterial({color:0xff822c});
 const subPrompt=document.createElement('div');subPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:19px;width:min(370px,88vw);background:#071b32f2;border:1px solid #72dafe;border-radius:14px;color:white;font:600 14px system-ui;text-align:center';
-subPrompt.innerHTML='<strong>📡 CAÇADA NAS PROFUNDEZAS</strong><p>Uma embarcação aliada desapareceu. A origem do último sinal está nas profundezas.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
+subPrompt.innerHTML='<strong>⚔ CAÇADA À SUCATEIRA</strong><p>Uma nave aliada desapareceu. Uma caçadora feita de sucata interceptou o último sinal.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
 const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';sonarBtn.textContent='📡 SONAR';document.body.appendChild(sonarBtn);
 const SONAR_KEY='semnome.sonar.unlocked.v1';
 let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
@@ -367,10 +375,20 @@ function startSubHunt(){
 }
 subPrompt.querySelector('button').onclick=startSubHunt;
 function fireSubShot(t,missile){
- const origin=new THREE.Vector3(mission.subX,height(mission.subX,mission.subZ,t)+3,mission.subZ);
- const mesh=new THREE.Mesh(subShotGeo,subShotMat);mesh.position.copy(origin);scene.add(mesh);
- const aim=new THREE.Vector3(x+hullPhysics.vx*.6,bob+3,z+hullPhysics.vz*.6).sub(origin).normalize().multiplyScalar(missile?145:100);
- subShots.push({mesh,velocity:aim,life:5,turn:missile?.45:1.3,damage:missile?20:15});
+ const origin=new THREE.Vector3(mission.subX,height(mission.subX,mission.subZ,t)+11,mission.subZ);
+ const target=new THREE.Vector3(x+hullPhysics.vx*(missile?.95:.45),height(x,z,t)+7,z+hullPhysics.vz*(missile?.95:.45));
+ const direction=target.sub(origin).normalize();
+ const count=missile?1:3;
+ for(let n=0;n<count;n++){
+  const mesh=new THREE.Mesh(subShotGeo,subShotMat.clone());mesh.material.color.setHex(missile?0xff542f:0xffc04a);mesh.position.copy(origin);
+  const glow=new THREE.PointLight(missile?0xff4c17:0xffb02a,2.5,30);mesh.add(glow);
+  const trail=new THREE.Mesh(new THREE.ConeGeometry(missile?3.1:2.0,missile?13:9,8),new THREE.MeshBasicMaterial({color:missile?0xff431a:0xffc84d,transparent:true,opacity:.68}));
+  trail.rotation.x=Math.PI/2;trail.position.z=6;mesh.add(trail);
+  scene.add(mesh);
+  const spread=(n-(count-1)/2)*.11;
+  const velocity=direction.clone().applyAxisAngle(new THREE.Vector3(0,1,0),spread).multiplyScalar(missile?182:205);
+  subShots.push({mesh,velocity,life:missile?5:2.5,turn:missile?1.15:.08,damage:missile?27:13,missile});
+ }
 }
 function updateSubHunt(dt,t){
  submarine.visible=mission.stage>=15&&mission.stage<=18&&!mission.failed;
@@ -382,28 +400,29 @@ function updateSubHunt(dt,t){
  const cycle=((t-mission.subPhaseAt)%18+18)%18;
  const dive=mission.stage===15?false:(cycle<9&&t>=sonarUntil);
  const surfaceY=height(mission.subX,mission.subZ,t);
- const targetY=surfaceY+(dive?-18:9);
+ const targetY=surfaceY+(dive?4:11);
  const flank=Math.atan2(z-mission.subZ,x-mission.subX)+Math.PI/2;
  // Intercepta, flanqueia, evita aproximação perigosa e se afasta quando avariado.
  const offset=low?270:d<105?220:140;
  const tx=x+Math.cos(flank)*100+(mission.subX-x)/(d||1)*offset;
  const tz=z+Math.sin(flank)*100+(mission.subZ-z)/(d||1)*offset;
  const dx=tx-mission.subX,dz=tz-mission.subZ,len=Math.hypot(dx,dz)||1;
- const v=low?42:dive?34:27;
+ const v=low?60:dive?54:42;
  // Durante a investigação o contato fica acessível: não foge antes de o jogador encontrá-lo.
  if(mission.stage!==15){mission.subX+=dx/len*Math.min(v*dt,len);mission.subZ+=dz/len*Math.min(v*dt,len);}
  submarine.position.set(mission.subX,THREE.MathUtils.lerp(Number.isFinite(submarine.position.y)&&submarine.position.y!==0?submarine.position.y:targetY,targetY,Math.min(1,dt*2.4)),mission.subZ);
  submarine.rotation.y=Math.atan2(-dx,-dz);
  if(mission.stage>=16&&d<400&&t>=mission.subNextAttack&&playerCombat.hp>0){
-  const missile=d>170&&Math.hypot(hullPhysics.vx,hullPhysics.vz)>22;
-  if(!dive||!missile)fireSubShot(t,missile);
-  mission.subNextAttack=t+(low?3.3:5.1);
+  const missile=d>165||Math.hypot(hullPhysics.vx,hullPhysics.vz)>24;
+  fireSubShot(t,missile);
+  mission.subNextAttack=t+(low?1.6:missile?2.7:2.0);
   if(d<145&&t>subEmpUntil+22){subEmpUntil=t+4;notifyCombat('⚡ INTERFERÊNCIA NO PROPULSOR · 4s',3);}
  }
  for(let i=subShots.length-1;i>=0;i--){
   const p=subShots[i];p.life-=dt;
   const aim=new THREE.Vector3(x,bob+3,z).sub(p.mesh.position).normalize().multiplyScalar(p.velocity.length());
   p.velocity.lerp(aim,Math.min(1,p.turn*dt));p.mesh.position.addScaledVector(p.velocity,dt);
+  p.mesh.rotation.y+=dt*11;
   const hit=Math.hypot(p.mesh.position.x-x,p.mesh.position.z-z)<10&&Math.abs(p.mesh.position.y-(bob+3))<12;
   if(hit&&t>=shieldUntil&&t>=playerCombat.invulnerableUntil){playerCombat.hp=Math.max(0,playerCombat.hp-p.damage*(1-economy.armor*.05));playerCombat.invulnerableUntil=t+.45;playerCombat.lastDamageAt=t;energyFlash(p.mesh.position);}
   if(hit||p.life<=0){scene.remove(p.mesh);subShots.splice(i,1);}
@@ -760,13 +779,13 @@ function updateMission(dt,t){
     notifyCombat('COMANDANTE DERROTADO · RETORNE AO PONTO DE EXTRAÇÃO',5);
    }
   }else if(mission.stage===15){
-   if(Math.hypot(x-mission.subX,z-mission.subZ)<145){mission.stage=16;mission.subSurviveUntil=t+120;mission.subPhaseAt=t;mission.subNextAttack=t+4;saveCheckpoint();notifyCombat('SUBMARINO DETECTADO · SOBREVIVA 120s',4);}
+   if(Math.hypot(x-mission.subX,z-mission.subZ)<145){mission.stage=16;mission.subSurviveUntil=t+120;mission.subPhaseAt=t;mission.subNextAttack=t+4;saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DETECTADO · SOBREVIVA 120s',4);}
   }else if(mission.stage===16){
    if(t>=mission.subSurviveUntil){mission.stage=17;mission.subScan=0;saveCheckpoint();notifyCombat('ATIVE O SONAR E FAÇA A VARREDURA',3);}
   }else if(mission.stage===17){
    if(t<sonarUntil){mission.subScan+=dt;if(mission.subScan>=5){mission.stage=18;mission.subPhaseAt=t;saveCheckpoint();notifyCombat('ALVO LOCALIZADO · ATIRE QUANDO EMERGIR',4);}}
   }else if(mission.stage===18){
-   if(mission.subHp<=0){mission.stage=19;mission.finished=true;economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('SUBMARINO DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
+   if(mission.subHp<=0){mission.stage=19;mission.finished=true;economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
   }else if(mission.stage===13){
    // Progresso ao longo da rota, evitando gatilhos inconsistentes por curvas ou checkpoint.
    const routeX=mission.extractionX-mission.extractionStartX,routeZ=mission.extractionZ-mission.extractionStartZ;
@@ -833,7 +852,7 @@ function updateMission(dt,t){
   mission.stage===15?'📡 ÚLTIMO SINAL · '+Math.round(Math.hypot(x-mission.subX,z-mission.subZ))+'m':
   mission.stage===16?'🌊 SOBREVIVA À CAÇADA · '+Math.max(0,Math.ceil(mission.subSurviveUntil-t))+'s':
   mission.stage===17?'📡 VARREDURA SONAR · '+Math.floor(mission.subScan)+'/5s':
-  mission.stage===18?'⚔ SUBMARINO · '+Math.ceil(mission.subHp)+'/1200 HP':
+  mission.stage===18?'⚔ CAÇADORA DE SUCATA · '+Math.ceil(mission.subHp)+'/1200 HP':
   mission.stage===19?'✅ CAÇADA NAS PROFUNDEZAS CONCLUÍDA':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
   mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m RESTANTES · '+Math.floor(mission.extractionDistance||0)+'m NA ROTA · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
@@ -1076,7 +1095,7 @@ function refreshPlayerHealth(){
  compass.querySelector('.compassTrack').appendChild(objectivePing);
  const compassTrack=compass.querySelector('.compassTrack');
  const compassReadout=compass.querySelector('.compassReadout');
- const subCompassPing=document.createElement('span');subCompassPing.className='compassPing';subCompassPing.textContent='🔻';subCompassPing.title='Submarino hostil';compassTrack.appendChild(subCompassPing);
+ const subCompassPing=document.createElement('span');subCompassPing.className='compassPing';subCompassPing.textContent='🔻';subCompassPing.title='Caçadora de sucata';compassTrack.appendChild(subCompassPing);
 const compassPings=enemies.map(enemy=>{
   const marker=document.createElement('span');marker.className='compassPing';marker.setAttribute('aria-hidden','true');
   marker.textContent='◆';marker.title=enemy.name;
@@ -1094,7 +1113,7 @@ const compassPings=enemies.map(enemy=>{
    const a=Math.atan2(-(mission.subX-x),-(mission.subZ-z));
    const delta=Math.atan2(Math.sin(a-heading),Math.cos(a-heading));
    subCompassPing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';
-   subCompassPing.title='Submarino hostil · '+Math.round(subDist)+' m';
+   subCompassPing.title='Caçadora de sucata · '+Math.round(subDist)+' m';
   }
   objectivePing.style.display=goal?'block':'none';
   if(goal){const bearing=Math.atan2(-(goal.x-x),-(goal.z-z));const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));objectivePing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';objectivePing.textContent=Math.abs(delta)>Math.PI*.75?'◀':'◆';}
@@ -2245,9 +2264,9 @@ for(let i=projectiles.length-1;i>=0;i--){
   }
   if(mission.stage===18&&p.ammo!=='torpedo'&&!p.subCounted){
    const dist=Math.hypot(p.mesh.position.x-mission.subX,p.mesh.position.z-mission.subZ);
-   if(submarine.position.y>=height(mission.subX,mission.subZ,t)+4&&dist<17&&Math.abs(p.mesh.position.y-submarine.position.y)<12){
+   if(submarine.position.y>=height(mission.subX,mission.subZ,t)+3&&dist<22&&Math.abs(p.mesh.position.y-submarine.position.y)<12){
     p.subCounted=true;mission.subHp=Math.max(0,mission.subHp-(p.ammo==='energyBomb'?300:Math.max(1,p.damage||25)));
-    p.age=p.travel;energyFlash(p.mesh.position);notifyCombat('SUBMARINO ATINGIDO · '+Math.ceil(mission.subHp)+' HP',2);
+    p.age=p.travel;energyFlash(p.mesh.position);notifyCombat('CAÇADORA DE SUCATA ATINGIDO · '+Math.ceil(mission.subHp)+' HP',2);
    }
   }
   const directExpired=directShot&&u>=1&&!physicalImpact&&!p.baseCounted&&!p.subCounted;
