@@ -378,7 +378,7 @@ function refreshHunterHealth(){
  hunterHpLabel.textContent='⚔ CAÇADORA DE SUCATA · '+Math.ceil(hp)+' / 1200 HP';
  hunterHpHud.setAttribute('aria-valuenow',String(Math.ceil(hp)));
 }
-const hunterBoostHud=document.createElement('div');
+const hunterBoostHud=document.createElement('div');hunterBoostHud.id='hunterBoostHud';
 hunterBoostHud.style.cssText='display:none;position:fixed;top:25%;left:50%;transform:translateX(-50%);z-index:85;padding:5px 10px;color:#ffcd92;background:#211b29bd;border:1px solid #df8b37;border-radius:9px;font:700 12px system-ui;pointer-events:none';
 document.body.appendChild(hunterBoostHud);
 const subShots=[]; // Compatibilidade com checkpoints antigos; ataques usam enemyShots.
@@ -507,7 +507,7 @@ function updateSubHunt(dt,t){
   }
  }
  hunterBoostGlow.intensity=boosting?7:0;
- hunterBoostHud.textContent=boosting?'🔥 BOOSTER INIMIGO ATIVO · '+Math.ceil(hunterBoostUntil-t)+'s':'🎯 BOOSTER RECARREGANDO · '+Math.ceil(cooling)+'s · CONTRA-ATAQUE!';
+ hunterBoostHud.textContent=boosting?'⚡ BOOST INIMIGO · '+Math.ceil(hunterBoostUntil-t)+'s':'🎯 RECARGA INIMIGA · '+Math.ceil(cooling)+'s';
  const ax=x-mission.subX,az=z-mission.subZ,inv=1/(d||1);
  const side=(Math.sin(t*.38)>0?1:-1),flankX=-az*inv*side,flankZ=ax*inv*side;
  const escape=boosting&&hunterBoostMode==='escape';
@@ -1188,7 +1188,7 @@ function refreshPlayerHealth(){
  // sempre horizontal e separado da simulação física.
  hpHud.style.display=playerCombat.hp>0?'flex':'none';
  hpHud.style.left='50%';
- hpHud.style.top='78%';
+ hpHud.style.top='calc(100% - 102px)';
  const bounds=hpHud.getBoundingClientRect();
  boostMeter.style.left=bounds.left+'px';
  boostMeter.style.top=(bounds.bottom+5)+'px';
@@ -1359,7 +1359,7 @@ const energyBlackoutHud=document.createElement('div');
 energyBlackoutHud.style.cssText='display:none;position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:98;padding:12px 20px;border:1px solid #fc8d61;border-radius:12px;background:#2d1019e8;color:#ffdac5;font:800 15px system-ui;text-align:center;pointer-events:none';
 document.body.appendChild(energyBlackoutHud);
 const energyDisabled=()=>clock.elapsedTime<energyBlackoutUntil;
-const energyBombStatus=document.createElement('div');
+const energyBombStatus=document.createElement('div');energyBombStatus.id='energyBombHud';
 energyBombStatus.style.cssText='position:fixed;right:12px;top:265px;z-index:94;color:#a9f6ff;background:#082b42db;border:1px solid #68e6ff;border-radius:9px;padding:5px 8px;font:700 12px system-ui;pointer-events:none';
 document.body.appendChild(energyBombStatus);
 let lastEnergyBombSecond=-1;
