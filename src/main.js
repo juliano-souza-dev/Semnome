@@ -355,7 +355,7 @@ let hunterBoostUntil=0,hunterBoostReadyAt=0,hunterBoostMode='chase',hunterLastBo
 const hunterBoostHud=document.createElement('div');
 hunterBoostHud.style.cssText='display:none;position:fixed;top:25%;left:50%;transform:translateX(-50%);z-index:85;padding:5px 10px;color:#ffcd92;background:#211b29bd;border:1px solid #df8b37;border-radius:9px;font:700 12px system-ui;pointer-events:none';
 document.body.appendChild(hunterBoostHud);
-const subShots=[],subShotGeo=new THREE.IcosahedronGeometry(3.6,1),subShotMat=new THREE.MeshBasicMaterial({color:0xff822c});
+const subShots=[]; // Compatibilidade com checkpoints antigos; ataques usam enemyShots.
 const subPrompt=document.createElement('div');subPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:19px;width:min(370px,88vw);background:#071b32f2;border:1px solid #72dafe;border-radius:14px;color:white;font:600 14px system-ui;text-align:center';
 subPrompt.innerHTML='<strong>⚔ CAÇADA À SUCATEIRA</strong><p>Uma nave aliada desapareceu. Uma caçadora feita de sucata interceptou o último sinal.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
 const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';sonarBtn.textContent='📡 SONAR';document.body.appendChild(sonarBtn);
@@ -363,28 +363,59 @@ const SONAR_KEY='semnome.sonar.unlocked.v1';
 let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
 let sonarUntil=0,sonarReady=0,subEmpUntil=0;
 sonarBtn.onclick=()=>{const t=clock.elapsedTime;if(t<sonarReady||(mission.stage<16&&!sonarUnlocked))return;sonarUntil=t+7;sonarReady=t+16;notifyCombat('SONAR ATIVO · CONTATO REVELADO',3);};
-function clearSubShots(){for(const p of subShots)scene.remove(p.mesh);subShots.length=0}
+function clearSubShots(){for(let i=enemyShots.length-1;i>=0;i--){if(enemyShots[i].source==='hunter'){discardEnemyShot(enemyShots[i]);enemyShots.splice(i,1);}}}
 function startSubHunt(){
  if(mission.stage!==14)return;
  mission.stage=15;mission.finished=false;mission.subX=x-240;mission.subZ=z-170;mission.subHp=1200;mission.subScan=0;mission.subPhaseAt=clock.elapsedTime;
  subPrompt.style.display='none';saveCheckpoint();notifyCombat('INVESTIGUE O ÚLTIMO SINAL',4);
 }
 subPrompt.querySelector('button').onclick=startSubHunt;
-function fireSubShot(t,missile){
+// Usa o arsenal, pontaria preditiva e os projéteis FÍSICOS dos NPCs existentes.
+const hunterWeaponReady={};
+function fireSubShot(t){
  const origin=new THREE.Vector3(mission.subX,height(mission.subX,mission.subZ,t)+11,mission.subZ);
- const target=new THREE.Vector3(x+hullPhysics.vx*(missile?.95:.45),height(x,z,t)+7,z+hullPhysics.vz*(missile?.95:.45));
- const direction=target.sub(origin).normalize();
- const count=missile?1:3;
- for(let n=0;n<count;n++){
-  const mesh=new THREE.Mesh(subShotGeo,subShotMat.clone());mesh.material.color.setHex(missile?0xff542f:0xffc04a);mesh.position.copy(origin);
-  const glow=new THREE.PointLight(missile?0xff4c17:0xffb02a,2.5,30);mesh.add(glow);
-  const trail=new THREE.Mesh(new THREE.ConeGeometry(missile?3.1:2.0,missile?13:9,8),new THREE.MeshBasicMaterial({color:missile?0xff431a:0xffc84d,transparent:true,opacity:.68}));
-  trail.rotation.x=Math.PI/2;trail.position.z=6;mesh.add(trail);
-  scene.add(mesh);
-  const spread=(n-(count-1)/2)*.11;
-  const velocity=direction.clone().applyAxisAngle(new THREE.Vector3(0,1,0),spread).multiplyScalar(missile?182:205);
-  subShots.push({mesh,velocity,life:missile?5:2.5,turn:missile?1.15:.08,damage:missile?27:13,missile});
+ const choice=chooseNpcWeapon({x:mission.subX,z:mission.subZ},{x,z},
+  {x:hullPhysics.vx*.87,z:hullPhysics.vz*.87},hunterWeaponReady,t,{
+   skill:.92,instability:Math.abs(hullPhysics.vx)+Math.abs(hullPhysics.vz)>35?8:2
+  });
+ if(!choice)return false;
+ const weapon=choice.weapon;
+ const destination=new THREE.Vector3(choice.aimX,
+  weapon.mode==='torpedo'?height(choice.aimX,choice.aimZ,t)+.65:height(choice.aimX,choice.aimZ,t)+4,
+  choice.aimZ);
+ const muzzle=origin.clone();
+ if(weapon.mode==='torpedo')muzzle.y=height(mission.subX,mission.subZ,t)+.65;
+ const spawn=(dest,delay=0,secondary=false)=>{
+  const mesh=new THREE.Group();
+  const coreMat=new THREE.MeshBasicMaterial({color:weapon.color,toneMapped:false});
+  const core=new THREE.Mesh(energyCoreGeometry,coreMat);
+  const plasma=new THREE.Mesh(new THREE.IcosahedronGeometry(1.05,1),plasmaMaterial);
+  const glowMat=energyGlowMaterial.clone();glowMat.uniforms.uColor.value.setHex(weapon.color);
+  const glow=new THREE.Mesh(energyGlowGeometry,glowMat);
+  const outerGlow=new THREE.Mesh(energyGlowGeometry,glowMat);outerGlow.scale.setScalar(1.9);
+  mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(muzzle);scene.add(mesh);
+  const trailPoints=Array.from({length:12},()=>muzzle.clone());
+  const trailMat=new THREE.LineBasicMaterial({color:weapon.color,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false});
+  const trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(trailPoints),trailMat);scene.add(trail);
+  let warning=null;
+  if(weapon.mode==='area'){
+   warning=new THREE.Mesh(new THREE.RingGeometry(weapon.radius*.88,weapon.radius,40),
+    new THREE.MeshBasicMaterial({color:weapon.color,transparent:true,opacity:.38,depthWrite:false,side:THREE.DoubleSide}));
+   warning.rotation.x=-Math.PI/2;warning.position.set(dest.x,height(dest.x,dest.z,t)+.28,dest.z);scene.add(warning);
+  }
+  enemyShots.push({weaponId:choice.id,weapon,mesh,glow,outerGlow,plasma,core,trail,trailPoints,
+   origin:muzzle.clone(),destination:dest.clone(),arcHeight:0,age:0,
+   duration:choice.flight+delay,source:'hunter',warning,coreMat,glowMat,trailMat,
+   secondary,hitDamage:secondary?Math.max(2,Math.round(weapon.damage*.65)):weapon.damage});
+ };
+ spawn(destination);
+ if(choice.id==='scatter'){
+  const angle=Math.atan2(destination.z-muzzle.z,destination.x-muzzle.x);
+  for(const side of [-1,1])spawn(destination.clone().add(new THREE.Vector3(-Math.sin(angle)*side*8,0,Math.cos(angle)*side*8)),side<0?.16:.32,true);
  }
+ hunterWeaponReady[choice.id]=t+weapon.cooldown;
+ submarine.userData.recoil=.34;submarine.userData.flashTime=.13;
+ return true;
 }
 function updateSubHunt(dt,t){
  submarine.visible=mission.stage>=15&&mission.stage<=18&&!mission.failed;
@@ -426,20 +457,11 @@ function updateSubHunt(dt,t){
  submarine.position.set(mission.subX,height(mission.subX,mission.subZ,t)+8,mission.subZ);
  submarine.rotation.y=Math.atan2(-dx,-dz);
  if(mission.stage>=16&&d<400&&t>=mission.subNextAttack&&playerCombat.hp>0){
-  const missile=d>165||Math.hypot(hullPhysics.vx,hullPhysics.vz)>24;
-  fireSubShot(t,missile);
-  mission.subNextAttack=t+(boosting?3.6:low?2.2:missile?3:2.5);
+  const fired=fireSubShot(t);
+  mission.subNextAttack=t+(fired?.35:.6);
   if(d<145&&t>subEmpUntil+22){subEmpUntil=t+4;notifyCombat('⚡ INTERFERÊNCIA NO PROPULSOR · 4s',3);}
  }
- for(let i=subShots.length-1;i>=0;i--){
-  const p=subShots[i];p.life-=dt;
-  const aim=new THREE.Vector3(x,bob+3,z).sub(p.mesh.position).normalize().multiplyScalar(p.velocity.length());
-  p.velocity.lerp(aim,Math.min(1,p.turn*dt));p.mesh.position.addScaledVector(p.velocity,dt);
-  p.mesh.rotation.y+=dt*11;
-  const hit=Math.hypot(p.mesh.position.x-x,p.mesh.position.z-z)<10&&Math.abs(p.mesh.position.y-(bob+3))<12;
-  if(hit&&t>=shieldUntil&&t>=playerCombat.invulnerableUntil){playerCombat.hp=Math.max(0,playerCombat.hp-p.damage*(1-economy.armor*.05));playerCombat.invulnerableUntil=t+.45;playerCombat.lastDamageAt=t;energyFlash(p.mesh.position);}
-  if(hit||p.life<=0){scene.remove(p.mesh);subShots.splice(i,1);}
- }
+
 }
 const signalShip=createWarMachine3D(THREE,{enemy:false});signalShip.scale.multiplyScalar(1.17);signalShip.visible=false;scene.add(signalShip);
 const signalData=new THREE.Mesh(new THREE.OctahedronGeometry(3,1),new THREE.MeshBasicMaterial({color:0x7dfaff}));
@@ -656,7 +678,7 @@ function restartCheckpoint(){
  }
  if(mission.stage===4)signalPrompt.style.display='block';
  if(mission.stage===14)subPrompt.style.display='block';
- if(mission.stage>=15&&mission.stage<=18){hunterBoostUntil=0;hunterBoostReadyAt=t+8;mission.subPhaseAt=t;mission.subNextAttack=t+5;mission.subSurviveUntil=t+120;sonarReady=0;clearSubShots();}
+ if(mission.stage>=15&&mission.stage<=18){for(const key of Object.keys(hunterWeaponReady))delete hunterWeaponReady[key];hunterBoostUntil=0;hunterBoostReadyAt=t+8;mission.subPhaseAt=t;mission.subNextAttack=t+5;mission.subSurviveUntil=t+120;sonarReady=0;clearSubShots();}
  if(mission.stage===9)basePrompt.style.display='block';
  if(mission.stage>=10){baseStructure.visible=true;baseStructure.position.set(mission.baseX,height(mission.baseX,mission.baseZ,t),mission.baseZ);if(mission.stage===11)spawnBaseForce(false,t);if(mission.stage===12)spawnBaseForce(true,t);}
  if(mission.stage>=5){signalShip.visible=true;signalShip.position.set(mission.signalX,height(mission.signalX,mission.signalZ,t)+1,mission.signalZ);if(mission.stage===7){mission.defendUntil=t+90;mission.allyHp=100;activateSignalAmbush(t);}}
