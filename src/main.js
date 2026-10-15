@@ -402,7 +402,7 @@ function hudButton(button,type,label='',size=30){
  button.replaceChildren(...children);
  button.setAttribute('aria-label',label||type);
 }
-const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';hudButton(sonarBtn,'sonar','VARREDURA DE MARÉ',27);document.body.appendChild(sonarBtn);
+const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:112px;top:132px;width:46px;height:46px;z-index:95;background:#163d57;color:white;padding:3px;border:1px solid #91eeff;border-radius:10px;font:700 10px system-ui;touch-action:manipulation';hudButton(sonarBtn,'sonar','',35);sonarBtn.title='Varredura de Maré';sonarBtn.id='sonarHudButton';document.body.appendChild(sonarBtn);
 const SONAR_KEY='semnome.sonar.unlocked.v1';
 let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
 let sonarUntil=0,sonarReady=0,subEmpUntil=0;
@@ -1081,11 +1081,11 @@ const specialDrops=[],DROP_INTERVAL=26,DROP_LIFE=90,DROP_MAX=4;
 let nextSpecialDrop=14,shieldUntil=0,superBoostUntil=0;
 const pickupInventory={boost:0,shield:0};
 const pickupControls=document.createElement('div');
-pickupControls.style.cssText='position:fixed;right:12px;top:44%;z-index:95;display:flex;flex-direction:column;gap:7px';
+pickupControls.id='pickupHudControls';pickupControls.style.cssText='position:fixed;right:112px;top:245px;z-index:95;display:flex;flex-direction:column;gap:5px';
 const pickupButtons={};
 for(const [type,label] of [['shield','🛡️ ESCUDO'],['boost','⚡ BOOST 2×']]){
  const button=document.createElement('button');button.type='button';
- button.style.cssText='min-width:105px;padding:9px 10px;color:#fff;background:#10334de8;border:1px solid #8fdded;border-radius:11px;font:700 12px system-ui;touch-action:manipulation';
+ button.style.cssText='width:65px;height:43px;padding:2px;color:#fff;background:#10334de8;border:1px solid #8fdded;border-radius:11px;font:700 11px system-ui;touch-action:manipulation';
  button.textContent=label+' ×0';button.disabled=true;
  button.addEventListener('pointerdown',event=>{
   event.preventDefault();event.stopPropagation();
@@ -1100,8 +1100,8 @@ for(const [type,label] of [['shield','🛡️ ESCUDO'],['boost','⚡ BOOST 2×']
 }
 document.body.appendChild(pickupControls);
 function updatePickupButtons(){
- hudButton(pickupButtons.shield,'shield','BARREIRA ×'+pickupInventory.shield,26);
- hudButton(pickupButtons.boost,'boost','IMPULSO 2× ×'+pickupInventory.boost,26);
+ hudButton(pickupButtons.shield,'shield','×'+pickupInventory.shield,29);pickupButtons.shield.title='Barreira Pelágica';
+ hudButton(pickupButtons.boost,'boost','×'+pickupInventory.boost,29);pickupButtons.boost.title='Impulso 2×';
  for(const type of ['shield','boost']){
   pickupButtons[type].disabled=pickupInventory[type]===0||playerCombat.hp<=0;
   pickupButtons[type].style.opacity=pickupButtons[type].disabled?'.48':'1';
@@ -1277,11 +1277,11 @@ function renderWeaponDock(){
   const ammo=AMMO_TYPES.find(a=>a.id===id);
   const button=document.createElement('button');
   button.type='button';button.className='weaponSlot'+(selectedAmmo.id===id?' selected':'');
-  hudButton(button,id,'',46);button.title=ammo.name+' · Alcance '+WEAPON_STATS[id].range+' · Recarga '+WEAPON_STATS[id].cooldown+'s';button.dataset.weapon=id;button.dataset.special=String(TACTICAL_AMMO.has(id));
+  hudButton(button,id,'',35);button.title=ammo.name+' · Alcance '+WEAPON_STATS[id].range+' · Recarga '+WEAPON_STATS[id].cooldown+'s';button.dataset.weapon=id;button.dataset.special=String(TACTICAL_AMMO.has(id));
   button.setAttribute('aria-label','Selecionar '+ammo.name);button.setAttribute('aria-pressed',String(selectedAmmo.id===id));
   button.addEventListener('pointerdown',e=>{
    e.preventDefault();e.stopPropagation();
-   selectedAmmo=ammo;cancelAreaAim();hudButton(ammoButton,ammo.id,'',42);
+   selectedAmmo=ammo;cancelAreaAim();hudButton(ammoButton,ammo.id,'',34);
    ammoMenu.classList.remove('open');ammoButton.setAttribute('aria-expanded','false');
    renderAmmoMenu();renderWeaponDock();
   });
@@ -1642,8 +1642,8 @@ let mineReadyAt=0;
 const mineGeometry=new THREE.IcosahedronGeometry(2.7,0);
 const mineMaterial=new THREE.MeshStandardMaterial({color:0x293b4c,metalness:.7,roughness:.35});
 const mineButton=document.createElement('button');
-mineButton.type='button';mineButton.id='mineButton';hudButton(mineButton,'mine','NÓ DE RUPTURA',27);
-mineButton.style.cssText='position:fixed;right:14px;bottom:125px;z-index:90;border:1px solid #8ef0ff;border-radius:12px;background:#132c3d;color:white;padding:11px;font-weight:700;touch-action:manipulation';
+mineButton.type='button';mineButton.id='mineButton';hudButton(mineButton,'mine','',35);mineButton.title='Nó de Ruptura';
+mineButton.style.cssText='position:fixed;right:112px;top:184px;width:46px;height:46px;z-index:90;border:1px solid #8ef0ff;border-radius:12px;background:#132c3d;color:white;padding:3px;font-weight:700;touch-action:manipulation';
 document.body.appendChild(mineButton);
 function deployMine(){
  const now=clock.elapsedTime;
@@ -1675,7 +1675,7 @@ function updateEnemyMines(t){
 mineButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();deployMine();});
 function updateMines(now){
  mineButton.disabled=energyDisabled()||playerCombat.hp<=0||now<mineReadyAt||mines.length>=MINE.max;
- hudButton(mineButton,'mine',now<mineReadyAt?Math.ceil(mineReadyAt-now)+'s':'NÓ DE RUPTURA',27);
+ hudButton(mineButton,'mine',now<mineReadyAt?Math.ceil(mineReadyAt-now)+'s':'',35);mineButton.title='Nó de Ruptura';
  for(let i=mines.length-1;i>=0;i--){
   const mine=mines[i];
   mine.mesh.position.set(mine.x,height(mine.x,mine.z,now)+.9,mine.z);
@@ -1777,7 +1777,7 @@ if(boostActive){
 }
 const boostRemaining=boostActive?1:0;
 boostButton.classList.toggle('active',boostActive);
-hudButton(boostButton,'boost',boostActive?'IMPULSO ATIVO':boostEnergy<1?Math.round(boostEnergy*100)+'%':'IMPULSO DE MARÉ',30);
+hudButton(boostButton,'boost',boostEnergy<1?Math.round(boostEnergy*100)+'%':'',34);boostButton.title=boostActive?'Impulso ativo':'Impulso de Maré';
 boostButton.disabled=blackout||boostEnergy<BOOST_COST||boostActive||playerCombat.hp<=0;
 // Corrige direção: arrastar o dedo para a direita gira a proa à direita.
 // Giro possível parado, mais responsivo em velocidade e durante o BOOST.
