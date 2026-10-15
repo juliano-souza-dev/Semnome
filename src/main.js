@@ -414,7 +414,7 @@ const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:
 const SONAR_KEY='semnome.sonar.unlocked.v1';
 let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
 let sonarUntil=0,sonarReady=0,subEmpUntil=0;
-sonarBtn.onclick=()=>{const t=clock.elapsedTime;if(t<sonarReady||(mission.stage<16&&!sonarUnlocked))return;sonarUntil=t+7;sonarReady=t+16;notifyCombat('VARREDURA DE MARÉ · CONTATO REVELADO',3);};
+sonarBtn.onclick=null;
 function clearSubShots(){for(let i=enemyShots.length-1;i>=0;i--){if(enemyShots[i].source==='hunter'){discardEnemyShot(enemyShots[i]);enemyShots.splice(i,1);}}}
 function startSubHunt(){
  if(mission.stage!==14)return;
@@ -551,7 +551,7 @@ function restoreSiegeWave(t){
 }
 function updateSubHunt(dt,t){
  submarine.visible=mission.stage>=15&&mission.stage<=18&&!mission.failed;
- sonarBtn.style.display=(mission.stage>=16&&mission.stage<=18)||sonarUnlocked?'block':'none';
+ sonarBtn.style.display='none'; // Varredura de Maré desativada definitivamente.
  sonarBtn.disabled=t<sonarReady;
  hunterBoostHud.style.display=mission.stage>=16&&mission.stage<=18?'block':'none';
  if(!submarine.visible){clearSubShots();return;}
