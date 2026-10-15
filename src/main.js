@@ -306,6 +306,12 @@ for(let i=0;i<6;i++){
 }
 // Missão 07: equipe hostil protegendo o coletor pelágico, usando o arsenal e IA existentes.
 for(let i=0;i<3;i++){const id=reinforcementId++;enemies.push({id,name:i===2?'Guardião da Maré':'Caçador Pelágico '+(i+1),x:0,z:0,y:0,anchorX:0,anchorZ:0,heading:0,speed:12,hp:0,phase:i*.8,radius:18,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true,tideGuard:true,tideBoss:i===2,veteran:true});}
+// Missão 08: 4 ondas, táticas e blindagens graduais; reusa o motor de IA já existente.
+const SIEGE_WAVES=[3,4,4,5];
+for(let wave=0;wave<SIEGE_WAVES.length;wave++)for(let rank=0;rank<SIEGE_WAVES[wave];rank++){
+ const id=reinforcementId++;
+ enemies.push({id,name:wave===3&&rank===4?'Almirante da Ruptura':wave>=2?'Predador de Maré':'Corsário de Sucata',x:0,z:0,y:0,anchorX:0,anchorZ:0,heading:0,speed:12,hp:0,phase:rank*.8,radius:18,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true,siegeWave:wave,siegeRank:rank,siegeBoss:wave===3&&rank===4,veteran:wave>0});
+}
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
@@ -326,7 +332,7 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,tideX:0,tideZ:0,tideScan:0,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,tideX:0,tideZ:0,tideScan:0,siegeWave:-1,siegeNextAt:0,siegeX:0,siegeZ:0,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0)};
 const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*20;
@@ -512,6 +518,37 @@ function activateTideGuards(t,reset){
   e.maxHp=e.tideBoss?450:210;e.hp=e.maxHp;e.dormant=false;e.state='pursuit';e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.weaponReadyAt={};e.model.position.set(e.x,e.y,e.z);e.model.visible=true;
  });
 }
+const siegePrompt=document.createElement('div');
+siegePrompt.style.cssText='display:none;position:fixed;top:16%;left:50%;transform:translateX(-50%);z-index:180;padding:18px;background:#081b33f2;color:white;border:1px solid #ffa756;border-radius:14px;text-align:center;width:min(410px,88vw);font:600 14px system-ui';
+siegePrompt.innerHTML='<strong>⚔ MISSÃO 08 · CERCO DA RUPTURA</strong><p>Ao recuperar o Coração da Maré, você denunciou sua posição. Quatro esquadras de elite convergem para destruí-lo. São 16 naves, incluindo o Almirante da Ruptura. Repare, esquive e sobreviva.</p><button style="padding:12px 20px;border:0;background:#ffc86e;border-radius:8px;font-weight:800">ENFRENTAR ARMADA</button>';document.body.appendChild(siegePrompt);
+siegePrompt.querySelector('button').onclick=()=>{
+ if(mission.stage!==26)return;
+ siegePrompt.style.display='none';mission.stage=27;mission.finished=false;
+ mission.siegeX=x-600;mission.siegeZ=z-380;mission.siegeWave=-1;mission.siegeNextAt=0;
+ saveCheckpoint();notifyCombat('⚠ ARMADA INIMIGA DETECTADA · 4 ONDAS',4);
+};
+function spawnSiegeWave(wave,t){
+ const group=enemies.filter(e=>e.siegeWave===wave),cx=x-340,cz=z-210;
+ group.forEach((e,i)=>{
+  const a=heading+i*2*Math.PI/group.length;
+  e.x=cx+Math.sin(a)*(95+wave*22);e.z=cz+Math.cos(a)*(95+wave*22);
+  e.anchorX=e.x;e.anchorZ=e.z;e.y=height(e.x,e.z,t)+1;e.previousX=e.x;e.previousZ=e.z;
+  e.heading=Math.atan2(x-e.x,z-e.z);
+  e.maxHp=e.siegeBoss?800:wave===3?350:wave===2?270:wave===1?200:145;
+  e.hp=e.maxHp;e.dormant=false;e.state='pursuit';e.veteran=wave>=1;
+  e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;
+  e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.weaponReadyAt={};
+  e.ai.nextDash=t+(wave===0?15:wave===1?8:4)+i*.8;
+  e.ai.intent=wave===0?'pursuit':wave===1?'flank':wave===2?'evade':'attack';
+  e.model.position.set(e.x,e.y,e.z);e.model.visible=true;
+ });
+ notifyCombat('⚔ ONDA '+(wave+1)+'/4 · '+group.length+' NAVES HOSTIS',5);
+}
+function restoreSiegeWave(t){
+ // Retoma exatamente as naves do checkpoint, sem ressuscitar baixas.
+ const group=enemies.filter(e=>e.siegeWave===mission.siegeWave);
+ if(!group.some(e=>e.hp>0&&!e.dormant)&&group.every(e=>e.dormant))mission.siegeNextAt=t+2;
+}
 function updateSubHunt(dt,t){
  submarine.visible=mission.stage>=15&&mission.stage<=18&&!mission.failed;
  sonarBtn.style.display=(mission.stage>=16&&mission.stage<=18)||sonarUnlocked?'block':'none';
@@ -685,7 +722,7 @@ receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
 function activateInterceptors(){
  for(const enemy of enemies){
-  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined||enemy.ghostWave!==undefined||enemy.tideGuard)continue;
+  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined||enemy.ghostWave!==undefined||enemy.tideGuard||enemy.siegeWave!==undefined)continue;
   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
   enemy.ai.lastCombatAt=clock.elapsedTime;
@@ -776,6 +813,8 @@ function restartCheckpoint(){
  if(mission.stage===14)subPrompt.style.display='block';
  if(mission.stage===19)ghostPrompt.style.display='block';
  if(mission.stage===22)tidePrompt.style.display='block';
+ if(mission.stage===26)siegePrompt.style.display='block';
+ if(mission.stage===28)restoreSiegeWave(t);
  if(mission.stage===25)activateTideGuards(t,false);
  if(mission.stage===21){mission.ghostWave=0;activateGhostWave(0,t);}
  if(mission.stage>=15&&mission.stage<=18){for(const key of Object.keys(hunterWeaponReady))delete hunterWeaponReady[key];hunterBoostUntil=0;hunterBoostReadyAt=t+8;mission.subPhaseAt=t;mission.subNextAttack=t+5;mission.subSurviveUntil=t+120;sonarReady=0;clearSubShots();}
@@ -922,6 +961,16 @@ function updateMission(dt,t){
    if(t<sonarUntil){mission.subScan+=dt;if(mission.subScan>=5){mission.stage=18;mission.subPhaseAt=t;saveCheckpoint();notifyCombat('ALVO LOCALIZADO · ATIRE QUANDO EMERGIR',4);}}
   }else if(mission.stage===18){
    if(mission.subHp<=0){mission.stage=19;mission.finished=true;ghostPrompt.style.display='block';economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
+  }else if(mission.stage===27){
+   if(Math.hypot(x-mission.siegeX,z-mission.siegeZ)<210){mission.stage=28;mission.siegeWave=0;mission.siegeNextAt=t+1;saveCheckpoint();notifyCombat('⚠ A RUPTURA AVANÇA · PREPARE-SE',4);}
+  }else if(mission.stage===28){
+   const active=enemies.filter(e=>e.siegeWave===mission.siegeWave&&e.hp>0&&!e.dormant).length;
+   if(active===0&&t>=mission.siegeNextAt){
+    const pending=enemies.some(e=>e.siegeWave===mission.siegeWave&&e.dormant);
+    if(pending){spawnSiegeWave(mission.siegeWave,t);saveCheckpoint();}
+    else if(mission.siegeWave<3){mission.siegeWave++;mission.siegeNextAt=t+7;saveCheckpoint();notifyCombat('⚠ PRÓXIMA ONDA · '+(mission.siegeWave+1)+'/4 · 7 SEGUNDOS',5);}
+    else{mission.stage=29;mission.finished=true;economy.scrap+=1600;saveEconomy();saveCheckpoint();notifyCombat('🏆 RUPTURA VENCIDA · +1600 SUCATAS',6);}
+   }
   }else if(mission.stage===23){
    if(Math.hypot(x-mission.tideX,z-mission.tideZ)<185){mission.stage=24;mission.tideScan=0;saveCheckpoint();notifyCombat('📡 COLETOR PELÁGICO · MANTENHA POSIÇÃO',3);}
   }else if(mission.stage===24){
@@ -931,7 +980,7 @@ function updateMission(dt,t){
    if(mission.tideScan>=8){mission.stage=25;activateTideGuards(t,true);saveCheckpoint();notifyCombat('⚠ EMBOSCADA · PROTEJA OS DADOS DO COLETOR',4);}
   }else if(mission.stage===25){
    if(!enemies.some(e=>e.tideGuard&&e.hp>0)){
-    mission.stage=26;mission.finished=true;economy.scrap+=900;saveEconomy();saveCheckpoint();notifyCombat('✅ CORAÇÃO DA MARÉ RECUPERADO · +900 SUCATAS',6);
+    mission.stage=26;mission.finished=true;economy.scrap+=900;saveEconomy();saveCheckpoint();siegePrompt.style.display='block';notifyCombat('✅ CORAÇÃO DA MARÉ RECUPERADO · +900 SUCATAS',6);
    }
   }else if(mission.stage===20){
    if(Math.hypot(x-mission.ghostX,z-mission.ghostZ)<180){mission.stage=21;mission.ghostWave=0;activateGhostWave(0,t);saveCheckpoint();notifyCombat('⚠ FROTA FANTASMA · EMBOSCADA',4);}
@@ -1014,7 +1063,10 @@ function updateMission(dt,t){
   mission.stage===23?'📡 CORAÇÃO DA MARÉ · ENCONTRE O COLETOR · '+Math.round(Math.hypot(x-mission.tideX,z-mission.tideZ))+'m':
   mission.stage===24?'⚡ DADOS PELÁGICOS · '+Math.floor((mission.tideScan||0)/8*100)+'% · '+(Math.hypot(x-mission.tideX,z-mission.tideZ)<185?'CAPTANDO':'APROXIME-SE DO SINAL AZUL'):
   mission.stage===25?'⚔ PROTEJA O COLETOR · '+enemies.filter(e=>e.tideGuard&&e.hp>0).length+' HOSTIS':
-  mission.stage===26?'✅ CORAÇÃO DA MARÉ RECUPERADO · +900 SUCATAS':
+  mission.stage===26?'✅ CORAÇÃO DA MARÉ · NOVA AMEAÇA DETECTADA':
+  mission.stage===27?'⚠ MISSÃO 08 · INTERCEPTE A ARMADA · '+Math.round(Math.hypot(x-mission.siegeX,z-mission.siegeZ))+'m':
+  mission.stage===28?'⚔ CERCO DA RUPTURA · ONDA '+(mission.siegeWave+1)+'/4 · '+enemies.filter(e=>e.siegeWave===mission.siegeWave&&e.hp>0&&!e.dormant).length+' HOSTIS':
+  mission.stage===29?'🏆 CERCO DA RUPTURA VENCIDO · +1600 SUCATAS':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
   mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m RESTANTES · '+Math.floor(mission.extractionDistance||0)+'m NA ROTA · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
 }
@@ -1266,7 +1318,7 @@ const compassPings=enemies.map(enemy=>{
  const threatStatus=document.createElement('div');threatStatus.id='threatStatus';threatStatus.setAttribute('aria-live','off');compass.appendChild(threatStatus);
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
-  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:mission.stage===20?{x:mission.ghostX,z:mission.ghostZ}:mission.stage===23||mission.stage===24?{x:mission.tideX,z:mission.tideZ}:null;
+  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:mission.stage===20?{x:mission.ghostX,z:mission.ghostZ}:mission.stage===23||mission.stage===24?{x:mission.tideX,z:mission.tideZ}:mission.stage===27?{x:mission.siegeX,z:mission.siegeZ}:null;
   const trackingSub=mission.stage>=16&&mission.stage<=18&&!mission.failed;
   const subDist=Math.hypot(x-mission.subX,z-mission.subZ);
   subCompassPing.style.display=trackingSub?'block':'none';
@@ -1969,10 +2021,10 @@ for(const enemy of enemies){
   // sem teleporte e sem acerto automático.
   if(!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
-   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)||(enemy.ghostWave!==undefined&&mission.stage===21)||(enemy.tideGuard&&mission.stage===25)){
+   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)||(enemy.ghostWave!==undefined&&mission.stage===21)||(enemy.tideGuard&&mission.stage===25)||(enemy.siegeWave!==undefined&&mission.stage===28)){
     // NPCs desta missão caçam o jogador desde o spawn; não retornam à patrulha.
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:true,
-     speed:enemy.tideGuard?46:enemy.ghostWave!==undefined?47:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
+     speed:enemy.siegeWave!==undefined?46+enemy.siegeWave*2:enemy.tideGuard?46:enemy.ghostWave!==undefined?47:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
    }else if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
      speed:Math.max(ai.plan.speed,Math.min(enemy.veteran?52:43,29+distance*.016)),
