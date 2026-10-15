@@ -355,8 +355,10 @@ const subShots=[],subShotGeo=new THREE.SphereGeometry(1.8,8,6),subShotMat=new TH
 const subPrompt=document.createElement('div');subPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:19px;width:min(370px,88vw);background:#071b32f2;border:1px solid #72dafe;border-radius:14px;color:white;font:600 14px system-ui;text-align:center';
 subPrompt.innerHTML='<strong>📡 CAÇADA NAS PROFUNDEZAS</strong><p>Uma embarcação aliada desapareceu. A origem do último sinal está nas profundezas.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
 const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';sonarBtn.textContent='📡 SONAR';document.body.appendChild(sonarBtn);
+const SONAR_KEY='semnome.sonar.unlocked.v1';
+let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
 let sonarUntil=0,sonarReady=0,subEmpUntil=0;
-sonarBtn.onclick=()=>{const t=clock.elapsedTime;if(t<sonarReady)return;sonarUntil=t+7;sonarReady=t+16;notifyCombat('SONAR ATIVO · CONTATO REVELADO',3);};
+sonarBtn.onclick=()=>{const t=clock.elapsedTime;if(t<sonarReady||(mission.stage<16&&!sonarUnlocked))return;sonarUntil=t+7;sonarReady=t+16;notifyCombat('SONAR ATIVO · CONTATO REVELADO',3);};
 function clearSubShots(){for(const p of subShots)scene.remove(p.mesh);subShots.length=0}
 function startSubHunt(){
  if(mission.stage!==14)return;
@@ -372,7 +374,7 @@ function fireSubShot(t,missile){
 }
 function updateSubHunt(dt,t){
  submarine.visible=mission.stage>=15&&mission.stage<=18&&!mission.failed;
- sonarBtn.style.display=mission.stage>=16&&mission.stage<=18?'block':'none';
+ sonarBtn.style.display=(mission.stage>=16&&mission.stage<=18)||sonarUnlocked?'block':'none';
  sonarBtn.disabled=t<sonarReady;
  if(!submarine.visible){clearSubShots();return}
  const d=Math.hypot(x-mission.subX,z-mission.subZ),low=mission.subHp<380;
@@ -760,7 +762,7 @@ function updateMission(dt,t){
   }else if(mission.stage===17){
    if(t<sonarUntil){mission.subScan+=dt;if(mission.subScan>=5){mission.stage=18;mission.subPhaseAt=t;saveCheckpoint();notifyCombat('ALVO LOCALIZADO · ATIRE QUANDO EMERGIR',4);}}
   }else if(mission.stage===18){
-   if(mission.subHp<=0){mission.stage=19;mission.finished=true;economy.scrap+=500;saveEconomy();saveCheckpoint();notifyCombat('SUBMARINO DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
+   if(mission.subHp<=0){mission.stage=19;mission.finished=true;economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('SUBMARINO DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
   }else if(mission.stage===13){
    // Progresso ao longo da rota, evitando gatilhos inconsistentes por curvas ou checkpoint.
    const routeX=mission.extractionX-mission.extractionStartX,routeZ=mission.extractionZ-mission.extractionStartZ;
@@ -2229,7 +2231,7 @@ for(let i=projectiles.length-1;i>=0;i--){
   }
   if(mission.stage===18&&p.ammo!=='torpedo'&&!p.subCounted){
    const dist=Math.hypot(p.mesh.position.x-mission.subX,p.mesh.position.z-mission.subZ);
-   if(dist<17&&Math.abs(p.mesh.position.y-submarine.position.y)<17){
+   if(submarine.position.y>=height(mission.subX,mission.subZ,t)-1&&dist<17&&Math.abs(p.mesh.position.y-submarine.position.y)<12){
     p.subCounted=true;mission.subHp=Math.max(0,mission.subHp-(p.ammo==='energyBomb'?300:Math.max(1,p.damage||25)));
     p.age=p.travel;energyFlash(p.mesh.position);notifyCombat('SUBMARINO ATINGIDO · '+Math.ceil(mission.subHp)+' HP',2);
    }
