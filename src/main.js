@@ -341,8 +341,8 @@ const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,fi
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0),boostRecharge:Math.min(9,Number(oldEconomy.boostRecharge)||0),weaponRecharge:Math.min(5,Number(oldEconomy.weaponRecharge)||0)};
 const finalPrep=()=>mission.stage>=29;
-const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*(finalPrep()?50:20);
-const normalCooldown=(id)=>WEAPON_STATS[id].cooldown*(finalPrep()&&id!=='energyBomb'?1-economy.weaponRecharge*.10:1);
+const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*(finalPrep()?150:20);
+const normalCooldown=(id)=>WEAPON_STATS[id].cooldown*(finalPrep()&&id!=='energyBomb'?Math.max(.05,1-economy.weaponRecharge*.10)/3:1);
 const saveEconomy=()=>{try{localStorage.setItem(economyKey,JSON.stringify(economy))}catch{}};
 const merchantShip=createWarMachine3D(THREE,{enemy:false});merchantShip.scale.multiplyScalar(1.05);merchantShip.visible=false;scene.add(merchantShip);
 const merchantPanel=document.createElement('div');merchantPanel.style.cssText='display:none;position:fixed;inset:0;z-index:210;background:#061b2ad9;align-items:center;justify-content:center;padding:18px;font-family:system-ui;color:white';
@@ -357,12 +357,12 @@ function openMerchant(){
  const items=merchantPanel.querySelector('#merchantItems');items.replaceChildren();
  merchantPanel.querySelector('#merchantBalance').textContent='🔩 Sucata: '+economy.scrap;
  const available=finalPrep()?[
-  {id:'health',label:'❤️ Vida máxima · até 600 HP',base:65,max:10},
-  {id:'engine',label:'⚡ Velocidade da nave · até +30%',base:45,max:6},
-  {id:'weapons',label:'🎯 Dano das armas · até +45%',base:60,max:9},
-  {id:'booster',label:'🚀 Velocidade do booster · até +50%',base:70,max:5},
-  {id:'boostRecharge',label:'🔋 Recarga do booster · até 90% mais rápida',base:85,max:9},
-  {id:'weaponRecharge',label:'💥 Recarga das armas · até -50%',base:90,max:5},
+  {id:'health',label:'❤️ Vida máxima · até 1.600 HP',base:65,max:10},
+  {id:'engine',label:'⚡ Velocidade da nave · até +90%',base:45,max:6},
+  {id:'weapons',label:'🎯 Dano das armas · até +135%',base:60,max:9},
+  {id:'booster',label:'🚀 Velocidade do booster · até +150%',base:70,max:5},
+  {id:'boostRecharge',label:'🔋 Recarga do booster · até 30× mais rápida',base:85,max:9},
+  {id:'weaponRecharge',label:'💥 Recarga das armas · até 6× mais rápida',base:90,max:5},
   {id:'armor',label:'🛡️ Blindagem · até -25% de dano',base:55,max:5}
  ]:upgrades.map(item=>({...item,max:5}));
  for(const item of available){
@@ -370,7 +370,7 @@ function openMerchant(){
   const btn=document.createElement('button');btn.style.cssText='display:block;width:100%;margin:8px 0;padding:12px;background:#226479;color:white;border:1px solid #4ca6a0;border-radius:9px;text-align:left';
   btn.textContent=item.label+' · nível '+level+'/'+item.max+' · '+(level>=item.max?'Máximo':cost+' sucata');
   btn.disabled=level>=item.max||economy.scrap<cost;
-  btn.onclick=()=>{if(!shopInRange()||economy.scrap<cost||economy[item.id]>=item.max)return;economy.scrap-=cost;economy[item.id]++;if(item.id==='health')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+(finalPrep()?50:20));if(item.id==='armor')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+25);saveEconomy();openMerchant()};
+  btn.onclick=()=>{if(!shopInRange()||economy.scrap<cost||economy[item.id]>=item.max)return;economy.scrap-=cost;economy[item.id]++;if(item.id==='health')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+(finalPrep()?150:20));if(item.id==='armor')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+25);saveEconomy();openMerchant()};
   items.appendChild(btn);
  }
 }
@@ -1782,7 +1782,7 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,ammo.id==='torpedo'?new THREE.LineBasicMaterial({color:0xd6ffff,transparent:true,opacity:.7,depthWrite:false}):energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage*(1+(finalPrep()?(economy.weapons<=5?economy.weapons*.08:.40+(economy.weapons-5)*.0125):economy.weapons*.08))};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage*(1+(finalPrep()?(3*(economy.weapons<=5?economy.weapons*.08:.40+(economy.weapons-5)*.0125)):economy.weapons*.08))};
  if(ammo.id==='torpedo'){
   core.visible=false;plasma.visible=false;glow.visible=false;outerGlow.visible=false;
   const shell=new THREE.MeshStandardMaterial({color:0x657c83,metalness:.65,roughness:.3});
@@ -2001,7 +2001,7 @@ const blackout=energyDisabled();
 energyBlackoutHud.style.display=blackout?'block':'none';
 if(blackout)energyBlackoutHud.textContent='⚠ SEM ENERGIA · '+Math.ceil(energyBlackoutUntil-t)+'s · MOVIMENTO E ARMAS BLOQUEADOS';
 const steering=blackout?0:THREE.MathUtils.clamp(keySteer+padX,-1,1);
-const target=blackout?0:t<subEmpUntil?Math.min(11,Math.max(0,throttle)*11):throttle>0?42*(1+economy.engine*.05)*(unlockedShips.selected==='signal'?1.08:1)*throttle:throttle<0?19*throttle:0;
+const target=blackout?0:t<subEmpUntil?Math.min(11,Math.max(0,throttle)*11):throttle>0?42*(1+economy.engine*(finalPrep()?.15:.05))*(unlockedShips.selected==='signal'?1.08:1)*throttle:throttle<0?19*throttle:0;
 if(blackout){boostActive=false;boostUseRemaining=0;hullPhysics.vx=0;hullPhysics.vz=0;speed=0;}
 if(boostActive){
  const spent=Math.min(dt,boostUseRemaining);
@@ -2009,7 +2009,7 @@ if(boostActive){
  boostUseRemaining=Math.max(0,boostUseRemaining-dt);
  if(boostUseRemaining<=0||boostEnergy<=0)boostActive=false;
 }else if(boostEnergy<1){
- boostEnergy=Math.min(1,boostEnergy+dt/(BOOST_RECHARGE_SECONDS*(finalPrep()?Math.max(.1,1-economy.boostRecharge*.10):1)));
+ boostEnergy=Math.min(1,boostEnergy+dt/(BOOST_RECHARGE_SECONDS*(finalPrep()?Math.max(.1,1-economy.boostRecharge*.10)/3:1)));
 }
 const boostRemaining=boostActive?1:0;
 boostButton.classList.toggle('active',boostActive);
@@ -2023,7 +2023,7 @@ if(playerCombat.hp>0){
 }
 const collisionStartX=x,collisionStartZ=z;
 hullPhysics.x=x;hullPhysics.z=z;
-const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED*(1+economy.booster*.10)*(t<superBoostUntil?2:1):0,dt});
+const movement=integrateHull(hullPhysics,{heading,targetSpeed:target,boostSpeed:boostRemaining>0?BOOST_DASH_SPEED*(1+economy.booster*(finalPrep()?.30:.10))*(t<superBoostUntil?2:1):0,dt});
 x=movement.x;z=movement.z;speed=movement.speed;
 // Varredura contínua do trajeto: evita atravessar estruturas no BOOST ou FPS baixo.
 // Um contato bloqueia imediatamente o avanço; a onda só afeta a representação visual.
