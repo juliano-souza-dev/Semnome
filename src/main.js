@@ -392,7 +392,7 @@ function updateSubHunt(dt,t){
  const v=low?42:dive?34:27;
  // Durante a investigação o contato fica acessível: não foge antes de o jogador encontrá-lo.
  if(mission.stage!==15){mission.subX+=dx/len*Math.min(v*dt,len);mission.subZ+=dz/len*Math.min(v*dt,len);}
- submarine.position.set(mission.subX,THREE.MathUtils.lerp(submarine.position.y||targetY,targetY,Math.min(1,dt*2.4)),mission.subZ);
+ submarine.position.set(mission.subX,THREE.MathUtils.lerp(Number.isFinite(submarine.position.y)&&submarine.position.y!==0?submarine.position.y:targetY,targetY,Math.min(1,dt*2.4)),mission.subZ);
  submarine.rotation.y=Math.atan2(-dx,-dz);
  if(mission.stage>=16&&d<400&&t>=mission.subNextAttack&&playerCombat.hp>0){
   const missile=d>170&&Math.hypot(hullPhysics.vx,hullPhysics.vz)>22;
@@ -1076,7 +1076,8 @@ function refreshPlayerHealth(){
  compass.querySelector('.compassTrack').appendChild(objectivePing);
  const compassTrack=compass.querySelector('.compassTrack');
  const compassReadout=compass.querySelector('.compassReadout');
- const compassPings=enemies.map(enemy=>{
+ const subCompassPing=document.createElement('span');subCompassPing.className='compassPing';subCompassPing.textContent='🔻';subCompassPing.title='Submarino hostil';compassTrack.appendChild(subCompassPing);
+const compassPings=enemies.map(enemy=>{
   const marker=document.createElement('span');marker.className='compassPing';marker.setAttribute('aria-hidden','true');
   marker.textContent='◆';marker.title=enemy.name;
   compassTrack.appendChild(marker);return marker;
@@ -1086,6 +1087,15 @@ function refreshPlayerHealth(){
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
   const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:null;
+  const trackingSub=mission.stage>=16&&mission.stage<=18&&!mission.failed;
+  const subDist=Math.hypot(x-mission.subX,z-mission.subZ);
+  subCompassPing.style.display=trackingSub?'block':'none';
+  if(trackingSub){
+   const a=Math.atan2(-(mission.subX-x),-(mission.subZ-z));
+   const delta=Math.atan2(Math.sin(a-heading),Math.cos(a-heading));
+   subCompassPing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';
+   subCompassPing.title='Submarino hostil · '+Math.round(subDist)+' m';
+  }
   objectivePing.style.display=goal?'block':'none';
   if(goal){const bearing=Math.atan2(-(goal.x-x),-(goal.z-z));const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));objectivePing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';objectivePing.textContent=Math.abs(delta)>Math.PI*.75?'◀':'◆';}
   let nearestEnemy=null,nearestRange=Infinity,activeThreats=0,shooters=0;
@@ -1384,7 +1394,6 @@ function launchShot(manualPoint=null){
   energyBombReadyAt=Date.now()+300000;energyBlackoutUntil=clock.elapsedTime+10;
   boostActive=false;boostUseRemaining=0;speed=0;hullPhysics.vx=0;hullPhysics.vz=0;
   cancelAreaAim();try{localStorage.setItem(ENERGY_BOMB_KEY,String(energyBombReadyAt))}catch{}updateEnergyBombStatus();
-updateSubHunt(dt,t);
  }
  audio.play(selectedAmmo.id);
  // Disparo balístico 3D: sobe da proa e mergulha no ponto do alvo.
@@ -1597,6 +1606,7 @@ function tick(){
 requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elapsedTime;
 currentSeaIntensity=seaIntensityAt(t);
 updateEnergyBombStatus();
+updateSubHunt(dt,t);
 uniforms.uTime.value=t;
 uniforms.uWaveIntensity.value=currentSeaIntensity;
 // Pilotagem direta e previsível: eixo Y regula motor, eixo X gira casco.
