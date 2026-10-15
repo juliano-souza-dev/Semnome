@@ -384,6 +384,24 @@ document.body.appendChild(hunterBoostHud);
 const subShots=[]; // Compatibilidade com checkpoints antigos; ataques usam enemyShots.
 const subPrompt=document.createElement('div');subPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:19px;width:min(370px,88vw);background:#071b32f2;border:1px solid #72dafe;border-radius:14px;color:white;font:600 14px system-ui;text-align:center';
 subPrompt.innerHTML='<strong>⚔ CAÇADA À SUCATEIRA</strong><p>Uma nave aliada desapareceu. Uma caçadora feita de sucata interceptou o último sinal.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
+const HUD_ICON_FILES=Object.freeze({
+ plasma:'pulso_pelagico.webp',iron:'fragmento_condensado.webp',torpedo:'dardo_pelagico.webp',
+ scatter:'rajada_de_ruptura.webp',energyBomb:'nucleo_de_sobrecarga.webp',
+ shield:'barreira_pelagica.webp',boost:'impulso_de_mare.webp',mine:'no_de_ruptura.webp',sonar:'varredura_de_mare.webp'
+});
+function hudIcon(type,size=32){
+ const img=document.createElement('img');
+ img.src=new URL('public/assets/icons/hud/'+HUD_ICON_FILES[type],document.baseURI).href;
+ img.alt='';img.draggable=false;img.decoding='async';
+ img.style.cssText='width:'+size+'px;height:'+size+'px;object-fit:contain;display:inline-block;vertical-align:middle;pointer-events:none;flex-shrink:0';
+ return img;
+}
+function hudButton(button,type,label='',size=30){
+ const children=[hudIcon(type,size)];
+ if(label){const text=document.createElement('span');text.textContent=label;text.style.cssText='vertical-align:middle;white-space:nowrap';children.push(text);}
+ button.replaceChildren(...children);
+ button.setAttribute('aria-label',label||type);
+}
 const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';hudButton(sonarBtn,'sonar','VARREDURA DE MARÉ',27);document.body.appendChild(sonarBtn);
 const SONAR_KEY='semnome.sonar.unlocked.v1';
 let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
@@ -1246,24 +1264,6 @@ const AMMO_TYPES=[
  {id:'torpedo',name:'Dardo Pelágico',icon:'🚀',description:'Projétil de sucata energizada · dano 165',color:0x62f2ec},
  {id:'energyBomb',name:'Núcleo de Sobrecarga',icon:'💠',description:'25% da vida máxima · recarga 5 minutos · apagão 10s',color:0x69f9ff},
 ];
-const HUD_ICON_FILES=Object.freeze({
- plasma:'pulso_pelagico.webp',iron:'fragmento_condensado.webp',torpedo:'dardo_pelagico.webp',
- scatter:'rajada_de_ruptura.webp',energyBomb:'nucleo_de_sobrecarga.webp',
- shield:'barreira_pelagica.webp',boost:'impulso_de_mare.webp',mine:'no_de_ruptura.webp',sonar:'varredura_de_mare.webp'
-});
-function hudIcon(type,size=32){
- const img=document.createElement('img');
- img.src=new URL('public/assets/icons/hud/'+HUD_ICON_FILES[type],document.baseURI).href;
- img.alt='';img.draggable=false;img.decoding='async';
- img.style.cssText='width:'+size+'px;height:'+size+'px;object-fit:contain;display:inline-block;vertical-align:middle;pointer-events:none;flex-shrink:0';
- return img;
-}
-function hudButton(button,type,label='',size=30){
- const children=[hudIcon(type,size)];
- if(label){const text=document.createElement('span');text.textContent=label;text.style.cssText='vertical-align:middle;white-space:nowrap';children.push(text);}
- button.replaceChildren(...children);
- button.setAttribute('aria-label',label||type);
-}
 let selectedAmmo=AMMO_TYPES[0];
 // Apenas armas de efeito especial usam a câmera tática superior.
 const TACTICAL_AMMO=new Set(['scatter']);
