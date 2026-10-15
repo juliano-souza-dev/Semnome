@@ -246,3 +246,29 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
  #mineButton{top:98px!important;right:94px!important}
  #pickupHudControls{top:140px!important;right:9px!important}
 }
+
+/* Ícones HUD sem cartões: apenas a arte transparente e estados acessíveis. */
+#weaponDock .weaponSlot,#overloadSelect,#sonarHudButton,#mineButton,
+#pickupHudControls button,#ammo,#boost{
+ background:transparent!important;border:0!important;border-radius:0!important;
+ box-shadow:none!important;outline:none;filter:none;
+}
+#weaponDock .weaponSlot.selected,#overloadSelect.selected{
+ background:transparent!important;border:0!important;box-shadow:none!important;
+}
+#weaponDock .weaponSlot img,#overloadSelect img,#sonarHudButton img,#mineButton img,
+#pickupHudControls img,#ammo img,#boost img{
+ object-fit:contain!important;filter:drop-shadow(0 2px 4px #001b31bb);
+}
+#weaponDock .weaponSlot.selected img,#overloadSelect.selected img{
+ filter:drop-shadow(0 0 5px #ffe28b) drop-shadow(0 0 9px #ffd25c);
+}
+#weaponDock .weaponSlot:focus-visible,#overloadSelect:focus-visible,
+#sonarHudButton:focus-visible,#mineButton:focus-visible,
+#pickupHudControls button:focus-visible,#ammo:focus-visible,#boost:focus-visible{
+ outline:2px solid #8cf5ff!important;outline-offset:1px;border-radius:8px!important;
+}
+#pickupHudControls button:disabled{opacity:.38!important}
+#pickupHudControls button span,#mineButton span,#boost span{
+ color:#f3fcff;text-shadow:0 1px 3px #001726,0 0 5px #00283d;
+}
