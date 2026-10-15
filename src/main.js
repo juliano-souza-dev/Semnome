@@ -347,18 +347,14 @@ function openMerchant(){
 merchantPanel.querySelector('#merchantClose').onclick=()=>merchantPanel.style.display='none';
 const merchantAccess=document.createElement('button');merchantAccess.textContent='⚓ Loja';merchantAccess.style.cssText='display:none;position:fixed;right:12px;bottom:110px;z-index:95;padding:9px;background:#164853;color:white;border:1px solid #70ccb4;border-radius:8px';document.body.appendChild(merchantAccess);merchantAccess.onclick=openMerchant;
 // A Caçadora de Sucata: nave de emboscada, sem nave sucateiras neste mundo.
-const submarine=new THREE.Group();scene.add(submarine);submarine.visible=false;
-const scrapMetal=new THREE.MeshStandardMaterial({color:0x5d4438,metalness:.78,roughness:.47,flatShading:true});
-const scrapDark=new THREE.MeshStandardMaterial({color:0x20313e,metalness:.72,roughness:.38,flatShading:true});
-const scrapFire=new THREE.MeshBasicMaterial({color:0xff7530});
-const subBody=new THREE.Mesh(new THREE.BoxGeometry(24,4,39),scrapDark);subBody.rotation.y=.09;submarine.add(subBody);
-for(const side of [-1,1]){
- const plate=new THREE.Mesh(new THREE.BoxGeometry(13,1.5,23),scrapMetal);plate.position.set(side*14,-.6,3);plate.rotation.z=side*.17;submarine.add(plate);
- const thruster=new THREE.Mesh(new THREE.CylinderGeometry(3,4,8,9),scrapMetal);thruster.rotation.x=Math.PI/2;thruster.position.set(side*10,1,17);submarine.add(thruster);
- const flame=new THREE.Mesh(new THREE.ConeGeometry(2.1,7,8),scrapFire);flame.rotation.x=-Math.PI/2;flame.position.set(side*10,1,24);submarine.add(flame);
- const gun=new THREE.Mesh(new THREE.CylinderGeometry(1.8,2.3,12,8),scrapMetal);gun.rotation.x=Math.PI/2;gun.position.set(side*11,3,-15);submarine.add(gun);
-}
-const cockpit=new THREE.Mesh(new THREE.BoxGeometry(9,5,12),scrapMetal);cockpit.position.set(0,3,-4);submarine.add(cockpit);
+// Mesmo chassi 3D das naves do jogo, ampliado para o chefe Caçadora.
+const submarine=createWarMachine3D(THREE,{enemy:true});
+submarine.scale.setScalar(2.7);submarine.visible=false;scene.add(submarine);
+const hunterBoostGlow=new THREE.PointLight(0xff8e24,0,100);hunterBoostGlow.position.set(0,3,21);submarine.add(hunterBoostGlow);
+let hunterBoostUntil=0,hunterBoostReadyAt=0,hunterBoostMode='chase',hunterLastBoost=0;
+const hunterBoostHud=document.createElement('div');
+hunterBoostHud.style.cssText='display:none;position:fixed;top:25%;left:50%;transform:translateX(-50%);z-index:85;padding:5px 10px;color:#ffcd92;background:#211b29bd;border:1px solid #df8b37;border-radius:9px;font:700 12px system-ui;pointer-events:none';
+document.body.appendChild(hunterBoostHud);
 const subShots=[],subShotGeo=new THREE.IcosahedronGeometry(3.6,1),subShotMat=new THREE.MeshBasicMaterial({color:0xff822c});
 const subPrompt=document.createElement('div');subPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:19px;width:min(370px,88vw);background:#071b32f2;border:1px solid #72dafe;border-radius:14px;color:white;font:600 14px system-ui;text-align:center';
 subPrompt.innerHTML='<strong>⚔ CAÇADA À SUCATEIRA</strong><p>Uma nave aliada desapareceu. Uma caçadora feita de sucata interceptou o último sinal.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
@@ -394,28 +390,45 @@ function updateSubHunt(dt,t){
  submarine.visible=mission.stage>=15&&mission.stage<=18&&!mission.failed;
  sonarBtn.style.display=(mission.stage>=16&&mission.stage<=18)||sonarUnlocked?'block':'none';
  sonarBtn.disabled=t<sonarReady;
- if(!submarine.visible){clearSubShots();return}
+ hunterBoostHud.style.display=mission.stage>=16&&mission.stage<=18?'block':'none';
+ if(!submarine.visible){clearSubShots();return;}
  const d=Math.hypot(x-mission.subX,z-mission.subZ),low=mission.subHp<380;
- // Alternância nítida: 9s submerso, 9s acima da superfície em cada ciclo.
- const cycle=((t-mission.subPhaseAt)%18+18)%18;
- const dive=mission.stage===15?false:(cycle<9&&t>=sonarUntil);
- const surfaceY=height(mission.subX,mission.subZ,t);
- const targetY=surfaceY+(dive?4:11);
- const flank=Math.atan2(z-mission.subZ,x-mission.subX)+Math.PI/2;
- // Intercepta, flanqueia, evita aproximação perigosa e se afasta quando avariado.
- const offset=low?270:d<105?220:140;
- const tx=x+Math.cos(flank)*100+(mission.subX-x)/(d||1)*offset;
- const tz=z+Math.sin(flank)*100+(mission.subZ-z)/(d||1)*offset;
+ const boosting=t<hunterBoostUntil;
+ const cooling=Math.max(0,hunterBoostReadyAt-t);
+ // Observa distância, vida e velocidade relativa. Boost para perseguir ou escapar,
+ // mas não pode reativar até o capacitor recarregar.
+ if(mission.stage>=16&&t>=hunterBoostReadyAt&&playerCombat.hp>0){
+  const closing=Math.hypot(hullPhysics.vx,hullPhysics.vz)>20;
+  const flee=low||d<105||(d<155&&closing);
+  const chase=d>160&&d<580;
+  if(flee||chase){
+   hunterBoostMode=flee?'escape':'chase';
+   hunterBoostUntil=t+(flee?2.8:3.5);
+   hunterBoostReadyAt=t+(low?17:14);
+   hunterLastBoost=t;
+   notifyCombat(flee?'🔥 CAÇADORA USA SUPER BOOSTER PARA FUGIR':'🔥 CAÇADORA ATIVA SUPER BOOSTER DE CAÇADA',2);
+  }
+ }
+ hunterBoostGlow.intensity=boosting?7:0;
+ hunterBoostHud.textContent=boosting?'🔥 BOOSTER INIMIGO ATIVO · '+Math.ceil(hunterBoostUntil-t)+'s':'🎯 BOOSTER RECARREGANDO · '+Math.ceil(cooling)+'s · CONTRA-ATAQUE!';
+ const ax=x-mission.subX,az=z-mission.subZ,inv=1/(d||1);
+ const side=(Math.sin(t*.38)>0?1:-1),flankX=-az*inv*side,flankZ=ax*inv*side;
+ const escape=boosting&&hunterBoostMode==='escape';
+ const desired=escape?300:boosting?85:low?195:140;
+ const tx=x-ax*inv*desired+flankX*(escape?110:70);
+ const tz=z-az*inv*desired+flankZ*(escape?110:70);
  const dx=tx-mission.subX,dz=tz-mission.subZ,len=Math.hypot(dx,dz)||1;
- const v=low?60:dive?54:42;
- // Durante a investigação o contato fica acessível: não foge antes de o jogador encontrá-lo.
- if(mission.stage!==15){mission.subX+=dx/len*Math.min(v*dt,len);mission.subZ+=dz/len*Math.min(v*dt,len);}
- submarine.position.set(mission.subX,THREE.MathUtils.lerp(Number.isFinite(submarine.position.y)&&submarine.position.y!==0?submarine.position.y:targetY,targetY,Math.min(1,dt*2.4)),mission.subZ);
+ const v=boosting?(low?154:180):cooling>0?21:39;
+ if(mission.stage!==15){
+  mission.subX+=dx/len*Math.min(v*dt,len);
+  mission.subZ+=dz/len*Math.min(v*dt,len);
+ }
+ submarine.position.set(mission.subX,height(mission.subX,mission.subZ,t)+8,mission.subZ);
  submarine.rotation.y=Math.atan2(-dx,-dz);
  if(mission.stage>=16&&d<400&&t>=mission.subNextAttack&&playerCombat.hp>0){
   const missile=d>165||Math.hypot(hullPhysics.vx,hullPhysics.vz)>24;
   fireSubShot(t,missile);
-  mission.subNextAttack=t+(low?1.6:missile?2.7:2.0);
+  mission.subNextAttack=t+(boosting?3.6:low?2.2:missile?3:2.5);
   if(d<145&&t>subEmpUntil+22){subEmpUntil=t+4;notifyCombat('⚡ INTERFERÊNCIA NO PROPULSOR · 4s',3);}
  }
  for(let i=subShots.length-1;i>=0;i--){
@@ -643,7 +656,7 @@ function restartCheckpoint(){
  }
  if(mission.stage===4)signalPrompt.style.display='block';
  if(mission.stage===14)subPrompt.style.display='block';
- if(mission.stage>=15&&mission.stage<=18){mission.subPhaseAt=t;mission.subNextAttack=t+5;mission.subSurviveUntil=t+120;sonarReady=0;clearSubShots();}
+ if(mission.stage>=15&&mission.stage<=18){hunterBoostUntil=0;hunterBoostReadyAt=t+8;mission.subPhaseAt=t;mission.subNextAttack=t+5;mission.subSurviveUntil=t+120;sonarReady=0;clearSubShots();}
  if(mission.stage===9)basePrompt.style.display='block';
  if(mission.stage>=10){baseStructure.visible=true;baseStructure.position.set(mission.baseX,height(mission.baseX,mission.baseZ,t),mission.baseZ);if(mission.stage===11)spawnBaseForce(false,t);if(mission.stage===12)spawnBaseForce(true,t);}
  if(mission.stage>=5){signalShip.visible=true;signalShip.position.set(mission.signalX,height(mission.signalX,mission.signalZ,t)+1,mission.signalZ);if(mission.stage===7){mission.defendUntil=t+90;mission.allyHp=100;activateSignalAmbush(t);}}
@@ -2264,7 +2277,7 @@ for(let i=projectiles.length-1;i>=0;i--){
   }
   if(mission.stage===18&&p.ammo!=='torpedo'&&!p.subCounted){
    const dist=Math.hypot(p.mesh.position.x-mission.subX,p.mesh.position.z-mission.subZ);
-   if(submarine.position.y>=height(mission.subX,mission.subZ,t)+3&&dist<22&&Math.abs(p.mesh.position.y-submarine.position.y)<12){
+   if(t>=hunterBoostUntil&&dist<42&&Math.abs(p.mesh.position.y-submarine.position.y)<24){
     p.subCounted=true;mission.subHp=Math.max(0,mission.subHp-(p.ammo==='energyBomb'?300:Math.max(1,p.damage||25)));
     p.age=p.travel;energyFlash(p.mesh.position);notifyCombat('CAÇADORA DE SUCATA ATINGIDO · '+Math.ceil(mission.subHp)+' HP',2);
    }
