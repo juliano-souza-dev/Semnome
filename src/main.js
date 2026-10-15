@@ -1972,8 +1972,29 @@ function releasePad(e){
 }
 pad.addEventListener('pointerup',releasePad);pad.addEventListener('pointercancel',releasePad);
 pad.addEventListener('lostpointercapture',releasePad);
-const keys=new Set();addEventListener('keydown',e=>{if(['ArrowUp','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code)});
+const keys=new Set();
+function gameKeyboardTarget(e){return !e.target?.closest?.('input,textarea,select,[contenteditable="true"]');}
+addEventListener('keydown',e=>{
+ if(!gameKeyboardTarget(e))return;
+ if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyF'].includes(e.code))e.preventDefault();
+ if(e.code==='KeyF'&&!e.repeat&&!areaAim.active&&playerCombat.hp>0&&!energyDisabled()&&weaponRemaining()<=0)launchShot();
+ if(e.code==='Space'&&!e.repeat&&playerCombat.hp>0&&!energyDisabled()&&!boostActive&&boostEnergy>=BOOST_COST){
+  boostActive=true;boostUseRemaining=BOOST_BURN_SECONDS;audio.play('boost');boostButton.classList.add('active');
+ }
+ keys.add(e.code);
+});
 addEventListener('keyup',e=>keys.delete(e.code));
+addEventListener('blur',()=>keys.clear());
+renderer.domElement.addEventListener('wheel',e=>{
+ if(!gameKeyboardTarget(e)||e.deltaY===0)return;
+ e.preventDefault();
+ const weapons=['scatter','torpedo','iron'];
+ const current=weapons.indexOf(selectedAmmo.id);
+ const base=current>=0?current:weapons.indexOf(lastMainAmmo.id);
+ const idx=(base+(e.deltaY>0?1:weapons.length-1))%weapons.length;
+ selectedAmmo=AMMO_TYPES.find(a=>a.id===weapons[idx]);lastMainAmmo=selectedAmmo;
+ cancelAreaAim();hudButton(ammoButton,selectedAmmo.id,'',34);renderAmmoMenu();renderWeaponDock();
+},{passive:false});
 // Arrasto horizontal sobre o oceano orbita a câmera; não altera o rumo da máquina.
 // Órbita manual 360°: a câmera conserva sua inclinação e distância,
 // mas pode circular livremente ao redor da nave sem alterar o casco.
@@ -2007,7 +2028,7 @@ uniforms.uTime.value=t;
 uniforms.uWaveIntensity.value=currentSeaIntensity;
 // Pilotagem direta e previsível: eixo Y regula motor, eixo X gira casco.
 // Nenhuma referência de ângulo capturada no primeiro toque; nem a câmera altera os comandos.
-const keyboardForward=keys.has('KeyW')||keys.has('ArrowUp')||keys.has('Space');
+const keyboardForward=keys.has('KeyW')||keys.has('ArrowUp');
 const keyboardBack=keys.has('KeyS')||keys.has('ArrowDown');
 const keySteer=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
 const deadZone=.12;
