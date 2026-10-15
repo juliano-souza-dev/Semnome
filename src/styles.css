@@ -272,3 +272,25 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
 #pickupHudControls button span,#mineButton span,#boost span{
  color:#f3fcff;text-shadow:0 1px 3px #001726,0 0 5px #00283d;
 }
+
+/* HUD vertical claro: consumíveis e escudo abaixo das armas e especiais, sem sobreposição. */
+#weaponDock{top:92px!important}
+#overloadSelect{top:151px!important;right:max(10px,env(safe-area-inset-right))!important}
+#mineButton{top:151px!important;right:67px!important}
+#sonarHudButton{display:none!important}
+#pickupHudControls{top:215px!important;right:max(9px,env(safe-area-inset-right))!important;display:flex!important;flex-direction:column!important;gap:8px!important}
+#pickupHudControls button{width:46px!important;height:46px!important}
+#pickupHudControls img{width:34px!important;height:34px!important}
+@media(max-height:480px){
+ #weaponDock{top:55px!important}
+ #overloadSelect{top:100px!important;right:9px!important}
+ #mineButton{top:100px!important;right:54px!important}
+ #pickupHudControls{top:145px!important;right:9px!important;gap:6px!important}
+ #pickupHudControls button{width:37px!important;height:37px!important}
+ #pickupHudControls img{width:27px!important;height:27px!important}
+}
+@media(max-height:350px){
+ #pickupHudControls{top:139px!important;gap:3px!important}
+ #pickupHudControls button{width:32px!important;height:32px!important}
+ #pickupHudControls img{width:23px!important;height:23px!important}
+}
