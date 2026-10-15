@@ -337,7 +337,7 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,tideX:0,tideZ:0,tideScan:0,siegeWave:-1,siegeNextAt:0,siegeX:0,siegeZ:0,surviveWave:0,surviveReady:true,surviveSpawned:0,surviveKilled:0,survivePending:0,surviveNextAt:0,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,tideX:0,tideZ:0,tideScan:0,siegeWave:-1,siegeNextAt:0,siegeX:0,siegeZ:0,surviveWave:0,surviveReady:true,surviveSpawned:0,surviveKilled:0,survivePending:0,surviveNextAt:0,prepX:0,prepZ:0,prepArrived:false,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0),boostRecharge:Math.min(9,Number(oldEconomy.boostRecharge)||0),weaponRecharge:Math.min(5,Number(oldEconomy.weaponRecharge)||0)};
 const finalPrep=()=>mission.stage>=29;
@@ -349,7 +349,7 @@ const merchantPanel=document.createElement('div');merchantPanel.style.cssText='d
 merchantPanel.innerHTML='<div style="width:min(420px,95vw);background:#103349;border:1px solid #57d5b4;border-radius:14px;padding:18px;max-height:80vh;overflow:auto"><h2 style="font-size:19px">⚓ Mar Calmo · Comerciante</h2><p id="merchantBalance"></p><div id="merchantItems"></div><button id="merchantClose" style="margin-top:12px;padding:10px;border:0;border-radius:8px">Voltar ao mar</button></div>';
 document.body.appendChild(merchantPanel);
 const upgrades=[{id:'health',label:'❤️ Vida máxima (+20 HP)',base:65},{id:'engine',label:'⚡ Velocidade da nave (+5%)',base:45},{id:'weapons',label:'🎯 Dano contra NPCs (+8%)',base:60},{id:'booster',label:'🚀 Velocidade do propulsor (+10%)',base:70},{id:'armor',label:'🛡️ Blindagem (-5% dano)',base:55}];
-function shopInRange(){return (mission.stage===29)||(mission.calmSea&&!mission.shopClosed&&Math.hypot(x-(mission.shopX??mission.deliveryX),z-(mission.shopZ??mission.deliveryZ))<=200);}
+function shopInRange(){return (mission.stage===32)||(mission.calmSea&&!mission.shopClosed&&Math.hypot(x-(mission.shopX??mission.deliveryX),z-(mission.shopZ??mission.deliveryZ))<=200);}
 function openMerchant(){
  if(!shopInRange())return;
  merchantPanel.style.display='flex';
@@ -374,7 +374,7 @@ function openMerchant(){
   items.appendChild(btn);
  }
 }
-merchantPanel.querySelector('#merchantClose').onclick=()=>{merchantPanel.style.display='none';if(finalPrep())refreshSurvivalPrompt();};
+merchantPanel.querySelector('#merchantClose').onclick=()=>{merchantPanel.style.display='none';if(mission.stage===32)refreshSurvivalPrompt();};
 const merchantAccess=document.createElement('button');merchantAccess.textContent='⚓ Loja';merchantAccess.style.cssText='display:none;position:fixed;right:12px;bottom:110px;z-index:95;padding:9px;background:#164853;color:white;border:1px solid #70ccb4;border-radius:8px';document.body.appendChild(merchantAccess);merchantAccess.onclick=openMerchant;
 // A Caçadora de Sucata: nave de emboscada, sem nave sucateiras neste mundo.
 // Mesmo chassi 3D das naves do jogo, ampliado para o chefe Caçadora.
@@ -573,7 +573,7 @@ survivalPrompt.innerHTML='<strong id="survivalTitle">⚔ MISSÃO 09 · SOBREVIVA
 document.body.appendChild(survivalPrompt);
 const SURVIVE_TOTAL=200;
 function refreshSurvivalPrompt(){
- const eligible=mission.stage===29&&!mission.failed;
+ const eligible=mission.stage===32&&!mission.failed;
  survivalPrompt.style.display=eligible&&merchantPanel.style.display!=='flex'?'block':'none';
  if(!eligible)return;
  survivalPrompt.querySelector('#survivalTitle').textContent='⚔ MISSÃO FINAL · SOBREVIVA';
@@ -620,7 +620,7 @@ function updateSurvivalCombat(t){
  }
 }
 survivalPrompt.querySelector('#survivalStart').addEventListener('click',()=>{
- if(mission.stage!==29||mission.failed)return;
+ if(mission.stage!==32||mission.failed)return;
  // O único checkpoint da missão fica ANTES do combate. Morrer reinicia os 200.
  mission.surviveSpawned=0;mission.surviveKilled=0;mission.survivePending=0;
  mission.surviveNextAt=clock.elapsedTime+60;
@@ -898,8 +898,8 @@ function restartCheckpoint(){
  if(mission.stage===19)ghostPrompt.style.display='block';
  if(mission.stage===22)tidePrompt.style.display='block';
  if(mission.stage===26)siegePrompt.style.display='block';
- if(mission.stage===29)refreshSurvivalPrompt();
- if(mission.stage===29)openMerchant();
+ if(mission.stage===32)refreshSurvivalPrompt();
+ if(mission.stage===32)openMerchant();
  if(mission.stage===28)restoreSiegeWave(t);
  if(mission.stage===25)activateTideGuards(t,false);
  if(mission.stage===21){mission.ghostWave=0;activateGhostWave(0,t);}
@@ -962,8 +962,9 @@ function updateMission(dt,t){
  const targetX=mission.stage===0?cargoX:mission.stage>=10?mission.baseX:mission.stage>=5?mission.signalX:deliveryX,targetZ=mission.stage===0?cargoZ:mission.stage>=10?mission.baseZ:mission.stage>=5?mission.signalZ:deliveryZ;
  const distance=Math.hypot(x-targetX,z-targetZ);
  if(mission.stage===1)updateReinforcementWaves(distance);
- missionMarker.visible=(mission.stage<2||mission.stage===5||mission.stage===6||mission.stage===8||mission.stage===10)&&!mission.failed;
- missionMarker.position.set(targetX,height(targetX,targetZ,t)+24+Math.sin(t*2)*2,targetZ);
+ missionMarker.visible=(mission.stage<2||mission.stage===5||mission.stage===6||mission.stage===8||mission.stage===10||mission.stage===29)&&!mission.failed;
+ missionMarker.position.set(mission.stage===29?mission.prepX:targetX,height(mission.stage===29?mission.prepX:targetX,mission.stage===29?mission.prepZ:targetZ,t)+24+Math.sin(t*2)*2,mission.stage===29?mission.prepZ:targetZ);
+ if(mission.stage===29){merchantShip.visible=true;merchantShip.position.set(mission.prepX,height(mission.prepX,mission.prepZ,t)+1,mission.prepZ);}
  if(!mission.failed&&playerCombat.hp<=0){
   mission.failed=true;missionOverlay.style.display='flex';
   notifyCombat('MISSÃO FRACASSADA · NAVE DESTRUÍDA',4);
@@ -1047,6 +1048,8 @@ function updateMission(dt,t){
    if(t<sonarUntil){mission.subScan+=dt;if(mission.subScan>=5){mission.stage=18;mission.subPhaseAt=t;saveCheckpoint();notifyCombat('ALVO LOCALIZADO · ATIRE QUANDO EMERGIR',4);}}
   }else if(mission.stage===18){
    if(mission.subHp<=0){mission.stage=19;mission.finished=true;ghostPrompt.style.display='block';economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
+  }else if(mission.stage===29){
+   if(Math.hypot(x-mission.prepX,z-mission.prepZ)<95){mission.stage=32;mission.prepArrived=true;saveCheckpoint();openMerchant();notifyCombat('⚓ NAVE ALIADA · MELHORIAS FINAIS',4);}
   }else if(mission.stage===30){
    updateSurvivalCombat(t);
   }else if(mission.stage===27){
@@ -1057,7 +1060,7 @@ function updateMission(dt,t){
     const pending=enemies.some(e=>e.siegeWave===mission.siegeWave&&e.dormant);
     if(pending){spawnSiegeWave(mission.siegeWave,t);saveCheckpoint();}
     else if(mission.siegeWave<3){mission.siegeWave++;mission.siegeNextAt=t+7;saveCheckpoint();notifyCombat('⚠ PRÓXIMA ONDA · '+(mission.siegeWave+1)+'/4 · 7 SEGUNDOS',5);}
-    else{mission.stage=29;mission.finished=true;mission.surviveWave=0;mission.surviveReady=true;mission.surviveSpawned=0;mission.surviveKilled=0;mission.survivePending=0;economy.scrap+=1600;saveEconomy();saveCheckpoint();refreshSurvivalPrompt();openMerchant();notifyCombat('🏆 RUPTURA VENCIDA · +1600 SUCATAS',6);}
+    else{mission.stage=29;mission.finished=true;mission.surviveWave=0;mission.surviveReady=true;mission.surviveSpawned=0;mission.surviveKilled=0;mission.survivePending=0;mission.prepX=x-480;mission.prepZ=z-250;mission.prepArrived=false;economy.scrap+=1600;saveEconomy();saveCheckpoint();notifyCombat('🏆 RUPTURA VENCIDA · ENCONTRE A NAVE ALIADA',6);}
    }
   }else if(mission.stage===23){
    if(Math.hypot(x-mission.tideX,z-mission.tideZ)<185){mission.stage=24;mission.tideScan=0;saveCheckpoint();notifyCombat('📡 COLETOR PELÁGICO · MANTENHA POSIÇÃO',3);}
@@ -1154,7 +1157,8 @@ function updateMission(dt,t){
   mission.stage===26?'✅ CORAÇÃO DA MARÉ · NOVA AMEAÇA DETECTADA':
   mission.stage===27?'⚠ MISSÃO 08 · INTERCEPTE A ARMADA · '+Math.round(Math.hypot(x-mission.siegeX,z-mission.siegeZ))+'m':
   mission.stage===28?'⚔ CERCO DA RUPTURA · ONDA '+(mission.siegeWave+1)+'/4 · '+enemies.filter(e=>e.siegeWave===mission.siegeWave&&e.hp>0&&!e.dormant).length+' HOSTIS':
-  mission.stage===29?'🏆 CERCO VENCIDO · MISSÃO SOBREVIVA DISPONÍVEL':
+  mission.stage===29?'⚓ VÁ À NAVE ALIADA · '+Math.round(Math.hypot(x-mission.prepX,z-mission.prepZ))+'m':
+  mission.stage===32?'⚔ PREPARAÇÃO FINAL · MELHORIAS E INÍCIO DO COMBATE':
   mission.stage===30?'⚔ SOBREVIVA · '+mission.surviveKilled+'/200 AFUNDADOS · '+enemies.filter(e=>e.survivorRank!==undefined&&e.hp>0&&!e.dormant).length+' EM COMBATE':
   mission.stage===31?'🏆 200 NPCS DERROTADOS · +2500 SUCATAS':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
@@ -2808,6 +2812,9 @@ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updat
 try{
  const stored=JSON.parse(localStorage.getItem(CHECKPOINT_KEY)||'null');
  if(stored&&Array.isArray(stored.enemies)&&stored.mission&&Number.isFinite(stored.x)){
+  if(stored.mission.stage===31&&Number(stored.mission.surviveKilled)!==200){stored.mission.stage=29;stored.mission.finished=true;}
+  if(stored.mission.stage===30){stored.mission.stage=29;stored.mission.finished=true;}
+  if((stored.mission.stage===29||stored.mission.stage===32)&&!Number.isFinite(stored.mission.prepX)){stored.mission.prepX=stored.x-480;stored.mission.prepZ=stored.z-250;}
   if(stored.enemies.length!==enemies.length){stored.enemies=enemies.map((e,i)=>stored.enemies[i]||{x:e.x,z:e.z,heading:e.heading,hp:e.hp,maxHp:e.maxHp,dormant:e.dormant,state:e.state});}
   checkpoint=stored;restartCheckpoint();
  }else saveCheckpoint();
