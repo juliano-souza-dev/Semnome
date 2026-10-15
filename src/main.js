@@ -362,7 +362,7 @@ sonarBtn.onclick=()=>{const t=clock.elapsedTime;if(t<sonarReady||(mission.stage<
 function clearSubShots(){for(const p of subShots)scene.remove(p.mesh);subShots.length=0}
 function startSubHunt(){
  if(mission.stage!==14)return;
- mission.stage=15;mission.finished=false;mission.subX=x-480;mission.subZ=z-390;mission.subHp=1200;mission.subScan=0;mission.subPhaseAt=clock.elapsedTime;
+ mission.stage=15;mission.finished=false;mission.subX=x-240;mission.subZ=z-170;mission.subHp=1200;mission.subScan=0;mission.subPhaseAt=clock.elapsedTime;
  subPrompt.style.display='none';saveCheckpoint();notifyCombat('INVESTIGUE O ÚLTIMO SINAL',4);
 }
 subPrompt.querySelector('button').onclick=startSubHunt;
@@ -378,8 +378,11 @@ function updateSubHunt(dt,t){
  sonarBtn.disabled=t<sonarReady;
  if(!submarine.visible){clearSubShots();return}
  const d=Math.hypot(x-mission.subX,z-mission.subZ),low=mission.subHp<380;
- const cycle=(t-mission.subPhaseAt)%18;
- const dive=mission.stage<18?cycle<10:(t>=sonarUntil&&cycle<10);
+ // Alternância nítida: 9s submerso, 9s acima da superfície em cada ciclo.
+ const cycle=((t-mission.subPhaseAt)%18+18)%18;
+ const dive=mission.stage===15?false:(cycle<9&&t>=sonarUntil);
+ const surfaceY=height(mission.subX,mission.subZ,t);
+ const targetY=surfaceY+(dive?-18:9);
  const flank=Math.atan2(z-mission.subZ,x-mission.subX)+Math.PI/2;
  // Intercepta, flanqueia, evita aproximação perigosa e se afasta quando avariado.
  const offset=low?270:d<105?220:140;
@@ -387,8 +390,9 @@ function updateSubHunt(dt,t){
  const tz=z+Math.sin(flank)*100+(mission.subZ-z)/(d||1)*offset;
  const dx=tx-mission.subX,dz=tz-mission.subZ,len=Math.hypot(dx,dz)||1;
  const v=low?42:dive?34:27;
- mission.subX+=dx/len*Math.min(v*dt,len);mission.subZ+=dz/len*Math.min(v*dt,len);
- submarine.position.set(mission.subX,height(mission.subX,mission.subZ,t)+(dive?-13:2),mission.subZ);
+ // Durante a investigação o contato fica acessível: não foge antes de o jogador encontrá-lo.
+ if(mission.stage!==15){mission.subX+=dx/len*Math.min(v*dt,len);mission.subZ+=dz/len*Math.min(v*dt,len);}
+ submarine.position.set(mission.subX,THREE.MathUtils.lerp(submarine.position.y||targetY,targetY,Math.min(1,dt*2.4)),mission.subZ);
  submarine.rotation.y=Math.atan2(-dx,-dz);
  if(mission.stage>=16&&d<400&&t>=mission.subNextAttack&&playerCombat.hp>0){
   const missile=d>170&&Math.hypot(hullPhysics.vx,hullPhysics.vz)>22;
@@ -756,7 +760,7 @@ function updateMission(dt,t){
     notifyCombat('COMANDANTE DERROTADO · RETORNE AO PONTO DE EXTRAÇÃO',5);
    }
   }else if(mission.stage===15){
-   if(Math.hypot(x-mission.subX,z-mission.subZ)<110){mission.stage=16;mission.subSurviveUntil=t+120;mission.subPhaseAt=t;mission.subNextAttack=t+4;saveCheckpoint();notifyCombat('SUBMARINO DETECTADO · SOBREVIVA 120s',4);}
+   if(Math.hypot(x-mission.subX,z-mission.subZ)<145){mission.stage=16;mission.subSurviveUntil=t+120;mission.subPhaseAt=t;mission.subNextAttack=t+4;saveCheckpoint();notifyCombat('SUBMARINO DETECTADO · SOBREVIVA 120s',4);}
   }else if(mission.stage===16){
    if(t>=mission.subSurviveUntil){mission.stage=17;mission.subScan=0;saveCheckpoint();notifyCombat('ATIVE O SONAR E FAÇA A VARREDURA',3);}
   }else if(mission.stage===17){
@@ -2231,7 +2235,7 @@ for(let i=projectiles.length-1;i>=0;i--){
   }
   if(mission.stage===18&&p.ammo!=='torpedo'&&!p.subCounted){
    const dist=Math.hypot(p.mesh.position.x-mission.subX,p.mesh.position.z-mission.subZ);
-   if(submarine.position.y>=height(mission.subX,mission.subZ,t)-1&&dist<17&&Math.abs(p.mesh.position.y-submarine.position.y)<12){
+   if(submarine.position.y>=height(mission.subX,mission.subZ,t)+4&&dist<17&&Math.abs(p.mesh.position.y-submarine.position.y)<12){
     p.subCounted=true;mission.subHp=Math.max(0,mission.subHp-(p.ammo==='energyBomb'?300:Math.max(1,p.damage||25)));
     p.age=p.travel;energyFlash(p.mesh.position);notifyCombat('SUBMARINO ATINGIDO · '+Math.ceil(mission.subHp)+' HP',2);
    }
