@@ -339,30 +339,42 @@ const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
 const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,tideX:0,tideZ:0,tideScan:0,siegeWave:-1,siegeNextAt:0,siegeX:0,siegeZ:0,surviveWave:0,surviveReady:true,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
-const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0)};
-const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*20;
+const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0),boostRecharge:Math.min(9,Number(oldEconomy.boostRecharge)||0),weaponRecharge:Math.min(5,Number(oldEconomy.weaponRecharge)||0)};
+const finalPrep=()=>mission.stage>=29;
+const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*(finalPrep()?50:20);
+const normalCooldown=(id)=>WEAPON_STATS[id].cooldown*(finalPrep()&&id!=='energyBomb'?1-economy.weaponRecharge*.10:1);
 const saveEconomy=()=>{try{localStorage.setItem(economyKey,JSON.stringify(economy))}catch{}};
 const merchantShip=createWarMachine3D(THREE,{enemy:false});merchantShip.scale.multiplyScalar(1.05);merchantShip.visible=false;scene.add(merchantShip);
 const merchantPanel=document.createElement('div');merchantPanel.style.cssText='display:none;position:fixed;inset:0;z-index:210;background:#061b2ad9;align-items:center;justify-content:center;padding:18px;font-family:system-ui;color:white';
 merchantPanel.innerHTML='<div style="width:min(420px,95vw);background:#103349;border:1px solid #57d5b4;border-radius:14px;padding:18px;max-height:80vh;overflow:auto"><h2 style="font-size:19px">⚓ Mar Calmo · Comerciante</h2><p id="merchantBalance"></p><div id="merchantItems"></div><button id="merchantClose" style="margin-top:12px;padding:10px;border:0;border-radius:8px">Voltar ao mar</button></div>';
 document.body.appendChild(merchantPanel);
 const upgrades=[{id:'health',label:'❤️ Vida máxima (+20 HP)',base:65},{id:'engine',label:'⚡ Velocidade da nave (+5%)',base:45},{id:'weapons',label:'🎯 Dano contra NPCs (+8%)',base:60},{id:'booster',label:'🚀 Velocidade do propulsor (+10%)',base:70},{id:'armor',label:'🛡️ Blindagem (-5% dano)',base:55}];
-function shopInRange(){return mission.calmSea&&!mission.shopClosed&&Math.hypot(x-(mission.shopX??mission.deliveryX),z-(mission.shopZ??mission.deliveryZ))<=200;}
+function shopInRange(){return (mission.stage===29||(mission.stage===30&&mission.surviveReady))||(mission.calmSea&&!mission.shopClosed&&Math.hypot(x-(mission.shopX??mission.deliveryX),z-(mission.shopZ??mission.deliveryZ))<=200);}
 function openMerchant(){
  if(!shopInRange())return;
  merchantPanel.style.display='flex';
+ merchantPanel.querySelector('h2').textContent=finalPrep()?'⚔ Preparação Final · Sobreviva':'⚓ Mar Calmo · Comerciante';
  const items=merchantPanel.querySelector('#merchantItems');items.replaceChildren();
  merchantPanel.querySelector('#merchantBalance').textContent='🔩 Sucata: '+economy.scrap;
- for(const item of upgrades){
+ const available=finalPrep()?[
+  {id:'health',label:'❤️ Vida máxima · até 600 HP',base:65,max:10},
+  {id:'engine',label:'⚡ Velocidade da nave · até +30%',base:45,max:6},
+  {id:'weapons',label:'🎯 Dano das armas · até +45%',base:60,max:9},
+  {id:'booster',label:'🚀 Velocidade do booster · até +50%',base:70,max:5},
+  {id:'boostRecharge',label:'🔋 Recarga do booster · até 90% mais rápida',base:85,max:9},
+  {id:'weaponRecharge',label:'💥 Recarga das armas · até -50%',base:90,max:5},
+  {id:'armor',label:'🛡️ Blindagem · até -25% de dano',base:55,max:5}
+ ]:upgrades.map(item=>({...item,max:5}));
+ for(const item of available){
   const level=economy[item.id],cost=item.base*(level+1);
   const btn=document.createElement('button');btn.style.cssText='display:block;width:100%;margin:8px 0;padding:12px;background:#226479;color:white;border:1px solid #4ca6a0;border-radius:9px;text-align:left';
-  btn.textContent=item.label+' · nível '+level+'/5 · '+(level>=5?'Máximo':cost+' sucata');
-  btn.disabled=level>=5||economy.scrap<cost;
-  btn.onclick=()=>{if(!shopInRange()||economy.scrap<cost||economy[item.id]>=5)return;economy.scrap-=cost;economy[item.id]++;if(item.id==='health')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+20);if(item.id==='armor')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+25);saveEconomy();openMerchant()};
+  btn.textContent=item.label+' · nível '+level+'/'+item.max+' · '+(level>=item.max?'Máximo':cost+' sucata');
+  btn.disabled=level>=item.max||economy.scrap<cost;
+  btn.onclick=()=>{if(!shopInRange()||economy.scrap<cost||economy[item.id]>=item.max)return;economy.scrap-=cost;economy[item.id]++;if(item.id==='health')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+(finalPrep()?50:20));if(item.id==='armor')playerCombat.hp=Math.min(playerMaxHp(),playerCombat.hp+25);saveEconomy();openMerchant()};
   items.appendChild(btn);
  }
 }
-merchantPanel.querySelector('#merchantClose').onclick=()=>merchantPanel.style.display='none';
+merchantPanel.querySelector('#merchantClose').onclick=()=>{merchantPanel.style.display='none';if(finalPrep())refreshSurvivalPrompt();};
 const merchantAccess=document.createElement('button');merchantAccess.textContent='⚓ Loja';merchantAccess.style.cssText='display:none;position:fixed;right:12px;bottom:110px;z-index:95;padding:9px;background:#164853;color:white;border:1px solid #70ccb4;border-radius:8px';document.body.appendChild(merchantAccess);merchantAccess.onclick=openMerchant;
 // A Caçadora de Sucata: nave de emboscada, sem nave sucateiras neste mundo.
 // Mesmo chassi 3D das naves do jogo, ampliado para o chefe Caçadora.
@@ -561,7 +573,7 @@ survivalPrompt.innerHTML='<strong id="survivalTitle">⚔ MISSÃO 09 · SOBREVIVA
 document.body.appendChild(survivalPrompt);
 function refreshSurvivalPrompt(){
  const eligible=mission.stage===29||(mission.stage===30&&mission.surviveReady&&mission.surviveWave<10);
- survivalPrompt.style.display=eligible&&!mission.failed?'block':'none';
+ survivalPrompt.style.display=eligible&&!mission.failed&&merchantPanel.style.display!=='flex'?'block':'none';
  if(!eligible)return;
  const next=mission.surviveWave+1;
  survivalPrompt.querySelector('#survivalTitle').textContent='⚔ MISSÃO 09 · SOBREVIVA';
@@ -587,7 +599,7 @@ function spawnSurvivalWave(wave,t){
 }
 survivalPrompt.querySelector('#survivalStart').addEventListener('click',()=>{
  if(!(mission.stage===29||mission.stage===30)||!mission.surviveReady||mission.surviveWave>=10||mission.failed)return;
- mission.stage=30;mission.finished=false;mission.surviveWave++;mission.surviveReady=false;
+ merchantPanel.style.display='none';mission.stage=30;mission.finished=false;mission.surviveWave++;mission.surviveReady=false;
  spawnSurvivalWave(mission.surviveWave-1,clock.elapsedTime);survivalPrompt.style.display='none';
  saveCheckpoint();notifyCombat('⚔ SOBREVIVA · ONDA '+mission.surviveWave+'/10 · 6 INIMIGOS',4);
 });
@@ -857,6 +869,7 @@ function restartCheckpoint(){
  if(mission.stage===22)tidePrompt.style.display='block';
  if(mission.stage===26)siegePrompt.style.display='block';
  if(mission.stage===29||mission.stage===30)refreshSurvivalPrompt();
+ if(mission.stage===29)openMerchant();
  if(mission.stage===28)restoreSiegeWave(t);
  if(mission.stage===25)activateTideGuards(t,false);
  if(mission.stage===21){mission.ghostWave=0;activateGhostWave(0,t);}
@@ -1020,7 +1033,7 @@ function updateMission(dt,t){
     const pending=enemies.some(e=>e.siegeWave===mission.siegeWave&&e.dormant);
     if(pending){spawnSiegeWave(mission.siegeWave,t);saveCheckpoint();}
     else if(mission.siegeWave<3){mission.siegeWave++;mission.siegeNextAt=t+7;saveCheckpoint();notifyCombat('⚠ PRÓXIMA ONDA · '+(mission.siegeWave+1)+'/4 · 7 SEGUNDOS',5);}
-    else{mission.stage=29;mission.finished=true;mission.surviveWave=0;mission.surviveReady=true;economy.scrap+=1600;saveEconomy();saveCheckpoint();refreshSurvivalPrompt();notifyCombat('🏆 RUPTURA VENCIDA · +1600 SUCATAS',6);}
+    else{mission.stage=29;mission.finished=true;mission.surviveWave=0;mission.surviveReady=true;economy.scrap+=1600;saveEconomy();saveCheckpoint();refreshSurvivalPrompt();openMerchant();notifyCombat('🏆 RUPTURA VENCIDA · +1600 SUCATAS',6);}
    }
   }else if(mission.stage===23){
    if(Math.hypot(x-mission.tideX,z-mission.tideZ)<185){mission.stage=24;mission.tideScan=0;saveCheckpoint();notifyCombat('📡 COLETOR PELÁGICO · MANTENHA POSIÇÃO',3);}
@@ -1705,7 +1718,7 @@ function finishAreaAim(e,cancel=false){
 function launchShot(manualPoint=null){
  if(energyDisabled())return;
  lastShotTime=clock.elapsedTime;
- weaponReadyAt[selectedAmmo.id]=clock.elapsedTime+currentWeapon().cooldown;
+ weaponReadyAt[selectedAmmo.id]=clock.elapsedTime+normalCooldown(selectedAmmo.id);
  if(selectedAmmo.id==='energyBomb'){
   energyBombReadyAt=Date.now()+300000;energyBlackoutUntil=clock.elapsedTime+1;
   boostActive=false;boostUseRemaining=0;speed=0;hullPhysics.vx=0;hullPhysics.vz=0;
@@ -1742,7 +1755,7 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,ammo.id==='torpedo'?new THREE.LineBasicMaterial({color:0xd6ffff,transparent:true,opacity:.7,depthWrite:false}):energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage*(1+economy.weapons*.08)};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage*(1+economy.weapons*(finalPrep()?.05:.08))};
  if(ammo.id==='torpedo'){
   core.visible=false;plasma.visible=false;glow.visible=false;outerGlow.visible=false;
   const shell=new THREE.MeshStandardMaterial({color:0x657c83,metalness:.65,roughness:.3});
@@ -1969,7 +1982,7 @@ if(boostActive){
  boostUseRemaining=Math.max(0,boostUseRemaining-dt);
  if(boostUseRemaining<=0||boostEnergy<=0)boostActive=false;
 }else if(boostEnergy<1){
- boostEnergy=Math.min(1,boostEnergy+dt/BOOST_RECHARGE_SECONDS);
+ boostEnergy=Math.min(1,boostEnergy+dt/(BOOST_RECHARGE_SECONDS*(finalPrep()?Math.max(.1,1-economy.boostRecharge*.10):1)));
 }
 const boostRemaining=boostActive?1:0;
 boostButton.classList.toggle('active',boostActive);
