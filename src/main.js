@@ -2556,9 +2556,9 @@ for(let i=projectiles.length-1;i>=0;i--){
   const directExpired=directShot&&u>=1&&!physicalImpact&&!p.baseCounted&&!p.subCounted;
   if(u>=1||physicalImpact){
     if(directExpired){
-      scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();p.trail.material.dispose();
+      scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();if(p.trail.material!==energyTrailMaterial)p.trail.material.dispose();
       for(const part of p.mesh.children){
-        if(part.material!==energyCoreMaterial&&part.material!==energyGlowMaterial&&part.material!==plasmaMaterial)part.material.dispose();
+        if(part.material&&part.material!==energyCoreMaterial&&part.material!==energyGlowMaterial&&part.material!==plasmaMaterial)part.material.dispose();
       }
       projectiles.splice(i,1);
       continue;
@@ -2621,7 +2621,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       attackCamera.shot=null;attackCamera.shake=.42;
     }
     scene.remove(p.mesh,p.trail);p.trail.geometry.dispose();if(p.ammo==='torpedo')p.trail.material.dispose();
-    for(const part of p.mesh.children){if(part.material!==energyCoreMaterial && part.material!==energyGlowMaterial && part.material!==plasmaMaterial)part.material.dispose()}
+    for(const part of p.mesh.children){if(part.material&&part.material!==energyCoreMaterial && part.material!==energyGlowMaterial && part.material!==plasmaMaterial)part.material.dispose()}
     projectiles.splice(i,1);
   }
 }
