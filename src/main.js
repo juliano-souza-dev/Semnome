@@ -488,6 +488,20 @@ const tidePrompt=document.createElement('div');
 tidePrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:18px;background:#081b33f2;color:white;border:1px solid #8ce8ff;border-radius:14px;text-align:center;width:min(370px,88vw);font:600 14px system-ui';
 tidePrompt.innerHTML='<strong>☀ MISSÃO 07 · O CORAÇÃO DA MARÉ</strong><p>O sol voltou. Os registros da Frota Fantasma apontam para um coletor pelágico abandonado. Recupere seus dados antes dos saqueadores.</p><button style="padding:12px 20px;border:0;background:#8ce8ff;border-radius:8px;font-weight:800">INICIAR MISSÃO</button>';document.body.appendChild(tidePrompt);
 tidePrompt.querySelector('button').onclick=()=>{if(mission.stage!==22)return;tidePrompt.style.display='none';mission.stage=23;mission.finished=false;mission.tideX=x-550;mission.tideZ=z-320;mission.tideScan=0;saveCheckpoint();notifyCombat('☀ LOCALIZE O COLETOR PELÁGICO',4);};
+// Marcador exclusivo do coletor, independente dos marcadores verdes genéricos.
+const tideBeacon=new THREE.Group();
+const tideHalo=new THREE.Mesh(new THREE.TorusGeometry(22,1.7,8,48),new THREE.MeshBasicMaterial({color:0x37f9fa,transparent:true,opacity:.86,depthWrite:false}));
+tideHalo.rotation.x=-Math.PI/2;tideBeacon.add(tideHalo);
+const tideCore=new THREE.Mesh(new THREE.OctahedronGeometry(6,0),new THREE.MeshBasicMaterial({color:0xb8ffff,depthTest:false}));
+tideCore.position.y=12;tideBeacon.add(tideCore);
+scene.add(tideBeacon);tideBeacon.visible=false;
+function updateTideBeacon(t){
+ tideBeacon.visible=(mission.stage===23||mission.stage===24)&&!mission.failed;
+ if(!tideBeacon.visible)return;
+ tideBeacon.position.set(mission.tideX,height(mission.tideX,mission.tideZ,t)+3,mission.tideZ);
+ tideCore.rotation.y=t;tideCore.position.y=12+Math.sin(t*2)*2;
+ tideHalo.scale.setScalar(1+Math.sin(t*2)*.06);
+}
 function activateTideGuards(t,reset){
  const group=enemies.filter(e=>e.tideGuard);
  group.forEach((e,i)=>{
@@ -811,6 +825,7 @@ function launchClearWave(wave,t){
  notifyCombat('LIMPE A ÁREA · ONDA '+(wave+1)+'/3 · '+active+' NAVES',3);
 }
 function updateMission(dt,t){
+ updateTideBeacon(t);
  const {cargoX,cargoZ,deliveryX,deliveryZ}=mission;
  cargo.visible=mission.stage===0;
  if(mission.stage===0){
@@ -908,10 +923,11 @@ function updateMission(dt,t){
   }else if(mission.stage===18){
    if(mission.subHp<=0){mission.stage=19;mission.finished=true;ghostPrompt.style.display='block';economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
   }else if(mission.stage===23){
-   if(Math.hypot(x-mission.tideX,z-mission.tideZ)<110){mission.stage=24;mission.tideScan=0;saveCheckpoint();notifyCombat('📡 COLETOR PELÁGICO · MANTENHA POSIÇÃO',3);}
+   if(Math.hypot(x-mission.tideX,z-mission.tideZ)<185){mission.stage=24;mission.tideScan=0;saveCheckpoint();notifyCombat('📡 COLETOR PELÁGICO · MANTENHA POSIÇÃO',3);}
   }else if(mission.stage===24){
-   const near=Math.hypot(x-mission.tideX,z-mission.tideZ)<100;
-   mission.tideScan=Math.max(0,Math.min(8,(mission.tideScan||0)+(near?dt:-dt*.7)));
+   const near=Math.hypot(x-mission.tideX,z-mission.tideZ)<185;
+   // Fora do raio a leitura pausa, não apaga progresso já coletado.
+   mission.tideScan=Math.max(0,Math.min(8,(mission.tideScan||0)+(near?dt:0)));
    if(mission.tideScan>=8){mission.stage=25;activateTideGuards(t,true);saveCheckpoint();notifyCombat('⚠ EMBOSCADA · PROTEJA OS DADOS DO COLETOR',4);}
   }else if(mission.stage===25){
    if(!enemies.some(e=>e.tideGuard&&e.hp>0)){
@@ -996,7 +1012,7 @@ function updateMission(dt,t){
   mission.stage===21?'⚔ FROTA FANTASMA · ESQUADRA '+(mission.ghostWave+1)+'/2 · '+enemies.filter(e=>e.ghostWave!==undefined&&e.hp>0).length+' HOSTIS':
   mission.stage===22?'☀ AMANHECER · NOVA MISSÃO DISPONÍVEL':
   mission.stage===23?'📡 CORAÇÃO DA MARÉ · ENCONTRE O COLETOR · '+Math.round(Math.hypot(x-mission.tideX,z-mission.tideZ))+'m':
-  mission.stage===24?'⚡ EXTRAINDO DADOS PELÁGICOS · '+Math.floor((mission.tideScan||0)/8*100)+'%':
+  mission.stage===24?'⚡ DADOS PELÁGICOS · '+Math.floor((mission.tideScan||0)/8*100)+'% · '+(Math.hypot(x-mission.tideX,z-mission.tideZ)<185?'CAPTANDO':'APROXIME-SE DO SINAL AZUL'):
   mission.stage===25?'⚔ PROTEJA O COLETOR · '+enemies.filter(e=>e.tideGuard&&e.hp>0).length+' HOSTIS':
   mission.stage===26?'✅ CORAÇÃO DA MARÉ RECUPERADO · +900 SUCATAS':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
