@@ -1435,7 +1435,7 @@ function energyFlash(position,power=1){
  material.uniforms.uTime={value:0};material.uniforms.uOpacity={value:1};
  material.uniforms.uColor={value:new THREE.Color(0x7defff)};
  const flash=new THREE.Mesh(energyGlowGeometry,material);
- flash.position.copy(position);flash.scale.setScalar(2*power);scene.add(flash);
+ flash.position.copy(position);flash.scale.setScalar(2*Math.min(power,2));scene.add(flash);
  const ring=new THREE.Mesh(shockwaveGeometry,shockwaveMaterial.clone());ring.position.copy(position);scene.add(ring);
  const positions=new Float32Array(sparkCount*3),velocities=[];
  for(let i=0;i<sparkCount;i++){
@@ -1445,7 +1445,7 @@ function energyFlash(position,power=1){
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
  const sparks=new THREE.Points(geometry,new THREE.PointsMaterial({color:0x9efaff,size:.7,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));
  sparks.position.copy(position);scene.add(sparks);
- impactEffects.push({flash,ring,sparks,velocities,age:0,power});
+ impactEffects.push({flash,ring,sparks,velocities,age:0,power:Math.min(power,2.5)});
 }
 const projectiles=[];let lockedNpc=null,lastShotTime=-100;
 const weaponReadyAt=Object.fromEntries(Object.keys(WEAPON_STATS).map(id=>[id,0]));
@@ -1662,7 +1662,7 @@ function launchShot(manualPoint=null){
  const outerGlow=new THREE.Mesh(energyGlowGeometry,energyGlowMaterial);
  outerGlow.scale.setScalar(1.9);
  mesh.add(core,plasma,glow,outerGlow);mesh.position.copy(origin);scene.add(mesh);
- energyFlash(origin,ammo.id==='energyBomb'?5:1);
+ energyFlash(origin,ammo.id==='energyBomb'?2.4:1);
  if(ammo.id==='energyBomb')attackCamera.shake=Math.max(attackCamera.shake,.28);
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
@@ -1682,14 +1682,14 @@ function launchShot(manualPoint=null){
  }
  if(ammo.id==='energyBomb'){
   // Projétil especial: núcleo branco, plasma pelágico, três campos pulsantes.
-  mesh.scale.setScalar(3.2);
+  mesh.scale.setScalar(1.75);
   core.material=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
   plasma.material=new THREE.MeshBasicMaterial({color:0x39e9ff,wireframe:true,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false});
   for(let i=0;i<3;i++){
-   const ring=new THREE.Mesh(new THREE.TorusGeometry(2.05+i*.48,.10,8,44),new THREE.MeshBasicMaterial({color:i===1?0xffffff:0x00dfff,transparent:true,opacity:.83,blending:THREE.AdditiveBlending,depthWrite:false}));
+   const ring=new THREE.Mesh(new THREE.TorusGeometry(1.1+i*.28,.06,8,32),new THREE.MeshBasicMaterial({color:i===1?0xffffff:0x00dfff,transparent:true,opacity:.83,blending:THREE.AdditiveBlending,depthWrite:false}));
    ring.rotation.set(i*.65,.4+i*.83,.15+i*.42);mesh.add(ring);
   }
-  const energyLight=new THREE.PointLight(0x52eaff,8,60);mesh.add(energyLight);
+  const energyLight=new THREE.PointLight(0x52eaff,2.7,35);mesh.add(energyLight);
   shot.overload=true;
  }
  if(ammo.id==='iron'){core.material=energyCoreMaterial.clone();core.material.color.setHex(ammo.color);}
@@ -2447,7 +2447,7 @@ for(let i=projectiles.length-1;i>=0;i--){
    if(p.foamTimer>=.12){p.foamTimer=0;emitWake(p.mesh.position.x,p.mesh.position.z,t,false);}
   }else if(p.ammo==='plasma'||p.ammo==='iron'||p.ammo==='energyBomb'){
    p.mesh.position.lerpVectors(p.origin,p.destination,u);
-   if(p.overload){p.mesh.rotation.z+=dt*5;p.mesh.rotation.y+=dt*3;p.mesh.scale.setScalar(3.2+Math.sin(t*35)*.55);}
+   if(p.overload){p.mesh.rotation.z+=dt*5;p.mesh.rotation.y+=dt*3;p.mesh.scale.setScalar(1.75+Math.sin(t*22)*.17);}
   }else{
    ballisticPoint(p.origin,p.destination,p.travel,p.age,p.arcHeight,p.mesh.position);
   }
@@ -2519,7 +2519,7 @@ for(let i=projectiles.length-1;i>=0;i--){
     const hitDamage=p.ammo==='energyBomb'?Math.ceil(1200*.25):Math.max(1,p.damage||25);
     mission.subHp=Math.max(0,mission.subHp-hitDamage);
     p.age=p.travel;
-    energyFlash(p.mesh.position,p.ammo==='energyBomb'?6:1);
+    energyFlash(p.mesh.position,p.ammo==='energyBomb'?2.4:1);
     notifyCombat('CAÇADORA ATINGIDA · -'+Math.round(hitDamage)+' HP · '+Math.ceil(mission.subHp)+' RESTANTES',2);
    }
   }
@@ -2534,7 +2534,7 @@ for(let i=projectiles.length-1;i>=0;i--){
       continue;
     }
     if(physicalImpact)p.destination.copy(p.mesh.position);
-    energyFlash(p.mesh.position,p.ammo==='energyBomb'?6:1);
+    energyFlash(p.mesh.position,p.ammo==='energyBomb'?2.4:1);
     if(p.ammo==='energyBomb')attackCamera.shake=Math.max(attackCamera.shake,.48);
     if(p.ammo==='torpedo'){
      // Anel de choque mostra o alcance real do torpedo no plano do oceano.
@@ -2555,7 +2555,7 @@ for(let i=projectiles.length-1;i>=0;i--){
         enemy.lastDamageAt=t;
         enemy.lastCombatAt=t;enemy.nextRegenAt=t+75;
         showDamage(enemy,damage);
-        energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z),p.ammo==='energyBomb'?6:1);
+        energyFlash(new THREE.Vector3(enemy.x,enemy.y+2.5,enemy.z),p.ammo==='energyBomb'?2.4:1);
         if(enemy.hp===0){
           enemy.state='destroyed';
           if(enemy.clearAreaWave!==undefined&&mission.stage===3)mission.clearDestroyed++;
@@ -2611,7 +2611,7 @@ for(let i=impactEffects.length-1;i>=0;i--){
  const e=impactEffects[i];e.age+=dt;e.flash.quaternion.copy(camera.quaternion);e.ring.quaternion.copy(camera.quaternion);
  const fade=Math.max(0,1-e.age/.40);
  e.flash.material.uniforms.uTime.value=t;e.flash.material.uniforms.uOpacity.value=fade;
- e.flash.scale.setScalar((1.6+e.age*7)*e.power);e.ring.scale.setScalar((1+e.age*16)*e.power);e.ring.material.opacity=fade*.85;
+ e.flash.scale.setScalar((1.6+e.age*7)*e.power);e.ring.scale.setScalar((1+e.age*12)*e.power);e.ring.material.opacity=fade*.85;
  const pos=e.sparks.geometry.attributes.position;
  for(let j=0;j<e.velocities.length;j++){const v=e.velocities[j];pos.setXYZ(j,v.x*e.age,v.y*e.age-11*e.age*e.age,v.z*e.age)}
  pos.needsUpdate=true;e.sparks.material.opacity=fade;
