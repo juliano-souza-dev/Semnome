@@ -384,11 +384,11 @@ document.body.appendChild(hunterBoostHud);
 const subShots=[]; // Compatibilidade com checkpoints antigos; ataques usam enemyShots.
 const subPrompt=document.createElement('div');subPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:19px;width:min(370px,88vw);background:#071b32f2;border:1px solid #72dafe;border-radius:14px;color:white;font:600 14px system-ui;text-align:center';
 subPrompt.innerHTML='<strong>⚔ CAÇADA À SUCATEIRA</strong><p>Uma nave aliada desapareceu. Uma caçadora feita de sucata interceptou o último sinal.</p><button style="padding:12px 20px;background:#8deaff;border:0;border-radius:9px;font-weight:800">INVESTIGAR</button>';document.body.appendChild(subPrompt);
-const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';sonarBtn.textContent='📡 SONAR';document.body.appendChild(sonarBtn);
+const sonarBtn=document.createElement('button');sonarBtn.style.cssText='display:none;position:fixed;right:12px;bottom:175px;z-index:95;background:#163d57;color:white;padding:12px;border:1px solid #91eeff;border-radius:10px;font:700 12px system-ui';sonarBtn.textContent='📡 VARREDURA DE MARÉ';document.body.appendChild(sonarBtn);
 const SONAR_KEY='semnome.sonar.unlocked.v1';
 let sonarUnlocked=false;try{sonarUnlocked=localStorage.getItem(SONAR_KEY)==='true'}catch{}
 let sonarUntil=0,sonarReady=0,subEmpUntil=0;
-sonarBtn.onclick=()=>{const t=clock.elapsedTime;if(t<sonarReady||(mission.stage<16&&!sonarUnlocked))return;sonarUntil=t+7;sonarReady=t+16;notifyCombat('SONAR ATIVO · CONTATO REVELADO',3);};
+sonarBtn.onclick=()=>{const t=clock.elapsedTime;if(t<sonarReady||(mission.stage<16&&!sonarUnlocked))return;sonarUntil=t+7;sonarReady=t+16;notifyCombat('VARREDURA DE MARÉ · CONTATO REVELADO',3);};
 function clearSubShots(){for(let i=enemyShots.length-1;i>=0;i--){if(enemyShots[i].source==='hunter'){discardEnemyShot(enemyShots[i]);enemyShots.splice(i,1);}}}
 function startSubHunt(){
  if(mission.stage!==14)return;
@@ -507,7 +507,7 @@ function updateSubHunt(dt,t){
  if(mission.stage>=16&&d<400&&t>=mission.subNextAttack&&playerCombat.hp>0){
   const fired=fireSubShot(t);
   mission.subNextAttack=t+(fired?.35:.6);
-  if(d<145&&t>subEmpUntil+22){subEmpUntil=t+4;notifyCombat('⚡ INTERFERÊNCIA NO PROPULSOR · 4s',3);}
+  if(d<145&&t>subEmpUntil+22){subEmpUntil=t+4;notifyCombat('⚡ COLETORES DE MARÉ INTERFERIDOS · 4s',3);}
  }
 
 }
@@ -1240,11 +1240,11 @@ const compassPings=enemies.map(enemy=>{
 const fireButton=document.getElementById('fire'),lockLabel=document.getElementById('lock');
 fireButton.setAttribute('aria-label','Segurar para mirar e soltar para disparar');
 const AMMO_TYPES=[
- {id:'plasma',name:'Plasma',icon:'⚡',description:'Arco energético',color:0x25cfff},
- {id:'scatter',name:'Rajada de Energia',icon:'✨',description:'Três impactos rápidos em área',color:0xbc80ff},
- {id:'iron',name:'Teste de Ferro',icon:'🔩',description:'Projétil 3× mais rápido · dano 40',color:0xffd28b},
- {id:'torpedo',name:'Torpedo',icon:'🚀',description:'Explosão em área · dano 165',color:0x62f2ec},
- {id:'energyBomb',name:'Bomba de Energia',icon:'💠',description:'25% da vida máxima do alvo · recarga 5 minutos',color:0x69f9ff},
+ {id:'plasma',name:'Pulso Pelágico',icon:'⚡',description:'Descarga de energia do oceano · núcleo de sucata',color:0x25cfff},
+ {id:'scatter',name:'Rajada de Ruptura',icon:'✨',description:'Três fragmentos energizados em área',color:0xbc80ff},
+ {id:'iron',name:'Fragmento Condensado',icon:'🔩',description:'Sucata magnetizada · alta velocidade · dano 40',color:0xffd28b},
+ {id:'torpedo',name:'Dardo Pelágico',icon:'🚀',description:'Projétil de sucata energizada · dano 165',color:0x62f2ec},
+ {id:'energyBomb',name:'Núcleo de Sobrecarga',icon:'💠',description:'25% da vida máxima · recarga 5 minutos · apagão 10s',color:0x69f9ff},
 ];
 let selectedAmmo=AMMO_TYPES[0];
 // Apenas armas de efeito especial usam a câmera tática superior.
@@ -1349,7 +1349,7 @@ function updateEnergyBombStatus(){
  const secs=Math.ceil(Math.max(0,(energyBombReadyAt-Date.now())/1000));
  if(secs===lastEnergyBombSecond)return;
  lastEnergyBombSecond=secs;
- energyBombStatus.textContent=secs?'💠 Bomba de Energia · '+Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0'):'💠 Bomba de Energia · PRONTA';
+ energyBombStatus.textContent=secs?'💠 Núcleo de Sobrecarga · '+Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0'):'💠 Núcleo de Sobrecarga · PRONTO';
  const slot=weaponDock.querySelector('[data-weapon="energyBomb"]');
  if(slot){slot.title=energyBombStatus.textContent;slot.style.opacity=secs?'.55':'1';}
 }
@@ -1624,7 +1624,7 @@ let mineReadyAt=0;
 const mineGeometry=new THREE.IcosahedronGeometry(2.7,0);
 const mineMaterial=new THREE.MeshStandardMaterial({color:0x293b4c,metalness:.7,roughness:.35});
 const mineButton=document.createElement('button');
-mineButton.type='button';mineButton.id='mineButton';mineButton.textContent='💣 MINA';
+mineButton.type='button';mineButton.id='mineButton';mineButton.textContent='💣 NÓ DE RUPTURA';
 mineButton.style.cssText='position:fixed;right:14px;bottom:125px;z-index:90;border:1px solid #8ef0ff;border-radius:12px;background:#132c3d;color:white;padding:11px;font-weight:700;touch-action:manipulation';
 document.body.appendChild(mineButton);
 function deployMine(){
@@ -1657,7 +1657,7 @@ function updateEnemyMines(t){
 mineButton.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();deployMine();});
 function updateMines(now){
  mineButton.disabled=energyDisabled()||playerCombat.hp<=0||now<mineReadyAt||mines.length>=MINE.max;
- mineButton.textContent=now<mineReadyAt?'💣 '+Math.ceil(mineReadyAt-now)+'s':'💣 MINA';
+ mineButton.textContent=now<mineReadyAt?'💣 '+Math.ceil(mineReadyAt-now)+'s':'💣 NÓ DE RUPTURA';
  for(let i=mines.length-1;i>=0;i--){
   const mine=mines[i];
   mine.mesh.position.set(mine.x,height(mine.x,mine.z,now)+.9,mine.z);
