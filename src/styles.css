@@ -229,3 +229,20 @@ canvas{display:block;touch-action:none;pointer-events:auto}#ui{position:fixed;in
  #lock{display:none!important}
  #hunterHealthBar{max-width:31vw!important}
 }
+
+/* Arsenal reduzido: três armas principais; Sobrecarga em slot especial independente. */
+#weaponDock{display:grid!important;grid-template-columns:repeat(3,44px)!important;grid-template-rows:44px!important;width:max-content!important;max-height:52px!important;overflow:visible!important;top:115px!important;right:max(9px,env(safe-area-inset-right))!important;gap:5px!important}
+#overloadSelect{position:fixed;right:max(9px,env(safe-area-inset-right));top:170px;width:49px;height:49px;border:2px solid #7ceeff;border-radius:12px;background:linear-gradient(140deg,#194966,#0b203a);display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:manipulation;z-index:86;box-shadow:0 0 12px #1bddff55}
+#overloadSelect img{width:34px;height:34px;max-width:100%;max-height:100%}
+#overloadSelect.selected{border-color:#ffe38c;box-shadow:0 0 0 1px #ffe38c,0 0 15px #30e9ffee}
+#pickupHudControls{right:9px!important;top:226px!important}
+#sonarHudButton{right:62px!important;top:170px!important}
+#mineButton{right:115px!important;top:170px!important}
+@media(max-height:480px){
+ #weaponDock{grid-template-columns:repeat(3,36px)!important;grid-template-rows:36px!important;top:55px!important;max-height:42px!important;gap:4px!important}
+ #overloadSelect{top:98px!important;right:9px!important;width:38px!important;height:38px!important}
+ #overloadSelect img{width:29px!important;height:29px!important}
+ #sonarHudButton{top:98px!important;right:52px!important}
+ #mineButton{top:98px!important;right:94px!important}
+ #pickupHudControls{top:140px!important;right:9px!important}
+}
