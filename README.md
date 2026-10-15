@@ -1,5 +1,40 @@
 # Semnome — Planejamento do jogo
 
+## Direção oficial do universo: A Era da Destruição e a Energia Pelágica
+
+> **Regra de mundo:** tudo é sucata e energia. Não há navios ou submarinos convencionais. As máquinas de guerra são naves construídas de materiais recuperados, que pairam rente ao oceano para alimentar os próprios sistemas.
+
+### Por que as naves permanecem perto do mar?
+Após a **Ruptura**, a água dos oceanos passou a liberar **Energia Pelágica**, uma força instável captada por **Coletores de Maré** montados na parte inferior de cada nave. O **Núcleo de Sucata** converte essa energia e seus **Condutores Abissais** a distribuem para propulsão, armas, escudos, sensores e reparos. As naves não flutuam como embarcações tradicionais nem voam livremente: dependem do campo energético oceânico. Em altitude excessiva ou longe do mar, captam menos energia, sobreaquecem e podem perder sustentação. O voo rente à superfície é uma necessidade física e estratégica, não apenas visual.
+
+> *No fim do velho mundo, restaram ferro, mar e energia. Das sucatas do passado nasceram máquinas de guerra. Elas não navegam e não voam livremente: caçam rente ao oceano, sugando da maré a força para perseguir e destruir.*
+
+### Vocabulário oficial de combate
+
+| Sistema (identificador interno preservado) | Nome no mundo | Princípio |
+| --- | --- | --- |
+| `plasma` | **Pulso Pelágico** | Disparo básico de energia captada e condensada |
+| `iron` | **Fragmento Condensado** | Sucata comprimida e magnetizada, velocidade alta |
+| `torpedo` | **Dardo Pelágico** | Carcaça energizada, projétil pesado com explosão |
+| `scatter` | **Rajada de Ruptura** | Descarga fragmentada em múltiplos impactos |
+| `energyBomb` | **Núcleo de Sobrecarga** | Descarga extrema: 25% da vida máxima do alvo, 5 minutos de recarga, 10 segundos sem energia após disparar |
+| Mina / armadilha | **Nó de Ruptura** | Campo de sucata energizada que interrompe sistemas |
+| Escudo | **Barreira Pelágica** | Película defensiva alimentada pelo núcleo |
+| Booster / propulsor | **Impulso de Maré** | Pico de energia canalizado para aceleração |
+| Sonar / radar | **Varredura de Maré** | Reconhecimento das perturbações no campo energético |
+
+### Diretrizes de arte, HUD e implementação
+- Linguagem visual: **metal reaproveitado**, soldas, placas irregulares, rebites, bobinas, anéis condutores e trilhas de energia **ciano/azul**, com cores adicionais para distinguir armamentos.
+- Todo projétil deve parecer uma **combinação de sucata e energia**, nunca munição naval convencional sem transformação.
+- Feedback do jogador: clareza em munições, recargas, potência, escudo e interrupções de energia, sem poluição visual em telas pequenas.
+- Preservar parâmetros de dano, alcance, colisão, recarga, IA e progressão da versão funcional, salvo quando uma mudança de gameplay for aprovada separadamente.
+- **Compatibilidade:** IDs de armas, chaves do `localStorage` e dados de checkpoints NÃO mudam apenas porque os nomes do mundo mudaram.
+- Futuras mecânicas opcionais: eficiência dos coletores por proximidade ao oceano, zonas de recarga e superaquecimento; implementar com telemetria e testes de equilíbrio antes de ativar.
+- O oceano é parte do sistema energético de todas as facções; os chefes possuem coletores maiores, peças raras e reatores mais potentes.
+
+---
+
+
 ## Visão inicial
 Jogo de navegação e combate marítimo em mundo 3D, com embarcações apresentadas por sprites 2.5D. Projeto mobile-first, com renderização WebGL e câmera em perspectiva.
 
