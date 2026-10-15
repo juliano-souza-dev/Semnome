@@ -1253,7 +1253,7 @@ const HUD_ICON_FILES=Object.freeze({
 });
 function hudIcon(type,size=32){
  const img=document.createElement('img');
- img.src=new URL(HUD_ICON_FILES[type],document.baseURI).href;
+ img.src=new URL('public/assets/icons/hud/'+HUD_ICON_FILES[type],document.baseURI).href;
  img.alt='';img.draggable=false;img.decoding='async';
  img.style.cssText='width:'+size+'px;height:'+size+'px;object-fit:contain;display:inline-block;vertical-align:middle;pointer-events:none;flex-shrink:0';
  return img;
