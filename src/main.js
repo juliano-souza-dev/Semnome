@@ -1411,7 +1411,7 @@ const compassPings=enemies.map(enemy=>{
  const threatStatus=document.createElement('div');threatStatus.id='threatStatus';threatStatus.setAttribute('aria-live','off');compass.appendChild(threatStatus);
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
-  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:mission.stage===20?{x:mission.ghostX,z:mission.ghostZ}:mission.stage===23||mission.stage===24?{x:mission.tideX,z:mission.tideZ}:mission.stage===27?{x:mission.siegeX,z:mission.siegeZ}:null;
+  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:mission.stage===20?{x:mission.ghostX,z:mission.ghostZ}:mission.stage===23||mission.stage===24?{x:mission.tideX,z:mission.tideZ}:mission.stage===27?{x:mission.siegeX,z:mission.siegeZ}:mission.stage===35?{x:mission.prepX,z:mission.prepZ}:null;
   const trackingSub=mission.stage>=16&&mission.stage<=18&&!mission.failed;
   const subDist=Math.hypot(x-mission.subX,z-mission.subZ);
   subCompassPing.style.display=trackingSub?'block':'none';
@@ -1422,7 +1422,7 @@ const compassPings=enemies.map(enemy=>{
    subCompassPing.title='Caçadora de sucata · '+Math.round(subDist)+' m';
   }
   objectivePing.style.display=goal?'block':'none';
-  if(goal){const bearing=Math.atan2(-(goal.x-x),-(goal.z-z));const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));objectivePing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';objectivePing.textContent=Math.abs(delta)>Math.PI*.75?'◀':'◆';}
+  if(goal){const bearing=Math.atan2(-(goal.x-x),-(goal.z-z));const delta=Math.atan2(Math.sin(bearing-heading),Math.cos(bearing-heading));objectivePing.style.left=THREE.MathUtils.clamp(50-delta/Math.PI*45,5,95)+'%';objectivePing.textContent=mission.stage===35?'⚓':Math.abs(delta)>Math.PI*.75?'◀':'◆';objectivePing.title=mission.stage===35?'Nave aliada · '+Math.round(Math.hypot(goal.x-x,goal.z-z))+' metros':'Objetivo da missão';}
   let nearestEnemy=null,nearestRange=Infinity,activeThreats=0,shooters=0;
   for(let i=0;i<enemies.length;i++){
    const enemy=enemies[i],marker=compassPings[i];
