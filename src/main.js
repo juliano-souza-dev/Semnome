@@ -352,6 +352,27 @@ const submarine=createWarMachine3D(THREE,{enemy:true});
 submarine.scale.setScalar(2.7);submarine.visible=false;scene.add(submarine);
 const hunterBoostGlow=new THREE.PointLight(0xff8e24,0,100);hunterBoostGlow.position.set(0,3,21);submarine.add(hunterBoostGlow);
 let hunterBoostUntil=0,hunterBoostReadyAt=0,hunterBoostMode='chase',hunterLastBoost=0;
+// Barra de integridade do chefe no mesmo padrão de leitura do jogador.
+const hunterHpHud=document.createElement('div');
+hunterHpHud.id='hunterHealthBar';hunterHpHud.setAttribute('role','progressbar');
+hunterHpHud.setAttribute('aria-label','Integridade da Caçadora de Sucata');
+hunterHpHud.setAttribute('aria-valuemin','0');hunterHpHud.setAttribute('aria-valuemax','1200');
+hunterHpHud.style.cssText='display:none;position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:91;width:min(390px,88vw);height:28px;overflow:hidden;border-radius:10px;border:2px solid #b9d7ee;background:#162838e8;box-shadow:0 2px 13px #0009;pointer-events:none';
+const hunterHpFill=document.createElement('div');
+hunterHpFill.style.cssText='position:absolute;inset:0 auto 0 0;width:100%;background:linear-gradient(180deg,#aaff56,#52ce18);transition:width .15s linear';
+const hunterHpLabel=document.createElement('span');
+hunterHpLabel.style.cssText='position:absolute;inset:0;display:flex;justify-content:center;align-items:center;font:800 12px system-ui;color:white;text-shadow:0 1px 3px #000,0 0 3px #000;letter-spacing:.2px';
+hunterHpHud.append(hunterHpFill,hunterHpLabel);document.body.appendChild(hunterHpHud);
+function refreshHunterHealth(){
+ const active=mission.stage>=16&&mission.stage<=18&&!mission.failed&&mission.subHp>0;
+ hunterHpHud.style.display=active?'block':'none';
+ if(!active)return;
+ const hp=THREE.MathUtils.clamp(mission.subHp,0,1200),ratio=hp/1200;
+ hunterHpFill.style.width=(ratio*100).toFixed(1)+'%';
+ hunterHpFill.style.background=ratio>.6?'linear-gradient(180deg,#aaff56,#52ce18)':ratio>.3?'linear-gradient(180deg,#ffe76b,#e7a528)':'linear-gradient(180deg,#ff8380,#d72832)';
+ hunterHpLabel.textContent='⚔ CAÇADORA DE SUCATA · '+Math.ceil(hp)+' / 1200 HP';
+ hunterHpHud.setAttribute('aria-valuenow',String(Math.ceil(hp)));
+}
 const hunterBoostHud=document.createElement('div');
 hunterBoostHud.style.cssText='display:none;position:fixed;top:25%;left:50%;transform:translateX(-50%);z-index:85;padding:5px 10px;color:#ffcd92;background:#211b29bd;border:1px solid #df8b37;border-radius:9px;font:700 12px system-ui;pointer-events:none';
 document.body.appendChild(hunterBoostHud);
@@ -1672,6 +1693,7 @@ requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.04),t=clock.elap
 currentSeaIntensity=seaIntensityAt(t);
 updateEnergyBombStatus();
 updateSubHunt(dt,t);
+refreshHunterHealth();
 uniforms.uTime.value=t;
 uniforms.uWaveIntensity.value=currentSeaIntensity;
 // Pilotagem direta e previsível: eixo Y regula motor, eixo X gira casco.
