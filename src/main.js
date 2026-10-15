@@ -423,6 +423,7 @@ function updateSubHunt(dt,t){
  sonarBtn.disabled=t<sonarReady;
  hunterBoostHud.style.display=mission.stage>=16&&mission.stage<=18?'block':'none';
  if(!submarine.visible){clearSubShots();return;}
+ mission.subPreviousX=mission.subX;mission.subPreviousZ=mission.subZ;
  const d=Math.hypot(x-mission.subX,z-mission.subZ),low=mission.subHp<380;
  const boosting=t<hunterBoostUntil;
  const cooling=Math.max(0,hunterBoostReadyAt-t);
@@ -2311,11 +2312,23 @@ for(let i=projectiles.length-1;i>=0;i--){
     p.age=p.travel;
    }
   }
-  if(mission.stage===18&&!p.subCounted){
-   const dist=Math.hypot(p.mesh.position.x-mission.subX,p.mesh.position.z-mission.subZ);
-   if(dist<42&&Math.abs(p.mesh.position.y-submarine.position.y)<24){
-    p.subCounted=true;mission.subHp=Math.max(0,mission.subHp-(p.ammo==='energyBomb'?300:Math.max(1,p.damage||25)));
-    p.age=p.travel;energyFlash(p.mesh.position);notifyCombat('CAÇADORA DE SUCATA ATINGIDO · '+Math.ceil(mission.subHp)+' HP',2);
+  if(mission.stage===18&&mission.subHp>0&&!p.subCounted){
+   // Colisão varrida entre duas posições: não atravessa o casco no booster/FPS alto.
+   const contact=sweptMovingContact(previousPosition,p.mesh.position,
+    {x:mission.subPreviousX??mission.subX,z:mission.subPreviousZ??mission.subZ},
+    {x:mission.subX,z:mission.subZ},39);
+   const impactY=THREE.MathUtils.lerp(previousPosition.y,p.mesh.position.y,contact.fraction??1);
+   const directHit=contact.hit&&Math.abs(impactY-submarine.position.y)<30;
+   const splash=p.ammo==='torpedo'||!directShot;
+   const landing=Math.hypot(p.destination.x-mission.subX,p.destination.z-mission.subZ);
+   const areaHit=u>=1&&splash&&landing<=WEAPON_STATS[p.ammo].impact+34;
+   if(directHit||areaHit){
+    p.subCounted=true;
+    const hitDamage=p.ammo==='energyBomb'?Math.ceil(1200*.25):Math.max(1,p.damage||25);
+    mission.subHp=Math.max(0,mission.subHp-hitDamage);
+    p.age=p.travel;
+    energyFlash(p.mesh.position);
+    notifyCombat('CAÇADORA ATINGIDA · -'+Math.round(hitDamage)+' HP · '+Math.ceil(mission.subHp)+' RESTANTES',2);
    }
   }
   const directExpired=directShot&&u>=1&&!physicalImpact&&!p.baseCounted&&!p.subCounted;
