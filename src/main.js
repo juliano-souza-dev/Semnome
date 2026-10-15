@@ -299,6 +299,11 @@ for(let i=0;i<6;i++){
  heading:0,speed:9,hp:0,phase:i*.9,radius:17,sprite:null,nextShot:0,
  state:'dormant',hostile:true,dormant:true,extractionWave:Math.floor(i/2)});
 }
+// Frota Fantasma: usa os modelos, armamentos e IA dos NPCs atuais.
+for(let i=0;i<6;i++){
+ const id=reinforcementId++;
+ enemies.push({id,name:i===5?'Capitão Fantasma':'Espectro de Sucata '+(i+1),x:0,z:0,y:0,anchorX:0,anchorZ:0,heading:0,speed:12,hp:0,phase:i*.7,radius:18,sprite:null,nextShot:0,state:'dormant',hostile:true,dormant:true,ghostWave:Math.floor(i/3),ghostCaptain:i===5,veteran:true});
+}
 // Ataque NPC: detecção, aproximação, cadência individual, projéteis e dano real.
 // Cada NPC compartilha a mesma geometria base, mas é uma instância independente.
 for(const enemy of enemies){
@@ -319,7 +324,7 @@ const ENEMY_AI={detect:TACTICS.detect,fireRange:175,retreatRange:48,shotSpeed:14
 const playerCombat={hp:ENEMY_AI.maxHp,invulnerableUntil:0,respawnAt:0,deathX:0,deathZ:0,deathHeading:0,lastDamageAt:-9999};
 const enemyShots=[];
 // MISSÃO 01: RECUPERE A CARGA. O objetivo não se move; a frota caça o jogador.
-const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
+const mission={cargoX:110,cargoZ:-1050,deliveryX:3110,deliveryZ:-1050,stage:0,finished:false,failed:false,calmSea:false,shopClosed:false,shopX:null,shopZ:null,transitionAt:0,clearWave:-1,clearDestroyed:0,signalX:9400,signalZ:-1100,scan:0,defendUntil:0,allyHp:100,signalKills:0,signalNextMine:0,baseX:11200,baseZ:-2100,recon:0,defensesDown:0,baseHits:0,baseDestroyed:false,towerNextShot:0,extractionX:0,extractionZ:0,extractionStartX:0,extractionStartZ:0,extractionDistance:0,extractionNextWave:1,ghostWave:0,ghostX:0,ghostZ:0,subX:0,subZ:0,subHp:1200,subScan:0,subPhaseAt:0,subNextAttack:0,subSurviveUntil:0};
 const economyKey='semnome.economy.v1';let oldEconomy={};try{oldEconomy=JSON.parse(localStorage.getItem(economyKey)||'{}')||{}}catch{}
 const economy={scrap:Math.max(0,Number(oldEconomy.scrap)||0),engine:Math.min(5,Number(oldEconomy.engine)||0),weapons:Math.min(5,Number(oldEconomy.weapons)||0),armor:Math.min(5,Number(oldEconomy.armor)||0),health:Math.min(5,Number(oldEconomy.health)||0),booster:Math.min(5,Number(oldEconomy.booster)||0)};
 const playerMaxHp=()=>ENEMY_AI.maxHp+economy.health*20;
@@ -349,7 +354,7 @@ const merchantAccess=document.createElement('button');merchantAccess.textContent
 // A Caçadora de Sucata: nave de emboscada, sem nave sucateiras neste mundo.
 // Mesmo chassi 3D das naves do jogo, ampliado para o chefe Caçadora.
 const submarine=createWarMachine3D(THREE,{enemy:true});
-submarine.scale.setScalar(2.7);submarine.visible=false;scene.add(submarine);
+submarine.scale.setScalar(2.2);submarine.visible=false;scene.add(submarine);
 const hunterBoostGlow=new THREE.PointLight(0xff8e24,0,100);hunterBoostGlow.position.set(0,3,21);submarine.add(hunterBoostGlow);
 let hunterBoostUntil=0,hunterBoostReadyAt=0,hunterBoostMode='chase',hunterLastBoost=0;
 // Barra de integridade do chefe no mesmo padrão de leitura do jogador.
@@ -437,6 +442,27 @@ function fireSubShot(t){
  hunterWeaponReady[choice.id]=t+weapon.cooldown;
  submarine.userData.recoil=.34;submarine.userData.flashTime=.13;
  return true;
+}
+const ghostPrompt=document.createElement('div');
+ghostPrompt.style.cssText='display:none;position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:180;padding:18px;background:#081b33f2;color:white;border:1px solid #8ce8ff;border-radius:14px;text-align:center;width:min(370px,88vw);font:600 14px system-ui';
+ghostPrompt.innerHTML='<strong>📡 MISSÃO 06 · FROTA FANTASMA</strong><p>A última transmissão revelou uma frota de sucateiros. Duas esquadras protegem um capitão.</p><button style="padding:12px 20px;border:0;background:#8ce8ff;border-radius:8px;font-weight:800">INICIAR MISSÃO</button>';document.body.appendChild(ghostPrompt);
+ghostPrompt.querySelector('button').onclick=()=>{
+ if(mission.stage!==19)return;
+ ghostPrompt.style.display='none';mission.stage=20;mission.finished=false;
+ mission.ghostX=x-420;mission.ghostZ=z-250;mission.ghostWave=0;
+ saveCheckpoint();notifyCombat('LOCALIZE A FROTA FANTASMA',4);
+};
+function activateGhostWave(wave,t){
+ const group=enemies.filter(e=>e.ghostWave===wave);
+ const cx=wave===0?mission.ghostX:x-200,cz=wave===0?mission.ghostZ:z-160;
+ group.forEach((e,i)=>{
+  const a=2*Math.PI*i/group.length+heading;
+  e.x=cx+Math.sin(a)*100;e.z=cz+Math.cos(a)*100;e.anchorX=e.x;e.anchorZ=e.z;e.y=height(e.x,e.z,t)+1;
+  e.previousX=e.x;e.previousZ=e.z;e.heading=Math.atan2(x-e.x,z-e.z);
+  e.maxHp=e.ghostCaptain?420:200;e.hp=e.maxHp;e.dormant=false;e.state='pursuit';
+  e.ai.body.x=e.x;e.ai.body.z=e.z;e.ai.body.vx=0;e.ai.body.vz=0;e.ai.plan=null;e.ai.nextPlanTime=0;e.ai.weaponReadyAt={};
+  e.model.position.set(e.x,e.y,e.z);e.model.visible=true;
+ });
 }
 function updateSubHunt(dt,t){
  submarine.visible=mission.stage>=15&&mission.stage<=18&&!mission.failed;
@@ -611,7 +637,7 @@ receiver.rotation.y=Math.PI/2;receiver.visible=false;
 scene.add(receiver);
 function activateInterceptors(){
  for(const enemy of enemies){
-  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined)continue;
+  if(!enemy.dormant||enemy.waveDistance||enemy.signalEnemy||enemy.baseEnemy||enemy.extractionWave!==undefined||enemy.clearAreaWave!==undefined||enemy.ghostWave!==undefined)continue;
   enemy.dormant=false;enemy.hp=enemy.maxHp;enemy.state='pursuit';
   enemy.ai.nextPlanTime=0;enemy.ai.choice=null;enemy.ai.plan=null;
   enemy.ai.lastCombatAt=clock.elapsedTime;
@@ -700,6 +726,8 @@ function restartCheckpoint(){
  }
  if(mission.stage===4)signalPrompt.style.display='block';
  if(mission.stage===14)subPrompt.style.display='block';
+ if(mission.stage===19)ghostPrompt.style.display='block';
+ if(mission.stage===21){mission.ghostWave=0;activateGhostWave(0,t);}
  if(mission.stage>=15&&mission.stage<=18){for(const key of Object.keys(hunterWeaponReady))delete hunterWeaponReady[key];hunterBoostUntil=0;hunterBoostReadyAt=t+8;mission.subPhaseAt=t;mission.subNextAttack=t+5;mission.subSurviveUntil=t+120;sonarReady=0;clearSubShots();}
  if(mission.stage===9)basePrompt.style.display='block';
  if(mission.stage>=10){baseStructure.visible=true;baseStructure.position.set(mission.baseX,height(mission.baseX,mission.baseZ,t),mission.baseZ);if(mission.stage===11)spawnBaseForce(false,t);if(mission.stage===12)spawnBaseForce(true,t);}
@@ -842,7 +870,14 @@ function updateMission(dt,t){
   }else if(mission.stage===17){
    if(t<sonarUntil){mission.subScan+=dt;if(mission.subScan>=5){mission.stage=18;mission.subPhaseAt=t;saveCheckpoint();notifyCombat('ALVO LOCALIZADO · ATIRE QUANDO EMERGIR',4);}}
   }else if(mission.stage===18){
-   if(mission.subHp<=0){mission.stage=19;mission.finished=true;economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
+   if(mission.subHp<=0){mission.stage=19;mission.finished=true;ghostPrompt.style.display='block';economy.scrap+=500;sonarUnlocked=true;try{localStorage.setItem(SONAR_KEY,'true')}catch{}saveEconomy();saveCheckpoint();notifyCombat('CAÇADORA DE SUCATA DESTRUÍDO · SONAR DESBLOQUEADO · +500 SUCATAS',6);}
+  }else if(mission.stage===20){
+   if(Math.hypot(x-mission.ghostX,z-mission.ghostZ)<180){mission.stage=21;mission.ghostWave=0;activateGhostWave(0,t);saveCheckpoint();notifyCombat('⚠ FROTA FANTASMA · EMBOSCADA',4);}
+  }else if(mission.stage===21){
+   if(!enemies.some(e=>e.ghostWave===mission.ghostWave&&e.hp>0)){
+    if(mission.ghostWave===0){mission.ghostWave=1;activateGhostWave(1,t);saveCheckpoint();notifyCombat('⚠ SEGUNDA ESQUADRA · CAPITÃO FANTASMA',4);}
+    else{mission.stage=22;mission.finished=true;economy.scrap+=750;saveEconomy();saveCheckpoint();notifyCombat('FROTA FANTASMA DERROTADA · +750 SUCATAS',6);}
+   }
   }else if(mission.stage===13){
    // Progresso ao longo da rota, evitando gatilhos inconsistentes por curvas ou checkpoint.
    const routeX=mission.extractionX-mission.extractionStartX,routeZ=mission.extractionZ-mission.extractionStartZ;
@@ -910,7 +945,10 @@ function updateMission(dt,t){
   mission.stage===16?'🌊 SOBREVIVA À CAÇADA · '+Math.max(0,Math.ceil(mission.subSurviveUntil-t))+'s':
   mission.stage===17?'📡 VARREDURA SONAR · '+Math.floor(mission.subScan)+'/5s':
   mission.stage===18?'⚔ CAÇADORA DE SUCATA · '+Math.ceil(mission.subHp)+'/1200 HP':
-  mission.stage===19?'✅ CAÇADA NAS PROFUNDEZAS CONCLUÍDA':
+  mission.stage===19?'✅ CAÇADA CONCLUÍDA · NOVA TRANSMISSÃO':
+  mission.stage===20?'📡 ENCONTRE A FROTA FANTASMA · '+Math.round(Math.hypot(x-mission.ghostX,z-mission.ghostZ))+'m':
+  mission.stage===21?'⚔ FROTA FANTASMA · ESQUADRA '+(mission.ghostWave+1)+'/2 · '+enemies.filter(e=>e.ghostWave!==undefined&&e.hp>0).length+' HOSTIS':
+  mission.stage===22?'✅ FROTA FANTASMA DERROTADA · +750 SUCATAS':
   mission.stage===12?'☠ DERROTE O COMANDANTE NAVAL':
   mission.stage===13?'🚢 EXTRAÇÃO · '+Math.round(Math.hypot(x-mission.extractionX,z-mission.extractionZ))+'m RESTANTES · '+Math.floor(mission.extractionDistance||0)+'m NA ROTA · ONDAS '+Math.min(3,mission.extractionNextWave-1)+'/3':'✅ OPERAÇÃO CONCLUÍDA';
 }
@@ -1162,7 +1200,7 @@ const compassPings=enemies.map(enemy=>{
  const threatStatus=document.createElement('div');threatStatus.id='threatStatus';threatStatus.setAttribute('aria-live','off');compass.appendChild(threatStatus);
  function refreshCompass(t){
   if(t-lastCompassUpdate<.075)return;lastCompassUpdate=t;
-  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:null;
+  const goal=mission.stage===0?{x:mission.cargoX,z:mission.cargoZ}:mission.stage===1?{x:mission.deliveryX,z:mission.deliveryZ}:mission.stage===5||mission.stage===6||mission.stage===8?{x:mission.signalX,z:mission.signalZ}:mission.stage>=10&&mission.stage<=12?{x:mission.baseX,z:mission.baseZ}:mission.stage===13?{x:mission.extractionX,z:mission.extractionZ}:mission.stage===15?{x:mission.subX,z:mission.subZ}:mission.stage===20?{x:mission.ghostX,z:mission.ghostZ}:null;
   const trackingSub=mission.stage>=16&&mission.stage<=18&&!mission.failed;
   const subDist=Math.hypot(x-mission.subX,z-mission.subZ);
   subCompassPing.style.display=trackingSub?'block':'none';
@@ -1865,10 +1903,10 @@ for(const enemy of enemies){
   // sem teleporte e sem acerto automático.
   if(!mission.failed&&playerCombat.hp>0){
    const distance=Math.hypot(x-enemy.x,z-enemy.z);
-   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)){
+   if((enemy.clearAreaWave!==undefined&&mission.stage===3)||(enemy.extractionWave!==undefined&&mission.stage===13)||(enemy.ghostWave!==undefined&&mission.stage===21)){
     // NPCs desta missão caçam o jogador desde o spawn; não retornam à patrulha.
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:true,
-     speed:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
+     speed:enemy.ghostWave!==undefined?47:enemy.extractionWave!==undefined?49:enemy.veteran?47:39,state:distance<190?'attack':'pursuit',intent:'pursuit'};
    }else if(ai.plan.intent!=='withdraw'){
     ai.plan={...ai.plan,goalX:x,goalZ:z,active:distance<325,
      speed:Math.max(ai.plan.speed,Math.min(enemy.veteran?52:43,29+distance*.016)),
