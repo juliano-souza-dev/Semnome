@@ -1755,7 +1755,7 @@ function launchShot(manualPoint=null){
  const trailPoints=Array.from({length:12},()=>origin.clone());
  const trailGeometry=new THREE.BufferGeometry().setFromPoints(trailPoints);
  const trail=new THREE.Line(trailGeometry,ammo.id==='torpedo'?new THREE.LineBasicMaterial({color:0xd6ffff,transparent:true,opacity:.7,depthWrite:false}):energyTrailMaterial);scene.add(trail);
- const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage*(1+economy.weapons*(finalPrep()?.05:.08))};
+ const shot={mesh,glow,outerGlow,plasma,trail,trailPoints,origin,destination,travel,arcHeight,age:0,distance:0,ammo:ammo.id,damage:WEAPON_STATS[ammo.id].damage*(1+(finalPrep()?(economy.weapons<=5?economy.weapons*.08:.40+(economy.weapons-5)*.0125):economy.weapons*.08))};
  if(ammo.id==='torpedo'){
   core.visible=false;plasma.visible=false;glow.visible=false;outerGlow.visible=false;
   const shell=new THREE.MeshStandardMaterial({color:0x657c83,metalness:.65,roughness:.3});
